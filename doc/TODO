@@ -1,0 +1,10 @@
+<louquillio@google.com>, 20111004
+
+* Determine that normative RFC 2119 terms (MUST, SHOULD, MAY, etc.) are
+  truly intended in all cases where capitalized.
+
+* Document hierarchy WRT headings has a flaw, in that topics related to
+  animated WebPs are discussed under subheads of "Single-image WebP
+  Files".
+
+* Several passages could be made clearer.
