@@ -28,7 +28,9 @@ static VP8StatusCode CheckDecBuffer(const WebPDecBuffer* const buffer) {
   WEBP_CSP_MODE mode = buffer->colorspace;
   const int width = buffer->width;
   const int height = buffer->height;
-  if (mode >= MODE_YUV) {   // YUV checks
+  if (mode < MODE_RGB || mode >= MODE_LAST) {
+    ok = 0;
+  } else if (mode >= MODE_YUV) {   // YUV checks
     const WebPYUVABuffer* const buf = &buffer->u.YUVA;
     const int size = buf->y_stride * height;
     const int u_size = buf->u_stride * ((height + 1) / 2);
@@ -56,7 +58,8 @@ static VP8StatusCode AllocateBuffer(WebPDecBuffer* const buffer) {
   const int w = buffer->width;
   const int h = buffer->height;
 
-  if (w <= 0 || h <= 0) {
+  if (w <= 0 || h <= 0 ||
+      buffer->colorspace < MODE_RGB || buffer->colorspace >= MODE_LAST) {
     return VP8_STATUS_INVALID_PARAM;
   }
 
