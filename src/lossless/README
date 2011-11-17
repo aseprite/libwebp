@@ -1,0 +1,22 @@
+This directory contains a lossless compression algorithm that
+compresses partially translucent images typically 30 % more densely
+than pngcrush. The methods used include:
+
+Backward references (with 2d locality for the closest 120 pixel positions).
+
+Prefixed Huffman coding, like flate, but squares of 2^n x 2^n pixels
+can have their own Huffman code. Further, green, red, blue and alpha
+have their separate entropy codes. However, green is special: green is
+encoded with copy-lengths and "palette hash codes".
+
+Spatial color prediction (for 2^n x 2^n pixel squares), slightly similar to
+Paeth predictor in png.
+
+Palette hash codes -- multiplicative hashing based "emerging palette"
+compression.
+
+Intercomponent color prediction (for 2^n x 2^n pixel squares).
+
+Sub-resolution images of the entropy codes, spatial color prediction,
+and intercomponent color prediction are encoded recursively with the
+image format itself.
