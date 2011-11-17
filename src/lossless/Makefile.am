@@ -1,4 +1,4 @@
-SUBDIRS = common dec enc
+SUBDIRS = common dec enc . tools
 
 AM_CPPFLAGS = -I$(top_srcdir)/src
 

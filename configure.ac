@@ -164,6 +164,7 @@ AC_CONFIG_FILES([Makefile src/Makefile man/Makefile \
                  src/lossless/common/Makefile \
                  src/lossless/dec/Makefile \
                  src/lossless/enc/Makefile \
+                 src/lossless/tools/Makefile \
                  src/libwebp.pc])
 
 
