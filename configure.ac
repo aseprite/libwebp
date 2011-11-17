@@ -5,6 +5,7 @@ AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
 AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
+AC_PROG_CXX
 
 AC_ARG_WITH([pkgconfigdir], AS_HELP_STRING([--with-pkgconfigdir=PATH],
 	[Path to the pkgconfig directory [[LIBDIR/pkgconfig]]]),
@@ -147,6 +148,7 @@ if test "$enable_experimental" = "yes"; then
 fi
 AC_MSG_RESULT(${enable_experimental-no})
 AC_SUBST(USE_EXPERIMENTAL_CODE)
+AM_CONDITIONAL([EXPERIMENTAL], [test "$enable_experimental" = "yes"])
 
 dnl =========================
 
@@ -158,6 +160,10 @@ AC_CONFIG_FILES([Makefile src/Makefile man/Makefile \
                  src/utils/Makefile \
                  src/mux/Makefile \
                  src/experimental/Makefile \
+                 src/lossless/Makefile \
+                 src/lossless/common/Makefile \
+                 src/lossless/dec/Makefile \
+                 src/lossless/enc/Makefile \
                  src/libwebp.pc])
 
 

@@ -1,7 +1,9 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
 bin_PROGRAMS = dwebp cwebp webpmux
-noinst_PROGRAMS = png2webp webp2png
+if EXPERIMENTAL
+  noinst_PROGRAMS = png2webp webp2png
+endif
 
 dwebp_SOURCES = dwebp.c stopwatch.h
 dwebp_CPPFLAGS = $(AM_CPPFLAGS) $(PNG_INCLUDES) $(JPEG_INCLUDES) $(USE_EXPERIMENTAL_CODE)
