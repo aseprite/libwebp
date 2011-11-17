@@ -31,6 +31,9 @@ LOCAL_SRC_FILES := \
 	src/enc/syntax.c \
 	src/enc/tree.c \
 	src/enc/webpenc.c \
+	src/experimental/alpha.c \
+	src/experimental/paeth.c \
+	src/experimental/quant_levels.c \
 	src/utils/bit_reader.c \
 	src/utils/bit_writer.c \
 	src/utils/thread.c \

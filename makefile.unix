@@ -1,8 +1,9 @@
 # This makefile is a simpler alternative to the autoconf-based build
 # system, for simple local building of the libraries and tools.
-# It will not install the libraries system-wide, but just create the 'cwebp'
-# and 'dwebp' tools in the examples/ directory, along with the static
-# libraries 'src/libwebp.a' and 'src/mux/libwebpmux.a'.
+# It will not install the libraries system-wide, but just create the 'cwebp',
+# 'dwebp', 'png2webp', 'webp2png' & 'webpmux' tools in the examples/ directory,
+# along with the static libraries 'src/libwebp.a', 'src/mux/libwebpmux.a' and
+# 'src/experimental/libwebpexperimental.a'.
 #
 # To build the library and examples, use:
 #    make -f makefile.unix
@@ -34,7 +35,7 @@ endif
 # EXTRA_FLAGS += -m32
 
 # Extra flags to enable experimental features and code
-# EXTRA_FLAGS += -DWEBP_EXPERIMENTAL_FEATURES
+EXTRA_FLAGS += -DWEBP_EXPERIMENTAL_FEATURES
 
 # Extra flags to enable multi-threading
 EXTRA_FLAGS += -DWEBP_USE_THREAD
@@ -74,13 +75,20 @@ OBJS = $(DEC_OBJS) $(ENC_OBJS) $(DSP_OBJS) $(UTILS_OBJS)
 
 MUX_OBJS = src/mux/mux.o
 
+EXPERIMENTAL_OBJS = src/experimental/alpha.o \
+                    src/experimental/paeth.o \
+                    src/experimental/quant_levels.o
+
 HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/webp/mux.h \
        src/dec/vp8i.h  \
        src/dsp/yuv.h src/dsp/dsp.h \
-       src/utils/bit_writer.h src/utils/bit_reader.h src/utils/thread.h
+       src/utils/bit_writer.h src/utils/bit_reader.h src/utils/thread.h \
+       src/experimental/alpha.h src/experimental/paeth.h
 
 OUTPUT = examples/cwebp examples/dwebp examples/webpmux \
-	 src/libwebp.a src/mux/libwebpmux.a
+         examples/png2webp examples/webp2png \
+         src/libwebp.a src/mux/libwebpmux.a \
+         src/experimental/libwebpexperimental.a
 
 all:ex
 
@@ -93,12 +101,17 @@ src/libwebp.a:  $(OBJS)
 src/mux/libwebpmux.a:  $(MUX_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
-ex: examples/cwebp examples/dwebp examples/webpmux
+src/experimental/libwebpexperimental.a:  $(EXPERIMENTAL_OBJS)
+	$(AR) $(ARFLAGS) $@ $^
+
+ex: examples/cwebp examples/dwebp examples/webpmux examples/png2webp examples/webp2png
 
 examples/cwebp: examples/cwebp.o src/libwebp.a
 examples/dwebp: examples/dwebp.o src/libwebp.a
 examples/webpmux: examples/webpmux.o src/mux/libwebpmux.a src/libwebp.a
-examples/cwebp examples/dwebp examples/webpmux:
+examples/webp2png: examples/webp2png.o src/experimental/libwebpexperimental.a src/mux/libwebpmux.a src/libwebp.a
+examples/png2webp: examples/png2webp.o src/experimental/libwebpexperimental.a src/mux/libwebpmux.a src/libwebp.a
+examples/cwebp examples/dwebp examples/webpmux examples/webp2png examples/png2webp:
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 dist: DESTDIR := dist
@@ -125,6 +138,7 @@ clean:
               src/dsp/*.o src/dsp/*~ \
               src/utils/*.o src/utils/*~ \
               src/mux/*.o src/mux/*~ \
+              src/experimental/*.o src/experimental/*~ \
               examples/*.o examples/*~
 
 superclean: clean

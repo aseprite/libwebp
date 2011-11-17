@@ -25,8 +25,8 @@ property rights grant can be found in the file PATENTS.
 Building:
 =========
 
-Windows build:
---------------
+Windows build (without experimental features):
+----------------------------------------------
 
 By running:
 
@@ -38,6 +38,47 @@ contain the libwebp static library.
 The target architecture (x86/x64) is detected by Makefile.vc from the Visual
 Studio compiler (cl.exe) available in the system path.
 
+Windows build (with experimental features):
+-------------------------------------------
+
+This release requires the zlib library. This library is not common under
+Windows nor can it be replaced with calls to Windows API, so you will need to
+download or build it yourself.
+
+You can either:
+(a) Link zlib dynamically (as a DLL).
+(b) Link zlib statically.
+
+Linking it dynamically is easier to do (as you can download a precompiled DLL),
+but a bit more cumbersome to use - you need to keep zlib1.dll in the same
+directory as the created EXEs.
+
+a. With dynamic zlib
+~~~~~~~~~~~~~~~~~~~~
+1. Download and unpack the archive from http://zlib.net/zlib125-dll.zip.
+2. Compile libwebp with the command:
+  nmake /f Makefile.vc CFG=release-static RTLIBCFG=static OBJDIR=output \
+      ZDLLDIR=C:\path\to\the\unpacked\archive EXPERIMENTAL=y
+4. Copy C:\path\to\the\unpacked\archive\zlib1.dll to
+   output\release-static\x86\bin for binaries there to work.
+Note: only a 32-bit DLL is currently available for download, so for a 64-bit
+build, you will need to build the DLL yourself.
+
+b. With static zlib
+~~~~~~~~~~~~~~~~~~~
+
+1. Download and unpack the source code from http://zlib.net/zlib125.zip.
+2. For a 32-bit build of zlib compatible with libwebp:
+  a. Edit zlib's win32\Makefile.msc, adding "-SAFESEH" to ASFLAGS.
+  b. Compile zlib with the command:
+    nmake /f win32/Makefile.msc LOC="-DASMV -DASMINF -MT" OBJA="inffas32.obj match686.obj"
+4. Compile libwebp with the command
+  nmake /f Makefile.vc CFG=release-static RTLIBCFG=static OBJDIR=output \
+      ZLIBDIR=C:\path\to\the\unpacked\archive EXPERIMENTAL=y
+5. Use the binaries in output\release-static\x86\bin.
+Note: a 64-bit build of zlib requires different modifications of the Makefile.msc.
+
+
 Unix build using makefile.unix:
 -------------------------------
 
@@ -45,10 +86,11 @@ On platforms with GNU tools installed (gcc and make), running
 
   make -f makefile.unix
 
-will build the binaries examples/cwebp and examples/dwebp, along
-with the static library src/libwebp.a. No system-wide installation
-is supplied, as this is a simple alternative to the full installation
-system based on the autoconf tools (see below).
+will build the binaries examples/cwebp, examples/dwebp, exapmples/webpmux,
+examples/png2webp and examples/webp2png, along with the static libraries
+src/libwebp.a, src/mux/libwebpmux.a & src/experimental/libwebpexperimental.a.
+No system-wide installation is supplied, as this is a simple alternative to
+the full installation system based on the autoconf tools (see below).
 Please refer the makefile.unix for additional details and customizations.
 
 Using autoconf tools:
@@ -63,10 +105,18 @@ should be all you need to have the following files
 /usr/local/include/webp/decode.h
 /usr/local/include/webp/decode_vp8.h
 /usr/local/include/webp/encode.h
+/usr/local/include/webp/mux.h
 /usr/local/include/webp/types.h
 /usr/local/lib/libwebp.*
 /usr/local/bin/cwebp
 /usr/local/bin/dwebp
+/usr/local/bin/webpmux
+
+For generating binaries png2webp & webp2png,
+use './configure  --enable-experimental' as the second step.
+These experimental binaries will be generated at:
+examples/png2webp
+examples/webp2png
 
 installed.
 
