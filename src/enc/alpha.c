@@ -23,54 +23,20 @@ extern "C" {
 
 #ifdef WEBP_EXPERIMENTAL_FEATURES
 
-#define CHUNK_SIZE 8192
-
 //------------------------------------------------------------------------------
 
 static int CompressAlpha(const uint8_t* data, size_t data_size,
                          uint8_t** output, size_t* output_size,
                          int algo) {
-  int ret = Z_OK;
-  z_stream strm;
-  unsigned char chunk[CHUNK_SIZE];
-
+  (void)data;
+  (void)data_size;
+  (void)output;
+  (void)output_size;
+  (void)algo;
+  // Don't compress Alpha-plane, as it's compressed outside WebPEncode.
+  // TODO: Link to Alpha compression lib to compress the alpha data.
   *output = NULL;
   *output_size = 0;
-  memset(&strm, 0, sizeof(strm));
-  if (deflateInit(&strm, algo ? Z_BEST_SPEED : Z_BEST_COMPRESSION) != Z_OK) {
-    return 0;
-  }
-  strm.next_in = (unsigned char*)data;
-  strm.avail_in = data_size;
-  do {
-    size_t size_out;
-
-    strm.next_out = chunk;
-    strm.avail_out = CHUNK_SIZE;
-    ret = deflate(&strm, Z_FINISH);
-    if (ret == Z_STREAM_ERROR) {
-      break;
-    }
-    size_out = CHUNK_SIZE - strm.avail_out;
-    if (size_out) {
-      size_t new_size = *output_size + size_out;
-      uint8_t* new_output = realloc(*output, new_size);
-      if (new_output == NULL) {
-        ret = Z_MEM_ERROR;
-        break;
-      }
-      memcpy(new_output + *output_size, chunk, size_out);
-      *output_size = new_size;
-      *output = new_output;
-    }
-  } while (ret != Z_STREAM_END || strm.avail_out == 0);
-
-  deflateEnd(&strm);
-  if (ret != Z_STREAM_END) {
-    free(*output);
-    output_size = 0;
-    return 0;
-  }
   return 1;
 }
 

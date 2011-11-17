@@ -186,14 +186,6 @@ static int WriteExtensions(VP8Encoder* const enc) {
       return WebPEncodingSetError(pic, VP8_ENC_ERROR_BITSTREAM_OUT_OF_MEMORY);
     }
   }
-  // Alpha (bytes 4..6)
-  PutLE24(buffer + 4, enc->alpha_data_size_);
-  if (enc->alpha_data_size_ > 0) {
-    assert(enc->has_alpha_);
-    if (!VP8BitWriterAppend(bw, enc->alpha_data_, enc->alpha_data_size_)) {
-      return WebPEncodingSetError(pic, VP8_ENC_ERROR_BITSTREAM_OUT_OF_MEMORY);
-    }
-  }
 
   buffer[KTRAILER_SIZE - 1] = 0x01;  // marker
   if (!VP8BitWriterAppend(bw, buffer, KTRAILER_SIZE)) {
@@ -211,7 +203,7 @@ static size_t GeneratePartition0(VP8Encoder* const enc) {
   const int mb_size = enc->mb_w_ * enc->mb_h_;
   uint64_t pos1, pos2, pos3;
 #ifdef WEBP_EXPERIMENTAL_FEATURES
-  const int need_extensions = enc->has_alpha_ || enc->use_layer_;
+  const int need_extensions = enc->use_layer_;
 #endif
 
   pos1 = VP8BitWriterPos(bw);
