@@ -52,24 +52,6 @@ OUTDIR = ..\obj\
 OUTDIR = $(OBJDIR)
 !ENDIF
 
-# zlib is needed for experimental features
-!IFDEF ZLIBDIR
-CFLAGS = $(CFLAGS) /I$(ZLIBDIR)
-LDFLAGS = $(LDFLAGS) $(ZLIBDIR)\zlib.lib
-!ELSE IF DEFINED(ZDLLDIR)
-CFLAGS = $(CFLAGS) /I$(ZDLLDIR)\include
-LDFLAGS = $(LDFLAGS) $(ZDLLDIR)\lib\zdll.lib
-!ENDIF
-
-# zlib is needed for experimental features
-!IFDEF EXPERIMENTAL
-!IF "$(EXPERIMENTAL)" == "y"
-CFLAGS = $(CFLAGS) /DWEBP_EXPERIMENTAL_FEATURES
-!ELSE IF "$(EXPERIMENTAL)" != "n"
-!ERROR "Unknown value of EXPERIMENTAL flag."
-!ENDIF
-!ENDIF
-
 ##############################################################
 # Runtime library configuration
 !IF "$(RTLIBCFG)" == "static"
@@ -209,17 +191,18 @@ X_OBJS= \
     $(X_OBJS) \
     $(DIROBJ)\experimental\alpha.obj \
     $(DIROBJ)\experimental\paeth.obj \
-    $(DIROBJ)\experimental\quant_levels.obj
+    $(DIROBJ)\experimental\quant_levels.obj \
 
 EXAMPLES_OBJS = \
     $(EXAMPLES_OBJS) \
     $(DIROBJ)\examples\png2webp.obj \
-    $(DIROBJ)\examples\webp2png.obj
+    $(DIROBJ)\examples\webp2png.obj \
+
+all: $(DIRBIN)\png2webp.exe $(DIRBIN)\webp2png.exe
 
 !ENDIF
 
 all: $(DIRLIB)\$(TARGET) $(DIRBIN)\dwebp.exe $(DIRBIN)\cwebp.exe \
-     $(DIRBIN)\png2webp.exe $(DIRBIN)\webp2png.exe \
      $(DIRBIN)\webpmux.exe
 
 # Additional include and library paths (for zlib) can be passed via the CL and
@@ -230,7 +213,8 @@ all: $(DIRLIB)\$(TARGET) $(DIRBIN)\dwebp.exe $(DIRBIN)\cwebp.exe \
 experimental:
 	$(MAKE) /f Makefile.vc \
 	    CFG=$(CFG) \
-	    CFLAGS="$(CFLAGS) /DWEBP_EXPERIMENTAL_FEATURES" /$(MAKEFLAGS)
+	    CFLAGS="$(CFLAGS) /DWEBP_EXPERIMENTAL_FEATURES" /$(MAKEFLAGS) \
+	    EXPERIMENTAL=y
 
 $(DIRLIB)\$(TARGET): $(X_OBJS)
 	$(LNK) $(LFLAGS) $(X_OBJS)
