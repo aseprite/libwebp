@@ -1,0 +1,69 @@
+# This makefile is a simpler alternative to the autoconf-based build
+# system, for simple local building of the tools.
+# It will not install the tools system-wide, but just create the 'png2webpll'
+# and 'webpll2png' tools in the tools/ directory.
+#
+# To build the tools, use:
+#    make -f makefile.unix
+# from this top directory.
+
+#### Customizable part ####
+
+# These flags assume you have libpng installed.
+EXTRA_LIBS= -lpng -lz
+ifeq ($(strip $(shell uname)), Darwin)
+  EXTRA_FLAGS += -I/opt/local/include
+  EXTRA_LIBS  += -L/opt/local/lib
+endif
+
+# To install libraries on Mac OS X:
+# 1. Install MacPorts (http://www.macports.org/install.php)
+# 2. Run "sudo port install libpng"
+
+# To install libraries on Linux:
+# 1. Run "sudo apt-get install libpng12-dev"
+
+# Uncomment for build for 32bit platform
+# Alternatively, you can just use the command
+# 'make -f makefile.unix EXTRA_FLAGS=-m32' to that effect.
+# EXTRA_FLAGS += -m32
+
+#### Nothing should normally be changed below this line ####
+
+CXXFLAGS = -O3 -DNDEBUG $(EXTRA_FLAGS)
+LDFLAGS = $(EXTRA_LIBS) -lm
+
+HDRS = common/integral_types.h common/pixel_hasher.h common/predictor.h \
+       dec/bit_stream.h dec/constants.h dec/decode.h dec/huffman.h \
+       dec/image_transform.h enc/backward_distance.h enc/backward_references.h \
+       enc/bit_stream.h enc/entropy_encode.h enc/histogram.h \
+       enc/histogram_image.h enc/predictor.h enc/webp_bit_stream.h
+
+OUTPUT = tools/png2webpll tools/webpll2png
+OBJS = \
+    common/predictor.o \
+    dec/bit_stream.o \
+    dec/decode.o \
+    enc/backward_distance.o \
+    enc/backward_references.o \
+    enc/entropy_encode.o \
+    enc/histogram.o \
+    enc/histogram_image.o \
+    enc/predictor.o \
+    enc/webp_bit_stream.o \
+
+%.o: %.cc $(HDRS)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+all: $(OUTPUT)
+
+tools/png2webpll: $(OBJS) tools/png2webpll.o
+tools/webpll2png: $(OBJS) tools/webpll2png.o
+tools/png2webpll tools/webpll2png:
+	$(CXX) -o $@ $^ $(LDFLAGS)
+
+clean:
+	$(RM) $(OUTPUT) $(OUTPUT:=.o) $(OBJS)
+
+.PHONY: all clean
+.SUFFIXES:
