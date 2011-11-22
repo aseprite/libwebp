@@ -72,18 +72,4 @@ void StoreImageToBitMask(
     int *storage_ix,
     uint8 *storage);
 
-bool EncodeWebpLLImage(const int xsize,
-                       const int ysize,
-                       const uint32* argb,
-                       const int quality,
-                       const bool use_small_palette,
-                       const bool predict,
-                       const int predict_bits,
-                       const int histogram_bits,
-                       const bool cross_color_transform,
-                       const int color_transform_bits,
-                       const bool write_error_detection_bits,
-                       int *n_bytes,
-                       char** stream);
-
 #endif  // WEBP_WEBP_BIT_STREAM_H_

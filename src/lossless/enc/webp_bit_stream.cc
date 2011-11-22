@@ -25,6 +25,7 @@
 #include "backward_distance.h"
 #include "backward_references.h"
 #include "bit_stream.h"
+#include "encode.h"
 #include "entropy_encode.h"
 #include "histogram_image.h"
 #include "predictor.h"
@@ -776,19 +777,19 @@ void EncodeImageInternal(const int xsize,
 }
 
 
-bool EncodeWebpLLImage(const int xs,
-                       const int ys,
-                       const uint32* argb_orig,
-                       const int quality,
-                       const bool use_small_palette,
-                       const bool predict,
-                       const int predict_bits,
-                       const int histogram_bits,
-                       const bool color_transform,
-                       const int color_transform_bits,
-                       const bool write_error_detection_bits,
-                       int *num_bytes,
-                       char **bytes) {
+int EncodeWebpLLImage(const int xs,
+                      const int ys,
+                      const uint32 *argb_orig,
+                      const int quality,
+                      const int use_small_palette,
+                      const int predict,
+                      const int predict_bits,
+                      const int histogram_bits,
+                      const int color_transform,
+                      const int color_transform_bits,
+                      const int write_error_detection_bits,
+                      size_t *num_bytes,
+                      uint8 **bytes) {
   int xsize = xs;
   int ysize = ys;
   bool use_emerging_palette = true;
@@ -959,7 +960,7 @@ bool EncodeWebpLLImage(const int xs,
                       &storage_ix, &storage[0]);
 
   *num_bytes = (storage_ix + 7) >> 3;
-  *bytes = (char *)malloc(*num_bytes);
+  *bytes = (uint8 *)malloc(*num_bytes);
   memcpy(*bytes, &storage[0], *num_bytes);
 
   return true;

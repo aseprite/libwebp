@@ -7,6 +7,9 @@
 //
 // Author: jyrki@google.com (Jyrki Alakuijala)
 
+#ifndef WEBP_INTEGRAL_TYPES_H_
+#define WEBP_INTEGRAL_TYPES_H_
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -24,3 +27,5 @@ typedef long long int64;
     perror("Unrecoverable error"); \
     abort(); \
   };
+
+#endif  // WEBP_INTEGRAL_TYPES_H_

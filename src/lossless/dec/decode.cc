@@ -421,11 +421,11 @@ void DecodeImageInternal(const int original_xsize,
   free(transforms);
 }
 
-bool DecodeWebpLLImage(int encoded_image_size,
-                       const uint8* const encoded_image,
-                       int* xsize,
-                       int* ysize,
-                       uint32** argb_image) {
+int DecodeWebpLLImage(size_t encoded_image_size,
+                      const uint8* const encoded_image,
+                      int* xsize,
+                      int* ysize,
+                      uint32** argb_image) {
   BitStream stream(encoded_image_size, encoded_image);
   int size_bits = (stream.Read(3) + 1) * 4;
   *xsize = stream.Read(size_bits);

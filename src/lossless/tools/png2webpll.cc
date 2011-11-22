@@ -15,8 +15,9 @@
 #include <iterator>
 #include <fstream>
 #include <streambuf>
+#include <vector>
 #include "../dec/decode.h"
-#include "../enc/webp_bit_stream.h"
+#include "../enc/encode.h"
 #include "png.h"
 #include "pngconf.h"
 
@@ -500,8 +501,8 @@ int main(int argc, char **argv) {
     if (mode >= 3 && !try_with_small_palette) {
       continue;
     }
-    char *bytes;
-    int n_bytes;
+    uint8 *bytes;
+    size_t n_bytes;
     const bool use_small_palette = mode == 3 || mode == 4;
     const bool use_spatial_predict = mode == 0 || mode == 4;
     const bool use_cross_color_transform = mode == 0 || mode == 2;
