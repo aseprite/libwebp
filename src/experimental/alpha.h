@@ -26,6 +26,7 @@ extern "C" {
 // 'method' can be:
 //   0: - No compression;
 //   1: - zlib;
+//   2: - Use WebPLL
 
 int EncodeAlphaExperimental(const uint8_t* data, int width, int height,
                             int stride, int quality, int method,

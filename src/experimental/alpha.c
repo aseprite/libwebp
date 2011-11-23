@@ -15,6 +15,8 @@
 
 #include "../utils/bit_reader.h"
 #include "../utils/bit_writer.h"
+#include "../lossless/enc/encode.h"
+#include "../lossless/dec/decode.h"
 #include "zlib.h"
 
 
@@ -99,6 +101,43 @@ static int EncodeZlib(const uint8_t* data, int width, int height,
 
 // -----------------------------------------------------------------------------
 
+// Encode using webp lossless encoding.
+
+static int EncodeWebpLL(const uint8 *data, int width, int height,
+                        uint8 **output, size_t *output_size) {
+  int i;
+  int ok = 0;
+
+  // Convert the alpha values to an argb array. Green channel is used to store
+  // the alpha values. Other channels are set as follows; a = 0xFF, r = b = 0.
+  uint32 *argb = (uint32 *)malloc(width * height * sizeof(uint32));
+  if (argb == NULL) {
+    return 0;
+  }
+
+  for (i = 0; i < width * height; ++i) {
+    argb[i] = data[i];
+    argb[i] = 0xFF000000 | (argb[i] << 8);
+  }
+
+  ok = EncodeWebpLLImage(width, height, argb,
+                         95,     // quality
+                         1,      // use_small_palette,
+                         1,      // use_spatial_predict,
+                         4,      // predict_bits
+                         3,      // histogram_bits,
+                         0,      // use_cross_color_transform,
+                         10,     // color_trasnform_bts
+                         1,      // no error detection bits
+                         output_size,
+                         output);
+
+  free(argb);
+  return ok;
+}
+
+// -----------------------------------------------------------------------------
+
 int EncodeAlphaExperimental(const uint8_t* data, int width, int height,
                             int stride, int quality, int method,
                             uint8_t** output, size_t* output_size) {
@@ -160,6 +199,9 @@ int EncodeAlphaExperimental(const uint8_t* data, int width, int height,
   } else if (method == 1) {
     ok = EncodeZlib(quant_alpha, width, height,
                     &compressed_alpha, &compressed_size, 0);
+  } else if (method == 2) {
+    ok = EncodeWebpLL(quant_alpha, width, height,
+                      &compressed_alpha, &compressed_size);
   }
 
   free(quant_alpha);
@@ -232,6 +274,32 @@ static int DecodeZlib(const uint8_t* data, size_t data_size,
 }
 
 // -----------------------------------------------------------------------------
+// Decode webp lossless compressed alpha
+
+static int DecodeWebpLL(const uint8 *data, size_t data_size,
+                        uint8 *output, size_t output_size) {
+  size_t i;
+  int width, height;
+  uint32 *argb;
+  const int ok = DecodeWebpLLImage(data_size, data, &width, &height, &argb);
+  if (!ok) {
+    return 0;
+  }
+
+  if (output_size != (size_t)width * height) {
+    free(argb);
+    return 0;
+  }
+
+  for (i = 0; i < output_size; ++i) {
+    output[i] = (argb[i] >> 8) & 0xFF;  // green channel of argb has the alpha
+  }
+
+  free(argb);
+  return ok;
+}
+
+// -----------------------------------------------------------------------------
 
 int DecodeAlphaExperimental(const uint8_t* data, size_t data_size,
                             int width, int height, int stride,
@@ -270,6 +338,8 @@ int DecodeAlphaExperimental(const uint8_t* data, size_t data_size,
     ok = DecodeIdent(data, data_size, decoded_data);
   } else if (method == 1) {
     ok = DecodeZlib(data, data_size, decoded_data, decoded_size);
+  } else if (method == 2) {
+    ok = DecodeWebpLL(data, data_size, decoded_data, decoded_size);
   }
   if (ok) {
     // Construct raw_data (HeightXStride) from the alpha data (HeightXWidth).
