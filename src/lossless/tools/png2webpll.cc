@@ -442,7 +442,7 @@ int main(int argc, char **argv) {
       if (in_path != NULL) {
         fprintf(stderr,
                 "only one input file name allowed, two given:"
-                "'%s' and '%s'", in_path, argv[i]);
+                "'%s' and '%s'\n", in_path, argv[i]);
         exit(1);
       }
       in_path = argv[i];
@@ -551,11 +551,13 @@ int main(int argc, char **argv) {
       for (int i = 0; i < xsize * ysize; ++i) {
         if (argb_image_verify[i] != argb_to_compress[i]) {
           fprintf(stderr,
-                  "pixel at differs for --in=%s mode=%d %08x != %08x",
-                 in_path,
-                 mode,
-                 argb_image_verify[i],
-                 argb_to_compress[i]);
+                  "pixel at position=%d differs for "
+                  "--in=%s mode=%d %08x != %08x\n",
+                  i,
+                  in_path,
+                  mode,
+                  argb_image_verify[i],
+                  argb_to_compress[i]);
           abort();
         }
       }
