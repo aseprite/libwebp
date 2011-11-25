@@ -896,8 +896,8 @@ int EncodeWebpLLImage(const int xs,
 
   if (predict) {
     const int predictor_image_size =
-        ((xsize + (1 << predict_bits) - 1) >> predict_bits) *
-        ((ysize + (1 << predict_bits) - 1) >> predict_bits);
+        MetaSize(xsize, predict_bits) *
+        MetaSize(ysize, predict_bits);
     std::vector<uint32> predictor_image(predictor_image_size);
     std::vector<uint32> from_argb(argb.begin(), argb.end());
     PredictorImage(xsize, ysize, predict_bits,
@@ -920,8 +920,8 @@ int EncodeWebpLLImage(const int xs,
 
   if (color_transform) {
     const int color_space_image_size =
-        ((xsize + (1 << color_transform_bits) - 1) >> color_transform_bits) *
-        ((ysize + (1 << color_transform_bits) - 1) >> color_transform_bits);
+        MetaSize(xsize, color_transform_bits) *
+        MetaSize(ysize, color_transform_bits);
     std::vector<uint32> color_space_image(color_space_image_size);
     ColorSpaceTransform(xsize, ysize, color_transform_bits,
                         &argb[0],

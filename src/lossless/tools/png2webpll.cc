@@ -422,6 +422,8 @@ int main(int argc, char **argv) {
       } else {
         show_usage = true;
       }
+    } else if (!strcmp(argv[i], "-noverify")) {
+      verify = false;
     } else if (!strcmp(argv[i], "-n")) {
       if (i < argc - 1) {
         near_lossless = atoi(argv[i + 1]);
@@ -455,6 +457,7 @@ int main(int argc, char **argv) {
             "  -c makes output denser and slower (0 == fastest)\n"
             "  -n X applies preprocessing that selectively throws "
             "away X least significant bits\n"
+            "  -noverify bypass decoding verification\n"
             "  -h shows the usage information\n",
             argv[0]);
     exit(1);

@@ -24,6 +24,8 @@
 #include "../common/integral_types.h"
 #include "../common/pixel_hasher.h"
 
+#define READ(S, N) ((S)->Read((N)))
+
 static const int kMaxImageTransforms = 100;
 
 void DecodeImageInternal(const int xsize,
@@ -78,7 +80,7 @@ int GetCopyDistance(int distance_symbol, BitStream* stream) {
   int extra_bits = (distance_symbol - 2) / 2;
   int offset =
       (1 << (extra_bits + 1)) + (distance_symbol % 2) * (1 << extra_bits) + 1;
-  return offset + stream->Read(extra_bits);
+  return offset + READ(stream, extra_bits);
 }
 
 int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
@@ -101,6 +103,15 @@ int GetCopyLength(int length_symbol, BitStream* stream) {
   return GetCopyDistance(length_symbol, stream);
 }
 
+static const int kCodeLengthCodes = 19;
+static const uint8 kCodeLengthCodeOrder[kCodeLengthCodes] = {
+  17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+};
+static const int kCodeLengthLiterals = 16;
+static const int kCodeLengthRepeatCode = 16;
+static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
+static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
+
 std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
   std::string out = "Code Lengths: ";
   for (int i = 0; i < code_lengths.size(); ++i) {
@@ -116,7 +127,7 @@ std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
 int ReadSymbol(const HuffmanTreeNode& root,
                BitStream* stream) {
   const HuffmanTreeNode* node = &root;
-  while (!node->IsLeaf()) node = node->child(stream->Read(1));
+  while (!node->IsLeaf()) node = node->child(READ(stream, 1));
   VERIFY(node);
   VERIFY(node->symbol() != -1);
   return node->symbol();
@@ -125,9 +136,9 @@ int ReadSymbol(const HuffmanTreeNode& root,
 void ReadCodeLengthTree(BitStream* stream,
                         HuffmanTreeNode* root) {
   std::vector<int> code_lengths(kCodeLengthCodes);
-  int hclen = stream->Read(4);
+  int hclen = READ(stream, 4);
   for (int i = 0; i < hclen + 4; ++i) {
-    code_lengths[kCodeLengthCodeOrder[i]] = stream->Read(3);
+    code_lengths[kCodeLengthCodeOrder[i]] = READ(stream, 3);
   }
   if(!root->BuildTree(code_lengths)) {
     printf("error: %s\n", CodeLengthDebugString(code_lengths).c_str());
@@ -138,11 +149,11 @@ void ReadCodeLengthTree(BitStream* stream,
 void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
                             BitStream* stream,
                             std::vector<int>* code_lengths) {
-  bool use_length = stream->Read(1);
+  bool use_length = READ(stream, 1);
   int max_length = 0;
   if (use_length) {
-    int length_nbits = (stream->Read(3) + 1) * 2;
-    max_length = stream->Read(length_nbits) + 2;
+    int length_nbits = (READ(stream, 3) + 1) * 2;
+    max_length = READ(stream, length_nbits) + 2;
   }
   int previous = 8;
   int num_symbols = 0;
@@ -199,7 +210,7 @@ void ReadHuffmanCode(const int alphabet_size,
 void ReadTransform(int* xsize, int* ysize,
                    ImageTransform* transform,
                    BitStream* stream) {
-  transform->type = (ImageTransformType)stream->Read(3);
+  transform->type = (ImageTransformType)READ(stream, 3);
   transform->xsize = *xsize;
   transform->ysize = *ysize;
   switch (transform->type) {
@@ -208,7 +219,7 @@ void ReadTransform(int* xsize, int* ysize,
       {
         transform->data = malloc(sizeof(PerTileTransformData));
         PerTileTransformData* data = (PerTileTransformData*)transform->data;
-        data->bits = stream->Read(4);
+        data->bits = READ(stream, 4);
         DecodeImageInternal(MetaSize(*xsize, data->bits),
                             MetaSize(*ysize, data->bits),
                             stream, &data->image);
@@ -223,13 +234,13 @@ void ReadTransform(int* xsize, int* ysize,
         transform->data = malloc(4 * sizeof(int));
         int* bits = (int*)transform->data;
         for (int i = 0; i < 4; ++i) {
-          bits[i] = stream->Read(3);
+          bits[i] = READ(stream, 3);
         }
       }
       break;
     case COLOR_INDEXING_TRANSFORM:
       {
-        int ncolors = stream->Read(8) + 1;
+        int ncolors = READ(stream, 8) + 1;
         transform->data = malloc(sizeof(PerTileTransformData));
         PerTileTransformData* data = (PerTileTransformData*)transform->data;
         DecodeImageInternal(ncolors, 1, stream, &data->image);
@@ -243,9 +254,9 @@ void ReadTransform(int* xsize, int* ysize,
         transform->data = malloc(sizeof(PixelBundleTransformData));
         PixelBundleTransformData* data =
             (PixelBundleTransformData*)transform->data;
-        data->xbits = stream->Read(3);
-        data->ybits = stream->Read(3);
-        data->bit_depth = stream->Read(3) + 1;
+        data->xbits = READ(stream, 3);
+        data->ybits = READ(stream, 3);
+        data->bit_depth = READ(stream, 3) + 1;
         *xsize = MetaSize(*xsize, data->xbits);
         *ysize = MetaSize(*ysize, data->ybits);
       }
@@ -256,7 +267,7 @@ void ReadTransform(int* xsize, int* ysize,
         uint32* argb = (uint32*)transform->data;
         *argb = 0;
         for (int k = 0; k < 4; ++k) {
-          *argb |= stream->Read(8) << (8 * k);
+          *argb |= READ(stream, 8) << (8 * k);
         }
       }
       break;
@@ -275,11 +286,13 @@ void DecodeImageInternal(const int original_xsize,
   ImageTransform* transforms =
       (ImageTransform*)malloc(kMaxImageTransforms * sizeof(ImageTransform));
   int num_transforms = 0;
-  while (stream->Read(1)) {
+  while (READ(stream, 1)) {
     ReadTransform(&xsize, &ysize, &transforms[num_transforms], stream);
     ++num_transforms;
     VERIFY(num_transforms < kMaxImageTransforms);
   }
+
+  static const unsigned char kMagicByteForErrorDetection = 0xa3;
 
   bool error_detection_bits = stream->Read(1);
   if (error_detection_bits) {
@@ -427,9 +440,9 @@ int DecodeWebpLLImage(size_t encoded_image_size,
                       int* ysize,
                       uint32** argb_image) {
   BitStream stream(encoded_image_size, encoded_image);
-  int size_bits = (stream.Read(3) + 1) * 4;
-  *xsize = stream.Read(size_bits);
-  *ysize = stream.Read(size_bits);
+  int size_bits = (READ(&stream, 3) + 1) * 4;
+  *xsize = READ(&stream, size_bits);
+  *ysize = READ(&stream, size_bits);
   DecodeImageInternal(*xsize, *ysize, &stream, argb_image);
   return true;
 }
