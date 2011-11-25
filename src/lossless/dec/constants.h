@@ -16,19 +16,6 @@ static const int kNumLengthSymbols = 24;
 
 static const int kNumDistanceSymbols = 64;
 
-static const int kNumPredictorModeBits = 3;
-
-static const unsigned char kMagicByteForErrorDetection = 0xa3;
-
-static const int kCodeLengthCodes = 19;
-static const uint8 kCodeLengthCodeOrder[kCodeLengthCodes] = {
-  17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-};
-static const int kCodeLengthLiterals = 16;
-static const int kCodeLengthRepeatCode = 16;
-static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
-static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
-
 static const unsigned char code_to_plane_lut[120] = {
    0x18, 0x07, 0x17, 0x19, 0x28, 0x06, 0x27, 0x29, 0x16, 0x1a,
    0x26, 0x2a, 0x38, 0x05, 0x37, 0x39, 0x15, 0x1b, 0x36, 0x3a,
@@ -43,6 +30,5 @@ static const unsigned char code_to_plane_lut[120] = {
    0x4f, 0x10, 0x20, 0x62, 0x6e, 0x30, 0x73, 0x7d, 0x51, 0x5f,
    0x40, 0x72, 0x7e, 0x61, 0x6f, 0x50, 0x71, 0x7f, 0x60, 0x70,
 };
-
 
 #endif  // WEBP_DEC_CONSTANTS_H_

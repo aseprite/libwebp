@@ -123,6 +123,8 @@ void Histogram::Build(const LiteralOrCopy *literal_and_length,
   }
 }
 
+static double TCoderCost(const int* symbols, int n);
+
 double BitsEntropy(const int *array, int n) {
   int sum = 0;
   int nonzeros = 0;
@@ -235,34 +237,32 @@ double Histogram::EstimateBitsHeader() const {
 
 static double TCoderCost(const int* symbols, int n) {
   int i;
-  int total = 0;
+  double total = 0;
   double cost = 0;
-  for (i = 0; i < n; ++i) {
-    total += symbols[i];
-  }
-  if (!total) {
-    return n;
-  }
-
-  cost = log2(total) * total;
+  double num_nz = 0., num_z = 0.;
   for (i = 0; i < n; ++i) {
     if (symbols[i]) {
       cost -= log2(1. * symbols[i]) * symbols[i];
+      total += symbols[i];
+      num_nz += 1.;
     } else {
-      cost += 1;  // magic number (fraction e.g. 0.5 is more logical)
+      num_z += 1.;
     }
   }
-
+  if (total) {
+    cost += log2(total) * total;
+  }
+  cost += 0.8 * num_z;
+  cost += 2.5 * num_nz;
   return cost;
 }
 
-
 double Histogram::EstimateBitsTCoder() const {
-  double cost = TCoderCost(&literal_[0], NumLiteralOrCopyCodes());
+  double cost = 0;
+  cost += TCoderCost(&literal_[0], NumLiteralOrCopyCodes());
   cost += TCoderCost(&red_[0], 256);
   cost += TCoderCost(&blue_[0], 256);
   cost += TCoderCost(&alpha_[0], 256);
   cost += TCoderCost(&distance_[0], kDistanceCodes);
-
   return cost;
 }

@@ -109,5 +109,4 @@ class HuffmanTreeNode {
   int symbol_;
   HuffmanTreeNode* child_[2];
 };
-
 #endif  // WEBP_DEC_HUFFMAN_H_
