@@ -11,6 +11,7 @@
 
 #include <string.h>  // for memcpy()
 #include "./alpha.h"
+#include "../utils/alpha.h"    // for QuantizeLevels()
 
 #include "../utils/bit_reader.h"
 #include "../utils/bit_writer.h"
@@ -98,9 +99,9 @@ static int EncodeZlib(const uint8_t* data, int width, int height,
 
 // -----------------------------------------------------------------------------
 
-int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
-                int quality, int method,
-                uint8_t** output, size_t* output_size) {
+int EncodeAlphaExperimental(const uint8_t* data, int width, int height,
+                            int stride, int quality, int method,
+                            uint8_t** output, size_t* output_size) {
   const int kMaxImageDim = (1 << 14) - 1;
   uint8_t* compressed_alpha = NULL;
   uint8_t* quant_alpha = NULL;
@@ -232,9 +233,9 @@ static int DecodeZlib(const uint8_t* data, size_t data_size,
 
 // -----------------------------------------------------------------------------
 
-int DecodeAlpha(const uint8_t* data, size_t data_size,
-                int width, int height, int stride,
-                uint8_t* output) {
+int DecodeAlphaExperimental(const uint8_t* data, size_t data_size,
+                            int width, int height, int stride,
+                            uint8_t* output) {
   uint8_t* decoded_data = NULL;
   int ok = 0;
   int method;
