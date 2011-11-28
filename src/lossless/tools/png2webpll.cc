@@ -496,6 +496,14 @@ int main(int argc, char **argv) {
   bool try_with_small_palette = UniquePixels(xsize * ysize, argb_orig) <= 256;
 
   int histogram_bits = 3;
+  if (xsize * ysize >= 20000) {
+    // The image is so large that doing a fine resolution entropy code
+    // would be very expensive. Pump up one class.
+    ++histogram_bits;
+  }
+  if (xsize * ysize >= 1000000) {
+    ++histogram_bits;
+  }
   if (quality < 50) ++histogram_bits;
   if (quality < 10) ++histogram_bits;
   if (quality < 1) ++histogram_bits;
