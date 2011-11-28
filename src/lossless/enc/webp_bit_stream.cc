@@ -570,10 +570,14 @@ void EncodeImageInternal(const int xsize,
   const int use_palette = palette_bits ? 1 : 0;
   std::vector<LiteralOrCopy> backward_refs;
   if (quality >= 50) {
+    int recursion_level = 0;
+    if (xsize * ysize < 320 * 200) {
+      recursion_level = 1;
+    }
     BackwardReferencesTraceBackwards(
         xsize,
         ysize,
-        1,
+        recursion_level,
         use_palette,
         &argb[0],
         palette_bits,
