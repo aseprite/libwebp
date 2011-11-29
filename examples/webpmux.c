@@ -351,44 +351,6 @@ static int ReadFile(const char* const filename, WebPMux** mux) {
   return 0;
 }
 
-static int ReadImageData(const char* filename, const uint8_t** data_ptr,
-                         uint32_t* size_ptr) {
-  uint32_t size = 0;
-  void* data = NULL;
-  WebPMux* mux;
-  WebPMuxError err;
-  int ok = 1;
-
-  if (!ReadData(filename, &data, &size)) return 0;
-
-  mux = WebPMuxCreate((const uint8_t*)data, size, 1);
-  free(data);
-  if (mux == NULL) {
-    fprintf(stderr, "Failed to create mux object from file %s.\n",
-            filename);
-    return 0;
-  }
-  err = WebPMuxGetImage(mux, (const uint8_t**)&data, &size, NULL, NULL);
-  if (err == WEBP_MUX_OK) {
-    *size_ptr = size;
-    *data_ptr = (uint8_t*)malloc(*size_ptr);
-    if (*data_ptr != NULL) {
-      memcpy((void*)*data_ptr, data, (size_t)size);
-    } else {
-      err = WEBP_MUX_MEMORY_ERROR;
-      fprintf(stderr, "Failed to allocate %d bytes to extract image data from"
-              " file %s. Error: %d\n", size, filename, err);
-      ok = 0;
-    }
-  } else {
-    fprintf(stderr, "Failed to extract image data from file %s. Error: %d\n",
-            filename, err);
-    ok = 0;
-  }
-  WebPMuxDelete(mux);
-  return ok;
-}
-
 static int WriteData(const char* filename, void* data, uint32_t size) {
   int ok = 0;
   FILE* fout = strcmp(filename, "-") ? fopen(filename, "wb") : stdout;
@@ -871,7 +833,8 @@ static int Process(const WebPMuxConfig* config) {
                 ERROR_GOTO2("ERROR#%d: Could not set loop count.\n", err, Err2);
               }
             } else if (feature->args_[index].subtype_ == SUBTYPE_FRM) {
-              ok = ReadImageData(feature->args_[index].filename_, &data, &size);
+              ok = ReadData(feature->args_[index].filename_,
+                            (void**)&data, &size);
               if (!ok) goto Err2;
               ok = ParseFrameArgs(feature->args_[index].params_,
                                   &x_offset, &y_offset, &duration);
@@ -899,7 +862,8 @@ static int Process(const WebPMuxConfig* config) {
                         WEBP_MUX_MEMORY_ERROR, Err2);
           }
           for (index = 0; index < feature->arg_count_; ++index) {
-            ok = ReadImageData(feature->args_[index].filename_, &data, &size);
+            ok = ReadData(feature->args_[index].filename_,
+                          (void**)&data, &size);
             if (!ok) goto Err2;
             ok = ParseTileArgs(feature->args_[index].params_, &x_offset,
                                &y_offset);

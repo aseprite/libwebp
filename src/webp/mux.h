@@ -109,7 +109,8 @@ WEBP_EXTERN(WebPMux*) WebPMuxCreate(const uint8_t* data, uint32_t size,
 // will be removed.
 // Parameters:
 //   mux - (in/out) object in which the image is to be set
-//   data - (in) the image data to be set
+//   data - (in) the image data to be set. The data can be either a VP8
+//          bitstream or a single-image WebP file (non-animated & non-tiled)
 //   size - (in) size of the image data
 //   alpha_data - (in) the alpha data corresponding to the image (if present)
 //   alpha_size - (in) size of alpha chunk data
@@ -244,7 +245,9 @@ WEBP_EXTERN(WebPMuxError) WebPMuxDeleteColorProfile(WebPMux* const mux);
 // Parameters:
 //   mux - (in/out) object to which an animation frame is to be added
 //   nth - (in) The position at which the frame is to be added.
-//   data - (in) the raw VP8 image data corresponding to frame image
+//   data - (in) the raw VP8 image data corresponding to frame image. The data
+//          can be either a VP8 bitstream or a single-image WebP file
+//          (non-animated & non-tiled)
 //   size - (in) size of frame chunk data
 //   alpha_data - (in) the alpha data corresponding to frame image (if present)
 //   alpha_size - (in) size of alpha chunk data
@@ -348,7 +351,9 @@ WEBP_EXTERN(WebPMuxError) WebPMuxGetLoopCount(const WebPMux* const mux,
 // Parameters:
 //   mux - (in/out) object to which a tile is to be added
 //   nth - (in) The position at which the tile is to be added.
-//   data - (in) the raw VP8 image data corresponding to tile image
+//   data - (in) the raw VP8 image data corresponding to tile image.  The data
+//          can be either a VP8 bitstream or a single-image WebP file
+//          (non-animated & non-tiled)
 //   size - (in) size of tile chunk data
 //   alpha_data - (in) the alpha data corresponding to tile image (if present)
 //   alpha_size - (in) size of alpha chunk data
