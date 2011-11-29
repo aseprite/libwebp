@@ -22,7 +22,7 @@ static const int kDistanceCodes = 64;
 // Compression constants
 static const int kLengthCodes = 24;
 static const int kCodeLengthCodes = 19;
-static const int kRowHasherXSubsampling = 5;
+static const int kRowHasherXSubsampling = 7;
 static const int kPaletteCodeBitsMax = 11;
 static const int kLiteralOrCopyCodesMax =
     256 + kLengthCodes + (1 << kPaletteCodeBitsMax);
