@@ -568,8 +568,48 @@ void EncodeImageInternal(const int xsize,
                          int *storage_ix,
                          uint8 *storage) {
   const int use_palette = palette_bits ? 1 : 0;
+  // First, check if it is at all a good idea to use LZ77
+  bool lz77_is_useful = false;
+  std::vector<LiteralOrCopy> backward_refs_lz77;
+  std::vector<LiteralOrCopy> backward_refs_rle_only;
+  {
+    BackwardReferencesHashChain(
+        xsize,
+        ysize,
+        use_palette,
+        &argb[0],
+        palette_bits,
+        &backward_refs_lz77);
+    Histogram *histo_lz77 = new Histogram(palette_bits);
+    histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77.size());
+
+    BackwardReferencesRle(
+        xsize,
+        ysize,
+        use_palette,
+        &argb[0],
+        palette_bits,
+        &backward_refs_rle_only);
+    Histogram *histo_rle = new Histogram(palette_bits);
+    histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
+
+    printf("rle bits %g, lz77 bits %g\n",
+           histo_rle->EstimateBits(),
+           histo_lz77->EstimateBits());
+    lz77_is_useful = histo_rle->EstimateBits() > histo_lz77->EstimateBits();
+    if (lz77_is_useful) {
+      printf("lz77 is useful\n");
+      backward_refs_rle_only.clear();
+    } else {
+      backward_refs_lz77.clear();
+      printf("lz77 not useful\n");
+    }
+    delete histo_rle;
+    delete histo_lz77;
+  }
+
   std::vector<LiteralOrCopy> backward_refs;
-  if (quality >= 50) {
+  if (quality >= 50 && lz77_is_useful) {
     int recursion_level = 0;
     if (xsize * ysize < 320 * 200) {
       recursion_level = 1;
@@ -583,13 +623,11 @@ void EncodeImageInternal(const int xsize,
         palette_bits,
         &backward_refs);
   } else {
-    BackwardReferencesHashChain(
-        xsize,
-        ysize,
-        use_palette,
-        &argb[0],
-        palette_bits,
-        &backward_refs);
+    if (lz77_is_useful) {
+      backward_refs.swap(backward_refs_lz77);
+    } else {
+      backward_refs.swap(backward_refs_rle_only);
+    }
   }
   VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize,
                                  palette_bits,

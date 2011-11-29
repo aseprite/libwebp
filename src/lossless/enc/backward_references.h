@@ -105,7 +105,7 @@ struct LiteralOrCopy {
     return argb_or_offset;
   }
   inline void LengthCodeAndBits(int *code, int *n_bits, int *bits) const {
-    assert(len >= 2 && len <= kMaxLength);
+    assert(len >= 1 && len <= kMaxLength);
     // Unlike flate, distance and length are encoded the same way.
     BackwardLength::Encode(len, code, n_bits, bits);
   }
@@ -116,6 +116,16 @@ struct LiteralOrCopy {
   uint16 len;
   uint32 argb_or_offset;
 };
+
+// Ridiculously simple backward references for images where it is unlikely
+// that there are large backward references (photos).
+void BackwardReferencesRle(
+    int xsize,
+    int ysize,
+    bool use_palette,
+    const uint32 *argb,
+    int palette_bits,
+    std::vector<LiteralOrCopy> *stream);
 
 // This is a simple fast function for obtaining backward references
 // based on simple heuristics.
