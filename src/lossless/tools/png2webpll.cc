@@ -490,8 +490,7 @@ int main(int argc, char **argv) {
   // Modes:
   // 0: normal predicted mode with lots of entropy codes, good for photos
   // 1: non-color-predicted mode
-  // 2: no spatial predict, color
-  // 3: mode with a single palette
+  // 2: mode with the small palette
 
   bool try_with_small_palette = UniquePixels(xsize * ysize, argb_orig) <= 256;
 
@@ -508,15 +507,15 @@ int main(int argc, char **argv) {
   if (quality < 10) ++histogram_bits;
   if (quality < 1) ++histogram_bits;
 
-  for (int mode = 0; mode < 5; mode++) {
-    if (mode >= 3 && !try_with_small_palette) {
+  for (int mode = 0; mode < 3; mode++) {
+    if (mode >= 2 && !try_with_small_palette) {
       continue;
     }
     uint8 *bytes;
     size_t n_bytes;
-    const bool use_small_palette = mode == 3 || mode == 4;
-    const bool use_spatial_predict = mode == 0 || mode == 4;
-    const bool use_cross_color_transform = mode == 0 || mode == 2;
+    const bool use_small_palette = mode == 2;
+    const bool use_spatial_predict = mode == 0;
+    const bool use_cross_color_transform = mode == 0;
     // If the colors fit in the palette, there is rarely a benefit for doing
     // a near lossless using the method implemented here.
     const uint32 *argb_to_compress =
@@ -532,7 +531,7 @@ int main(int argc, char **argv) {
     strategy.predict_bits = 4;
     strategy.histogram_bits = histogram_bits;
     strategy.cross_color_transform = use_cross_color_transform;
-    strategy.cross_color_transform_bits = mode == 0 ? 4 : 10;
+    strategy.cross_color_transform_bits = 4;
     EncodeWebpLLImage(png_decoder.width(),
                       png_decoder.height(),
                       argb_to_compress,
