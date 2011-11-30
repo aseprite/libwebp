@@ -508,6 +508,11 @@ int main(int argc, char **argv) {
   if (quality < 1) ++histogram_bits;
 
   for (int mode = 0; mode < 3; mode++) {
+    if (mode == 0 && try_with_small_palette) {
+      // Usually not useful to try spatial prediction when there are
+      // only a few colors.
+      continue;
+    }
     if (mode >= 2 && !try_with_small_palette) {
       continue;
     }
@@ -540,7 +545,7 @@ int main(int argc, char **argv) {
                       &bytes);
     std::string to_file_candidate(bytes, bytes + n_bytes);
     free(bytes);
-    if (mode == 0 || to_file.size() > to_file_candidate.size()) {
+    if (to_file.size() == 0 || to_file.size() > to_file_candidate.size()) {
       to_file = to_file_candidate;
     }
     if (verbose) {
