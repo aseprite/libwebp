@@ -819,21 +819,19 @@ void EncodeImageInternal(const int xsize,
 }
 
 
-int EncodeWebpLLImage(const int xs,
-                      const int ys,
-                      const uint32 *argb_orig,
-                      const int quality,
-                      const int use_small_palette,
-                      const int predict,
-                      const int predict_bits,
-                      const int histogram_bits,
-                      const int color_transform,
-                      const int color_transform_bits,
-                      const int write_error_detection_bits,
-                      size_t *num_bytes,
-                      uint8 **bytes) {
-  int xsize = xs;
-  int ysize = ys;
+int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
+                      EncodingStrategy *strategy,
+                      size_t *num_bytes, uint8 **bytes) {
+  const int quality = strategy->quality;
+  //  const int use_lz77 = strategy->use_lz77;
+  int palette_bits = strategy->palette_bits;
+  const int use_small_palette = strategy->use_small_palette;
+  const int predict = strategy->predict;
+  const int predict_bits = strategy->predict_bits;
+  const int histogram_bits = strategy->histogram_bits;
+  const int cross_color_transform = strategy->cross_color_transform;
+  const int cross_color_transform_bits = strategy->cross_color_transform_bits;
+  const int write_error_detection_bits = false;
   bool use_emerging_palette = true;
   std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
   std::vector<uint8> storage(xsize * ysize * 32 + 2048);
@@ -960,21 +958,21 @@ int EncodeWebpLLImage(const int xs,
                         &storage_ix, &storage[0]);
   }
 
-  if (color_transform) {
+  if (cross_color_transform) {
     const int color_space_image_size =
-        MetaSize(xsize, color_transform_bits) *
-        MetaSize(ysize, color_transform_bits);
+        MetaSize(xsize, cross_color_transform_bits) *
+        MetaSize(ysize, cross_color_transform_bits);
     std::vector<uint32> color_space_image(color_space_image_size);
-    ColorSpaceTransform(xsize, ysize, color_transform_bits,
+    ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
                         &argb[0],
                         quality,
                         &argb[0],
                         &color_space_image[0]);
     WriteBits(1, 1, &storage_ix, &storage[0]);
     WriteBits(3, 1, &storage_ix, &storage[0]);
-    WriteBits(4, color_transform_bits, &storage_ix, &storage[0]);
-    EncodeImageInternal(MetaSize(xsize, color_transform_bits),
-                        MetaSize(ysize, color_transform_bits),
+    WriteBits(4, cross_color_transform_bits, &storage_ix, &storage[0]);
+    EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
+                        MetaSize(ysize, cross_color_transform_bits),
                         color_space_image,
                         quality,
                         0,
@@ -984,11 +982,11 @@ int EncodeWebpLLImage(const int xs,
                         &storage_ix, &storage[0]);
   }
 
-  int palette_bits = 0;
+  palette_bits = 0;
   if (use_emerging_palette) {
     palette_bits = (quality == 0) ?
         7 :
-        CalculateEstimateForPaletteSize(&argb[0], xs, ys);
+        CalculateEstimateForPaletteSize(&argb[0], xsize, ysize);
   }
 
   EncodeImageInternal(xsize,

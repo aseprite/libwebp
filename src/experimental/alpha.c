@@ -107,6 +107,7 @@ static int EncodeWebpLL(const uint8 *data, int width, int height,
                         uint8 **output, size_t *output_size) {
   int i;
   int ok = 0;
+  EncodingStrategy strategy;
 
   // Convert the alpha values to an argb array. Green channel is used to store
   // the alpha values. Other channels are set as follows; a = 0xFF, r = b = 0.
@@ -119,16 +120,18 @@ static int EncodeWebpLL(const uint8 *data, int width, int height,
     argb[i] = data[i];
     argb[i] = 0xFF000000 | (argb[i] << 8);
   }
+  strategy.quality = 95;
+  strategy.use_lz77 = 1;
+  strategy.use_small_palette = 0;
+  strategy.palette_bits = 0;
+  strategy.predict = 1;
+  strategy.predict_bits = 4;
+  strategy.histogram_bits = 3;
+  strategy.cross_color_transform = 0;
+  strategy.cross_color_transform_bits = 10;
 
   ok = EncodeWebpLLImage(width, height, argb,
-                         95,     // quality
-                         1,      // use_small_palette,
-                         1,      // use_spatial_predict,
-                         4,      // predict_bits
-                         3,      // histogram_bits,
-                         0,      // use_cross_color_transform,
-                         10,     // color_trasnform_bts
-                         1,      // no error detection bits
+                         &strategy,
                          output_size,
                          output);
 

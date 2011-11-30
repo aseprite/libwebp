@@ -523,17 +523,20 @@ int main(int argc, char **argv) {
         use_small_palette ?
         png_decoder.GetPixelsInArgbArray() :
         &near_lossless_argb[0];
+    EncodingStrategy strategy;
+    strategy.quality = quality;
+    strategy.use_lz77 = 1;
+    strategy.use_small_palette = use_small_palette;
+    strategy.palette_bits = 7;
+    strategy.predict = use_spatial_predict;
+    strategy.predict_bits = 4;
+    strategy.histogram_bits = histogram_bits;
+    strategy.cross_color_transform = use_cross_color_transform;
+    strategy.cross_color_transform_bits = mode == 0 ? 4 : 10;
     EncodeWebpLLImage(png_decoder.width(),
                       png_decoder.height(),
                       argb_to_compress,
-                      quality,
-                      use_small_palette,
-                      use_spatial_predict,
-                      4,
-                      histogram_bits,
-                      use_cross_color_transform,
-                      mode == 0 ? 4 : 10,
-                      false,  // no error detection bits
+                      &strategy,
                       &n_bytes,
                       &bytes);
     std::string to_file_candidate(bytes, bytes + n_bytes);
