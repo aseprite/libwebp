@@ -653,11 +653,8 @@ void EncodeImageInternal(const int xsize,
                         quality,
                         palette_bits,
                         &histogram_image);
-  for (int iter = 0; iter < 3; ++iter) {
-    double sum = 0;
-    for (int i = 0; i < histogram_image.size(); ++i) {
-      sum += histogram_image[i]->EstimateBits();
-    }
+  const int max_refinement_iters = 1;
+  for (int iter = 0; iter < max_refinement_iters; ++iter) {
     RefineHistogramImage(histogram_image_raw, &histogram_symbols,
                          &histogram_image);
     if (quality < 30) {
