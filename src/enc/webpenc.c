@@ -242,6 +242,7 @@ static VP8Encoder* InitEncoder(const WebPConfig* const config,
   enc->config_ = config;
   enc->profile_ = use_filter ? ((config->filter_type == 1) ? 0 : 1) : 2;
   enc->pic_ = picture;
+  enc->percent_ = 0;
 
   MapConfigToTools(enc);
   VP8EncDspInit();
@@ -301,6 +302,7 @@ static void StoreStats(VP8Encoder* const enc) {
       stats->block_count[i] = enc->block_count_[i];
     }
   }
+  WebPReportProgress(enc, 100); // done!
 }
 
 int WebPEncodingSetError(WebPPicture* const pic, WebPEncodingError error) {
@@ -310,6 +312,18 @@ int WebPEncodingSetError(WebPPicture* const pic, WebPEncodingError error) {
   return 0;
 }
 
+int WebPReportProgress(VP8Encoder* const enc, int percent) {
+  if (percent != enc->percent_) {
+    WebPPicture* const pic = enc->pic_;
+    enc->percent_ = percent;
+    if (pic->progress_hook && !pic->progress_hook(percent, pic)) {
+      // user abort requested
+      WebPEncodingSetError(pic, VP8_ENC_ERROR_USER_ABORT);
+      return 0;
+    }
+  }
+  return 1;   // ok
+}
 //------------------------------------------------------------------------------
 
 int WebPEncode(const WebPConfig* const config, WebPPicture* const pic) {
@@ -332,6 +346,7 @@ int WebPEncode(const WebPConfig* const config, WebPPicture* const pic) {
 
   enc = InitEncoder(config, pic);
   if (enc == NULL) return 0;  // pic->error is already set.
+  // Note: each of the tasks below account for 20% in the progress report.
   ok = VP8EncAnalyze(enc)
     && VP8StatLoop(enc)
     && VP8EncLoop(enc)
