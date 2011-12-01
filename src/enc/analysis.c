@@ -352,7 +352,7 @@ int VP8EncAnalyze(VP8Encoder* const enc) {
   enc->uv_alpha_ /= enc->mb_w_ * enc->mb_h_;
   AssignSegments(enc, alphas);
 
-  return 1;
+  return WebPReportProgress(enc, enc->percent_ + 20);
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)

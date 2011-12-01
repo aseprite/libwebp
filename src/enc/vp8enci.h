@@ -330,6 +330,8 @@ struct VP8Encoder {
   VP8BitWriter bw_;                         // part0
   VP8BitWriter parts_[MAX_NUM_PARTITIONS];  // token partitions
 
+  int percent_;                             // for progress
+
   // transparency blob
   int has_alpha_;
   uint8_t* alpha_data_;       // non-NULL if transparency is present
@@ -422,6 +424,7 @@ int VP8StatLoop(VP8Encoder* const enc);
   // in webpenc.c
 // Assign an error code to a picture. Return false for convenience.
 int WebPEncodingSetError(WebPPicture* const pic, WebPEncodingError error);
+int WebPReportProgress(VP8Encoder* const enc, int percent);
 
   // in analysis.c
 // Main analysis loop. Decides the segmentations and complexity.

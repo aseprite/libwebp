@@ -416,6 +416,7 @@ int VP8EncWrite(VP8Encoder* const enc) {
   }
 
   enc->coded_size_ = (int)(CHUNK_HEADER_SIZE + riff_size);
+  ok = ok && WebPReportProgress(enc, enc->percent_ + 19);
   return ok;
 }
 

@@ -651,6 +651,14 @@ static int DumpPicture(const WebPPicture* const picture, const char* PGM_name) {
 
 //------------------------------------------------------------------------------
 
+static int ProgressReport(int percent, const WebPPicture* const picture) {
+  printf("[%s]: %3d %%      \r", (char*)picture->stats->user_data, percent);
+  if (percent == 100) printf("\n");
+  return 1;  // all ok
+}
+
+//------------------------------------------------------------------------------
+
 static void HelpShort(void) {
   printf("Usage:\n\n");
   printf("   cwebp [options] -q quality input.png -o output.webp\n\n");
@@ -712,6 +720,7 @@ static void HelpLong(void) {
 #endif
   printf("  -v ..................... verbose, e.g. print encoding/decoding "
          "times\n");
+  printf("  -progress .............. report encoding progress\n");
   printf("\n");
   printf("Experimental Options:\n");
   printf("  -af .................... auto-adjust filter strength.\n");
@@ -736,8 +745,9 @@ static const char* const kErrorMessages[] = {
   "header bits using -partition_limit. More details are available "
   "in the manual (`man cwebp`)",
   "PARTITION_OVERFLOW: Partition is too big to fit 16M",
-  "BAD_WRITE: Picture writer returned an I/O error"
-  "FILE_TOO_BIG: File would be too big to fit in 4G"
+  "BAD_WRITE: Picture writer returned an I/O error",
+  "FILE_TOO_BIG: File would be too big to fit in 4G",
+  "USER_ABORT: encoding abort requested by user"
 };
 
 //------------------------------------------------------------------------------
@@ -751,6 +761,7 @@ int main(int argc, const char *argv[]) {
   int keep_alpha = 0;
   int crop = 0, crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
   int resize_w = 0, resize_h = 0;
+  int show_progress = 0;
   WebPPicture picture;
   WebPConfig config;
   WebPAuxStats stats;
@@ -847,6 +858,9 @@ int main(int argc, const char *argv[]) {
       printf("%d.%d.%d\n",
         (version >> 16) & 0xff, (version >> 8) & 0xff, version & 0xff);
       return 0;
+    } else if (!strcmp(argv[c], "-progress")) {
+      show_progress = 1;
+      picture.progress_hook = ProgressReport;
     } else if (!strcmp(argv[c], "-quiet")) {
       quiet = 1;
     } else if (!strcmp(argv[c], "-preset") && c < argc - 1) {
@@ -896,6 +910,8 @@ int main(int argc, const char *argv[]) {
     fprintf(stderr, "Error! Cannot read input picture\n");
     goto Error;
   }
+  picture.progress_hook = show_progress ? ProgressReport : NULL;
+
   if (verbose) {
     const double time = StopwatchReadAndReset(&stop_watch);
     fprintf(stderr, "Time to read input: %.3fs\n", time);
@@ -922,6 +938,7 @@ int main(int argc, const char *argv[]) {
     }
   }
   picture.stats = &stats;
+  stats.user_data = (void*)in_file;
 
   // Compress
   if (verbose) {

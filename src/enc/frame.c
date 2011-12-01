@@ -684,32 +684,30 @@ int VP8StatLoop(VP8Encoder* const enc) {
       const int rd_opt = (enc->method_ > 2);
       OneStatPass(enc, q, rd_opt, nb_mbs, NULL);
     }
-    return 1;
-  }
-
-  // binary search for a size close to target
-  for (pass = 0; pass < enc->config_->pass && (dqs[pass] > 0); ++pass) {
-    const int rd_opt = 1;
-    float PSNR;
-    int criterion;
-    const int size = OneStatPass(enc, q, rd_opt, nb_mbs, &PSNR);
+  } else {
+    // binary search for a size close to target
+    for (pass = 0; pass < enc->config_->pass && (dqs[pass] > 0); ++pass) {
+      const int rd_opt = 1;
+      float PSNR;
+      int criterion;
+      const int size = OneStatPass(enc, q, rd_opt, nb_mbs, &PSNR);
 #if DEBUG_SEARCH
-    printf("#%d size=%d PSNR=%.2f q=%.2f\n", pass, size, PSNR, q);
+      printf("#%d size=%d PSNR=%.2f q=%.2f\n", pass, size, PSNR, q);
 #endif
-
-    if (enc->config_->target_PSNR > 0) {
-      criterion = (PSNR < enc->config_->target_PSNR);
-    } else {
-      criterion = (size < enc->config_->target_size);
-    }
-    // dichotomize
-    if (criterion) {
-      q += dqs[pass];
-    } else {
-      q -= dqs[pass];
+      if (enc->config_->target_PSNR > 0) {
+        criterion = (PSNR < enc->config_->target_PSNR);
+      } else {
+        criterion = (size < enc->config_->target_size);
+      }
+      // dichotomize
+      if (criterion) {
+        q += dqs[pass];
+      } else {
+        q -= dqs[pass];
+      }
     }
   }
-  return 1;
+  return WebPReportProgress(enc, enc->percent_ + 20);
 }
 
 //------------------------------------------------------------------------------
