@@ -20,6 +20,8 @@
 #include "../enc/encode.h"
 #include "png.h"
 #include "pngconf.h"
+#include "../enc/histogram.h"
+#include "../common/predictor.h"
 
 // Take in a png data in a string. Give an easy access to the png
 // data through the methods.
@@ -375,6 +377,26 @@ static bool IsFar(uint32 a, uint32 b, int limit) {
   return false;
 }
 
+// TODO(jyrki): Move to library for strategy selection code.
+static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
+                           double *nonpredicted_bits,
+                           double *predicted_bits) {
+  Histogram *predicted = new Histogram(0);
+  Histogram *nonpredicted = new Histogram(0);
+  for (int k = 0; k < xsize * ysize - 1; ++k) {
+    if (argb[k] == argb[k - 1] || (k >= xsize && argb[k] == argb[k - xsize])) {
+      continue;
+    }
+    nonpredicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[k]));
+    uint32 diff = Subtract(argb[k], argb[k - 1]);
+    predicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(diff));
+  }
+  *predicted_bits = predicted->EstimateBitsBulk();
+  *nonpredicted_bits = nonpredicted->EstimateBitsBulk();
+  delete predicted;
+  delete nonpredicted;
+}
+
 static void NearLossless(int xsize, int ysize, uint32 *argb, int limit_bits) {
   std::vector<uint32> copy(argb, argb + xsize * ysize);
   int limit = 1 << limit_bits;
@@ -492,7 +514,10 @@ int main(int argc, char **argv) {
   // 1: non-color-predicted mode
   // 2: mode with the small palette
 
-  bool try_with_small_palette = UniquePixels(xsize * ysize, argb_orig) <= 256;
+  int try_with_small_palette = UniquePixels(xsize * ysize, argb_orig) <= 256;
+  double nonpredicted_bits = 0.0;
+  double predicted_bits = 0.0;
+  IsPhotographic(xsize, ysize, argb_orig, &nonpredicted_bits, &predicted_bits);
 
   int histogram_bits = 3;
   if (xsize * ysize >= 20000) {
@@ -511,6 +536,16 @@ int main(int argc, char **argv) {
     if (mode == 0 && try_with_small_palette) {
       // Usually not useful to try spatial prediction when there are
       // only a few colors.
+      continue;
+    }
+    if (mode == 0 && nonpredicted_bits < 0.95 * predicted_bits) {
+      // Non-predicted mode (== 0) is so much less entropy, don't bother
+      // trying the predicted mode.
+      continue;
+    }
+    if (mode == 1 && 0.95 * nonpredicted_bits > predicted_bits) {
+      // Predicted mode (== 0) is so much less entropy, don't bother
+      // trying the non-predicted mode.
       continue;
     }
     if (mode >= 2 && !try_with_small_palette) {
