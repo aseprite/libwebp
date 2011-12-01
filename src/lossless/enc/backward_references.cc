@@ -580,19 +580,46 @@ bool VerifyBackwardReferences(const uint32* argb,
   return true;
 }
 
+static void ComputePaletteHistogram(
+    const uint32 *argb,
+    int xsize, int ysize,
+    const std::vector<LiteralOrCopy> &stream,
+    int palette_bits,
+    Histogram *histo) {
+  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  int pixel_index = 0;
+  for (int i = 0; i < stream.size(); ++i) {
+    const LiteralOrCopy &v = stream[i];
+    if (v.IsLiteral()) {
+      int x = pixel_index % xsize;
+      if (palette_bits != 0 && hashers.Contains(x, argb[pixel_index])) {
+        // push pixel as a palette pixel
+        const int ix = hashers.GetIndex(argb[pixel_index]);
+        histo->AddSingleLiteralOrCopy(LiteralOrCopy::CreatePaletteIx(ix));
+      } else {
+        histo->AddSingleLiteralOrCopy(stream[i]);
+      }
+    } else {
+      histo->AddSingleLiteralOrCopy(stream[i]);
+    }
+    for (int k = 0; k < v.Length(); ++k) {
+      hashers.Insert(pixel_index % xsize, argb[pixel_index]);
+      ++pixel_index;
+    }
+  }
+  VERIFY(pixel_index == xsize * ysize);
+}
+
 // Returns how many bits are to be used for a palette.
 int CalculateEstimateForPaletteSize(const uint32 *argb,
                                     int xsize, int ysize) {
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
+  std::vector<LiteralOrCopy> stream;
+  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, &stream);
   for (int palette_bits = 0; palette_bits < 12; ++palette_bits) {
-    std::vector<LiteralOrCopy> stream;
-    BackwardReferencesHashChain(xsize, ysize, palette_bits != 0, argb,
-                                palette_bits, &stream);
     Histogram histo(palette_bits);
-    for (int i = 0; i < stream.size(); ++i) {
-      histo.AddSingleLiteralOrCopy(stream[i]);
-    }
+    ComputePaletteHistogram(argb, xsize, ysize, stream, palette_bits, &histo);
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;
     double cur_entropy = histo.EstimateBits() +
         kMakeLargePaletteSlightlyLessFavorable * palette_bits;
