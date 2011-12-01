@@ -186,10 +186,12 @@ X_OBJS= \
 EXAMPLES_OBJS = \
     $(DIROBJ)\examples\cwebp.obj \
     $(DIROBJ)\examples\dwebp.obj \
-    $(DIROBJ)\examples\webpmux.obj
+    $(DIROBJ)\examples\webpmux.obj \
+    $(DIROBJ)\examples\png2webp.obj \
+    $(DIROBJ)\examples\webp2png.obj
 
 all: $(DIRLIB)\$(TARGET) $(DIRBIN)\dwebp.exe $(DIRBIN)\cwebp.exe \
-     $(DIRBIN)\webpmux.exe
+     $(DIRBIN)\webpmux.exe $(DIRBIN)\png2webp.exe $(DIRBIN)\webp2png.exe
 
 # Additional include and library paths (for zlib) can be passed via the CL and
 # LINK environment variables respectively:
