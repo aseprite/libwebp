@@ -53,23 +53,17 @@ uint32 Average(uint32 a0, uint32 a1, uint32 a2, uint32 a3) {
 }
 
 uint32 Add(uint32 a, uint32 b) {
-  int alpha = ((a >> 24) & 0xff) + ((b >> 24) & 0xff);
-  int red = ((a >> 16) & 0xff) + ((b >> 16) & 0xff);
-  int green = ((a >> 8) & 0xff) + ((b >> 8) & 0xff);
-  int blue = ((a >> 0) & 0xff) + ((b >> 0) & 0xff);
-  alpha &= 0xff;
-  red &= 0xff;
-  green &= 0xff;
-  blue &= 0xff;
-  return (alpha << 24) | (red << 16) | (green << 8) | blue;
+  // This computes the sum of each component with mod 256.
+  uint32 alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
+  uint32 red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
+  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
 uint32 Subtract(uint32 a, uint32 b) {
-  int alpha = ((a >> 24) & 0xff) - ((b >> 24) & 0xff);
+  int alpha = (a >> 24) - (b >> 24);
   int red = ((a >> 16) & 0xff) - ((b >> 16) & 0xff);
   int green = ((a >> 8) & 0xff) - ((b >> 8) & 0xff);
   int blue = ((a >> 0) & 0xff) - ((b >> 0) & 0xff);
-  alpha &= 0xff;
   red &= 0xff;
   green &= 0xff;
   blue &= 0xff;
