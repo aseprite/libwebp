@@ -22,10 +22,11 @@ class BitStream {
 
   // Can read at most 25 bits at a time.
   uint32 Read(int num_bits);
+  int ReadOneBit();
 
  private:
-  void Shift(int num_bytes);
-  void ShiftOneByte();
+  inline void Shift(int num_bytes);
+  inline void ShiftOneByte();
 
   const int length_;
   const uint8* stream_;

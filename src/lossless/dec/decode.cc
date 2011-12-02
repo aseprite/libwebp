@@ -9,6 +9,7 @@
 
 #include "decode.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,12 +125,12 @@ std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
   return out;
 }
 
-int ReadSymbol(const HuffmanTreeNode& root,
-               BitStream* stream) {
+inline int ReadSymbol(const HuffmanTreeNode& root,
+                      BitStream* stream) {
   const HuffmanTreeNode* node = &root;
-  while (!node->IsLeaf()) node = node->child(READ(stream, 1));
-  VERIFY(node);
-  VERIFY(node->symbol() != -1);
+  while (!node->IsLeaf()) node = node->child(stream->ReadOneBit());
+  assert(node);
+  assert(node->symbol() != -1);
   return node->symbol();
 }
 
