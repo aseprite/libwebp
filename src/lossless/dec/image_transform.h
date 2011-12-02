@@ -93,13 +93,13 @@ void ComponentSubsamplingInverseTransform(int xsize, int ysize,
     for (int k = 0; k < 4; ++k) {
       uint32 component = (image[i] >> (8 * k)) & 0xff;
       int sbits = 8 - bits[k];
-      uint32 c = 0;
-      for (int nbits = 0; nbits < 8; nbits += sbits) {
+      uint32 c = component << bits[k];
+      for (int nbits = sbits; nbits < 8; nbits += sbits) {
         int shift = 8 - nbits - sbits;
         if (shift >= 0) {
-          c |= (component << shift);
+          c |= component << shift;
         } else {
-          c |= (component >> ((-1) * shift));
+          c |= component >> -shift;
         }
       }
       new_pixel |= c << (8 * k);
