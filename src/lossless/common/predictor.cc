@@ -9,16 +9,19 @@
 
 #include "predictor.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 #include "integral_types.h"
 
-uint32 Average2(uint32 a0, uint32 a1) {
-  int alpha = ((a0 >> 24) + (a1 >> 24) + 1) / 2;
-  int red = (((a0 >> 16) & 0xff) + ((a1 >> 16) & 0xff) + 1) / 2;
-  int green = (((a0 >> 8) & 0xff) + ((a1 >> 8) & 0xff) + 1) / 2;
-  int blue = (((a0 >> 0) & 0xff) + ((a1 >> 0) & 0xff) + 1) / 2;
-  return (alpha << 24) | (red << 16) | (green << 8) | blue;
+inline uint32 Average2(uint32 a0, uint32 a1) {
+  uint32 alpha_and_green =
+      ((((a0 >> 8) & 0x00ff00ff) +
+        ((a1 >> 8) & 0x00ff00ff) + 0x00010001) >> 1) & 0x00ff00ff;
+  uint32 red_and_blue =
+      (((a0 & 0x00ff00ff) +
+        (a1 & 0x00ff00ff) + 0x00010001) >> 1) & 0x00ff00ff;
+  return (alpha_and_green << 8) | red_and_blue;
 }
 
 uint32 Average(uint32 a0, uint32 a1, uint32 a2) {
@@ -36,20 +39,17 @@ uint32 Average(uint32 a0, uint32 a1, uint32 a2) {
 }
 
 uint32 Average(uint32 a0, uint32 a1, uint32 a2, uint32 a3) {
-  int alpha = ((a0 >> 24) + (a1 >> 24) + (a2 >> 24) + (a3 >> 24) + 2) / 4;
-  int red = (((a0 >> 16) & 0xff) +
-             ((a1 >> 16) & 0xff) +
-             ((a2 >> 16) & 0xff) +
-             ((a3 >> 16) & 0xff) + 2) / 4;
-  int green = (((a0 >> 8) & 0xff) +
-               ((a1 >> 8) & 0xff) +
-               ((a2 >> 8) & 0xff) +
-               ((a3 >> 8) & 0xff) + 2) / 4;
-  int blue = (((a0 >> 0) & 0xff) +
-              ((a1 >> 0) & 0xff) +
-              ((a2 >> 0) & 0xff) +
-              ((a3 >> 0) & 0xff) + 2) / 4;
-  return (alpha << 24) | (red << 16) | (green << 8) | blue;
+  uint32 alpha_and_green =
+      ((((a0 >> 8) & 0x00ff00ff) +
+        ((a1 >> 8) & 0x00ff00ff) +
+        ((a2 >> 8) & 0x00ff00ff) +
+        ((a3 >> 8) & 0x00ff00ff) + 0x00020002) >> 2) & 0x00ff00ff;
+  uint32 red_and_blue =
+      (((a0 & 0x00ff00ff) +
+        (a1 & 0x00ff00ff) +
+        (a2 & 0x00ff00ff) +
+        (a3 & 0x00ff00ff) + 0x00020002) >> 2) & 0x00ff00ff;
+  return (alpha_and_green << 8) | red_and_blue;
 }
 
 uint32 Add(uint32 a, uint32 b) {
@@ -60,14 +60,10 @@ uint32 Add(uint32 a, uint32 b) {
 }
 
 uint32 Subtract(uint32 a, uint32 b) {
-  int alpha = (a >> 24) - (b >> 24);
-  int red = ((a >> 16) & 0xff) - ((b >> 16) & 0xff);
-  int green = ((a >> 8) & 0xff) - ((b >> 8) & 0xff);
-  int blue = ((a >> 0) & 0xff) - ((b >> 0) & 0xff);
-  red &= 0xff;
-  green &= 0xff;
-  blue &= 0xff;
-  return (alpha << 24) | (red << 16) | (green << 8) | blue;
+  // This subtracts each component with mod 256.
+  uint32 alpha_and_green = 0x00ff00ff + (a & 0xff00ff00) - (b & 0xff00ff00);
+  uint32 red_and_blue = 0xff00ff00 + (a & 0x00ff00ff) - (b & 0x00ff00ff);
+  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
 inline uint8 Paeth8(uint8 a, uint8 b, uint8 c) {
@@ -84,23 +80,24 @@ inline uint8 Paeth8(uint8 a, uint8 b, uint8 c) {
 }
 
 uint32 Paeth32(uint32 a, uint32 b, uint32 c) {
-  uint32 retval = 0;
-  for (int i = 0; i < 4; ++i) {
-    uint32 v = Paeth8((a >> (i * 8)) & 0xff,
-                      (b >> (i * 8)) & 0xff,
-                      (c >> (i * 8)) & 0xff);
-    retval |= v << (i * 8);
-  }
-  return retval;
+  return
+      (Paeth8(a >> 24, b >> 24, c >> 24) << 24) |
+      (Paeth8((a >> 16) & 0xff,
+              (b >> 16) & 0xff,
+              (c >> 16) & 0xff) << 16) |
+      (Paeth8((a >> 8) & 0xff,
+              (b >> 8) & 0xff,
+              (c >> 8) & 0xff) << 8) |
+      Paeth8(a & 0xff, b & 0xff, c & 0xff);
 }
 
-int Clamp(int a) {
+inline int Clamp(int a) {
   if (a < 0) return 0;
   if (a > 255) return 255;
   return a;
 }
 
-int AddSubtractComponent(int mul, int a, int b, int c) {
+inline int AddSubtractComponent(int mul, int a, int b, int c) {
   return Clamp(a + (mul * (b - c)) / 256);
 }
 
@@ -124,9 +121,6 @@ uint32 ClampedAddSubtract(int mul, uint32 c0, uint32 c1, uint32 c2) {
 
 
 uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb) {
-  if (mode == 0) {
-    return 0xff000000;
-  }
   if (x == 0) {
     if (y == 0) {
       return 0xff000000;
