@@ -210,16 +210,23 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
                                const uint32* image,
                                const uint32 *from_argb,
                                uint32* to_argb) {
-  int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
-  for (int y = 0; y < ysize; ++y) {
-    int tile_y = y >> bits;
-    for (int x = 0; x < xsize; ++x) {
-      int tile_x = x >> bits;
+  const int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
+  for (int image_y = 0; image_y < ysize; ++image_y) {
+    int tile_y = image_y >> bits;
+    int ix = image_y * xsize;
+    for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       int tile_ix = tile_y * tile_xsize + tile_x;
       int mode = ((image[tile_ix] >> 8) & 0xff) + 1;
-      int ix = y * xsize + x;
-      const uint32 predict = PredictValue(mode, x, y, xsize, to_argb);
-      to_argb[ix] = Add(from_argb[ix], predict);
+      int image_x = (tile_x << bits);
+      int xend = image_x + (1 << bits);
+      if (xend > xsize) {
+        xend = xsize;
+      }
+      for (; image_x < xend; ++image_x) {
+        const uint32 predict =
+            PredictValue(mode, image_x, image_y, xsize, to_argb);
+        to_argb[ix + image_x] = Add(from_argb[ix + image_x], predict);
+      }
     }
   }
 }
@@ -230,20 +237,29 @@ void CopyTileWithColorTransform(int xsize, int ysize,
                                 ColorSpaceTransformElement color_transform,
                                 bool inverse,
                                 uint32 *to_argb) {
-  for (int y = 0; y < (1 << bits); ++y) {
-    int all_y = (tile_y << bits) + y;
-    if (all_y >= ysize) {
-      break;
-    }
-    for (int x = 0; x < (1 << bits); ++x) {
-      int all_x = (tile_x << bits) + x;
-      if (all_x >= xsize) {
+  int xscan = 1 << bits;
+  if (xscan > xsize - (tile_x << bits)) {
+    xscan = xsize - (tile_x << bits);
+  }
+  if (inverse) {
+    for (int y = 0; y < (1 << bits); ++y) {
+      int all_y = (tile_y << bits) + y;
+      if (all_y >= ysize) {
         break;
       }
-      const int ix = all_y * xsize + all_x;
-      if (inverse) {
+      int ix = all_y * xsize + (tile_x << bits);
+      for (int x = 0; x < xscan; ++x, ++ix) {
         to_argb[ix] = color_transform.InverseTransform(from_argb[ix]);
-      } else {
+      }
+    }
+  } else {
+    for (int y = 0; y < (1 << bits); ++y) {
+      int all_y = (tile_y << bits) + y;
+      if (all_y >= ysize) {
+        break;
+      }
+      int ix = all_y * xsize + (tile_x << bits);
+      for (int x = 0; x < xscan; ++x, ++ix) {
         to_argb[ix] = color_transform.Transform(from_argb[ix]);
       }
     }

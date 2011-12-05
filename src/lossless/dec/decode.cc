@@ -47,12 +47,10 @@ int AlphabetSize(int type, int num_green, int palette_size) {
   return 0;
 }
 
-int GetMetaIndex(int xsize, int bits,
-                 const uint32* image,
-                 int x, int y) {
+int GetMetaIndex(int xsize, int bits, const uint32* image, int x, int y) {
   if (bits == 0) return 0;
   int xs = (xsize + (1 << bits) - 1) >> bits;
-  return (image[(y >> bits) * xs +(x >> bits)] >> 8) & 0xffff;
+  return (image[(y >> bits) * xs + (x >> bits)] >> 8) & 0xffff;
 }
 
 void ReadMetaCodes(const int num_rba,
@@ -318,7 +316,7 @@ void DecodeImageInternal(const int original_xsize,
     if (error_detection_bits) {
       VERIFY(kMagicByteForErrorDetection == stream->Read(8));
     }
-  } else{
+  } else {
     for (int k = 0; k < num_rba + 2; ++k) {
       meta_codes.push_back(k);
       tree_types[k] = (k == 0) ? 0 : (k == num_rba + 1) ? 2 : 1;
@@ -347,46 +345,56 @@ void DecodeImageInternal(const int original_xsize,
   }
 
   *argb_image = (uint32*)malloc(xsize * ysize * sizeof(uint32));
-  bool log = false;
-  if (log) printf("\nDecoding actual bit stream.\n");
+  int x = 0;
+  int y = 0;
+  int red = 0;
+  int blue = 0;
+  int alpha = 0xff000000;
+  int meta_index = 0;  // Does not have to be initialized.
+  int meta_ix = 0;  // Does not have to be initialized.
   for (int pos = 0; pos < xsize * ysize; ) {
-    int x = pos % xsize;
-    int y = pos / xsize;
-    int meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
-    int meta_ix = meta_index * (num_rba + 2);
-
-    if (log) printf("x = %d y = %d meta_index = %d  ", x, y, meta_index);
-
-    int green = ReadSymbol(htrees[meta_codes[meta_ix]],
-                           stream);
-
+    if ((x & ((1 << huffman_bits) - 1)) == 0) {
+      // Only update the huffman code when moving from one block to the
+      // next.
+      meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+      meta_ix = meta_index * (num_rba + 2);
+    }
+    int green = ReadSymbol(htrees[meta_codes[meta_ix]], stream);
     // Literal
     if (green < num_green) {
-      int red = (num_rba > 0) ?
-          ReadSymbol(htrees[meta_codes[meta_ix + 1]], stream) : 0;
-      int blue = (num_rba > 1) ?
-          ReadSymbol(htrees[meta_codes[meta_ix + 2]], stream) : 0;
-      int alpha = (num_rba > 2) ?
-          ReadSymbol(htrees[meta_codes[meta_ix + 3]], stream) : 255;
+      if (num_rba > 1) {
+        red = ReadSymbol(htrees[meta_codes[meta_ix + 1]], stream) << 16;
+        blue = ReadSymbol(htrees[meta_codes[meta_ix + 2]], stream);
+        if (num_rba > 2) {
+          alpha = ReadSymbol(htrees[meta_codes[meta_ix + 3]], stream) << 24;
+        }
+      } else if (num_rba > 0) {
+        red = ReadSymbol(htrees[meta_codes[meta_ix + 1]], stream) << 16;
+      }
 
-      if (log) printf("green=0x%02x red=0x%02x blue=0x%02x alpha=0x%02x\n",
-                      green, red, blue, alpha);
-
-      uint32 argb = (alpha << 24) + (red << 16) + (green << 8) + blue;
+      uint32 argb = alpha + red + (green << 8) + blue;
       (*argb_image)[pos] = argb;
       if (palette) palette->Insert(x, argb);
+      ++x;
+      if (x >= xsize) {
+        x = 0;
+        ++y;
+      }
       ++pos;
       continue;
     }
-
     // Palette
     int palette_symbol = green - num_green;
     if (palette_symbol < palette_size) {
-      if (log) printf("palette_symbol = %d\n", palette_symbol);
       VERIFY(palette);
       uint32 argb = palette->Lookup(pos % xsize, palette_symbol);
       (*argb_image)[pos] = argb;
       palette->Insert(x, argb);
+      ++x;
+      if (x >= xsize) {
+        x = 0;
+        ++y;
+      }
       ++pos;
       continue;
     }
@@ -394,16 +402,11 @@ void DecodeImageInternal(const int original_xsize,
     // Backward reference
     int length_symbol = palette_symbol - palette_size;
     if (length_symbol < kNumLengthSymbols) {
-      if (log) printf("length_symbol = %d ", length_symbol);
       int length = GetCopyLength(length_symbol, stream);
-      if (log) printf("length = %d ", length);
       int dist_symbol = ReadSymbol(htrees[meta_codes[meta_ix + num_rba + 1]],
                                    stream);
-      if (log) printf("dist_symbol = %d ", dist_symbol);
       int dist = GetCopyDistance(dist_symbol, stream);
-      if (log) printf("plane dist = %d ", dist);
       dist = PlaneCodeToDistance(xsize, ysize, dist);
-      if (log) printf("dist = %d\n", dist);
       VERIFY(dist > 0);
       VERIFY(dist <= pos);
       VERIFY(pos + length <= xsize * ysize);
@@ -412,6 +415,13 @@ void DecodeImageInternal(const int original_xsize,
         if (palette) palette->Insert(pos % xsize, (*argb_image)[pos]);
         ++pos;
       }
+      x += length;
+      while(x >= xsize) {
+        x -= xsize;
+        ++y;
+      }
+      meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+      meta_ix = meta_index * (num_rba + 2);
       continue;
     }
     printf("Error: Could not interpret GREEN symbol %d\n", green);
