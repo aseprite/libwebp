@@ -129,15 +129,9 @@ static int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
   if (plane_code > 120) {
     return plane_code - 120;
   }
-  int dist_code = code_to_plane_lut[plane_code - 1];
-  int yoffset = dist_code / 16;
-  int xoffset = dist_code % 16;
-  if (xoffset <= 8) {
-    xoffset = 8 - xoffset;
-  } else {
-    xoffset = xsize - (xoffset - 8);
-    yoffset -= 1;
-  }
+  const int dist_code = code_to_plane_lut[plane_code - 1];
+  const int yoffset = dist_code >> 4;
+  const int xoffset = 8 - (dist_code & 0xf);
   return yoffset * xsize + xoffset;
 }
 
@@ -219,7 +213,7 @@ static void ReadCodeLengthTree(BitStream* stream,
 static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
                                    BitStream* stream,
                                    std::vector<int>* code_lengths) {
-  bool use_length = stream->Read(1);
+  bool use_length = stream->ReadOneBit();
   int max_length = 0;
   if (use_length) {
     int length_nbits = (stream->Read(3) + 1) * 2;
@@ -251,9 +245,9 @@ static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
 static void ReadHuffmanCode(const int alphabet_size,
                             BitStream* stream,
                             HuffmanTreeNode* root) {
-  bool simple_code = stream->Read(1);
+  bool simple_code = stream->ReadOneBit();
   if (simple_code) {
-    int num_symbols = stream->Read(1) + 1;
+    int num_symbols = stream->ReadOneBit() + 1;
     int nbits = stream->Read(3);
     if (nbits == 0) {
       root->AddSymbol(0, 0, 0);
@@ -295,14 +289,14 @@ static void DecodeImageInternal(const int original_xsize,
 
   static const unsigned char kMagicByteForErrorDetection = 0xa3;
 
-  bool error_detection_bits = stream->Read(1);
+  bool error_detection_bits = stream->ReadOneBit();
   if (error_detection_bits) {
     VERIFY(kMagicByteForErrorDetection == stream->Read(8));
   }
 
   int num_rba = stream->Read(2);
 
-  bool use_meta_codes = stream->Read(1);
+  bool use_meta_codes = stream->ReadOneBit();
   int huffman_bits = 0;
   uint32* huffman_image;
   std::vector<int> meta_codes;
@@ -325,15 +319,15 @@ static void DecodeImageInternal(const int original_xsize,
     }
   }
 
-  bool use_palette = stream->Read(1);
-  int palette_x_bits = use_palette ? stream->Read(4) : 0;
-  int palette_code_bits = use_palette ? stream->Read(4) : 0;
-  int palette_size = use_palette ? 1 << palette_code_bits : 0;
+  const bool use_palette = stream->ReadOneBit();
+  const int palette_x_bits = use_palette ? stream->Read(4) : 0;
+  const int palette_code_bits = use_palette ? stream->Read(4) : 0;
+  const int palette_size = use_palette ? 1 << palette_code_bits : 0;
   PixelHasherLine* palette = use_palette ?
       new PixelHasherLine(xsize, palette_x_bits, palette_code_bits) : NULL;
 
-  int green_bit_depth = stream->Read(3) + 1;
-  int num_green = 1 << green_bit_depth;
+  const int green_bit_depth = stream->Read(3) + 1;
+  const int num_green = 1 << green_bit_depth;
 
   std::vector<HuffmanTreeNode> htrees(num_huffman_trees);
   for (int i = 0; i < htrees.size(); ++i) {
@@ -354,6 +348,9 @@ static void DecodeImageInternal(const int original_xsize,
   int alpha = 0xff000000;
   int meta_index = 0;  // Does not have to be initialized.
   int meta_ix = 0;  // Does not have to be initialized.
+  // Green values >= num_green but < palette_limit are from the palette.
+  const int palette_limit = num_green + palette_size;
+
   for (int pos = 0; pos < xsize * ysize; ) {
     if ((x & ((1 << huffman_bits) - 1)) == 0) {
       // Only update the huffman code when moving from one block to the
@@ -386,10 +383,9 @@ static void DecodeImageInternal(const int original_xsize,
       continue;
     }
     // Palette
-    int palette_symbol = green - num_green;
-    if (palette_symbol < palette_size) {
-      VERIFY(palette);
-      uint32 argb = palette->Lookup(pos % xsize, palette_symbol);
+    if (green < palette_limit) {
+      int palette_symbol = green - num_green;
+      const uint32 argb = palette->Lookup(x, palette_symbol);
       (*argb_image)[pos] = argb;
       palette->Insert(x, argb);
       ++x;
@@ -402,25 +398,36 @@ static void DecodeImageInternal(const int original_xsize,
     }
 
     // Backward reference
-    int length_symbol = palette_symbol - palette_size;
+    const int length_symbol = green - palette_limit;
     if (length_symbol < kNumLengthSymbols) {
-      int length = GetCopyLength(length_symbol, stream);
-      int dist_symbol = ReadSymbol(htrees[meta_codes[meta_ix + num_rba + 1]],
-                                   stream);
-      int dist = GetCopyDistance(dist_symbol, stream);
+      const int length = GetCopyLength(length_symbol, stream);
+      const int dist_symbol =
+          ReadSymbol(htrees[meta_codes[meta_ix + num_rba + 1]], stream);
+      uint32 dist = GetCopyDistance(dist_symbol, stream);
       dist = PlaneCodeToDistance(xsize, ysize, dist);
-      VERIFY(dist > 0);
       VERIFY(dist <= pos);
       VERIFY(pos + length <= xsize * ysize);
-      for (int i = 0; i < length; ++i) {
-        (*argb_image)[pos] = (*argb_image)[pos - dist];
-        if (palette) palette->Insert(pos % xsize, (*argb_image)[pos]);
-        ++pos;
-      }
-      x += length;
-      while(x >= xsize) {
-        x -= xsize;
-        ++y;
+      if (!palette) {
+        for (int i = 0; i < length; ++i) {
+          (*argb_image)[pos] = (*argb_image)[pos - dist];
+          ++pos;
+        }
+        x += length;
+        while(x >= xsize) {
+          x -= xsize;
+          ++y;
+        }
+      } else {
+        for (int i = 0; i < length; ++i) {
+          (*argb_image)[pos] = (*argb_image)[pos - dist];
+          palette->Insert(x, (*argb_image)[pos]);
+          ++pos;
+          ++x;
+          if (x >= xsize) {
+            x = 0;
+            ++y;
+          }
+        }
       }
       meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
       meta_ix = meta_index * (num_rba + 2);

@@ -97,28 +97,35 @@ inline int Clamp(int a) {
   return a;
 }
 
-inline int AddSubtractComponent(int mul, int a, int b, int c) {
-  return Clamp(a + (mul * (b - c)) / 256);
+inline int AddSubtractComponentFull(int a, int b, int c) {
+  return Clamp(a + b - c);
 }
 
-uint32 ClampedAddSubtract(int mul, uint32 c0, uint32 c1, uint32 c2) {
-  int a = AddSubtractComponent(mul,
-                               c0 >> 24, c1 >> 24, c2 >> 24);
-  int r = AddSubtractComponent(mul,
-                               (c0 >> 16) & 0xff,
-                               (c1 >> 16) & 0xff,
-                               (c2 >> 16) & 0xff);
-  int g = AddSubtractComponent(mul,
-                               (c0 >> 8) & 0xff,
-                               (c1 >> 8) & 0xff,
-                               (c2 >> 8) & 0xff);
-  int b = AddSubtractComponent(mul,
-                               (c0 >> 0) & 0xff,
-                               (c1 >> 0) & 0xff,
-                               (c2 >> 0) & 0xff);
+uint32 ClampedAddSubtractFull(uint32 c0, uint32 c1, uint32 c2) {
+  int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
+  int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
+                                   (c1 >> 16) & 0xff,
+                                   (c2 >> 16) & 0xff);
+  int g = AddSubtractComponentFull((c0 >> 8) & 0xff,
+                                   (c1 >> 8) & 0xff,
+                                   (c2 >> 8) & 0xff);
+  int b = AddSubtractComponentFull((c0 >> 0) & 0xff,
+                                   (c1 >> 0) & 0xff,
+                                   (c2 >> 0) & 0xff);
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
+inline int AddSubtractComponentHalf(int a, int b) {
+  return Clamp(a + (a - b) / 2);
+}
+
+uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1) {
+  int a = AddSubtractComponentHalf(c0 >> 24, c1 >> 24);
+  int r = AddSubtractComponentHalf((c0 >> 16) & 0xff, (c1 >> 16) & 0xff);
+  int g = AddSubtractComponentHalf((c0 >> 8) & 0xff, (c1 >> 8) & 0xff);
+  int b = AddSubtractComponentHalf((c0 >> 0) & 0xff, (c1 >> 0) & 0xff);
+  return (a << 24) | (r << 16) | (g << 8) | b;
+}
 
 uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb) {
   if (x == 0) {
@@ -166,15 +173,14 @@ uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb) {
                             argb[(y - 1) * xsize + x],
                             argb[(y - 1) * xsize + x - 1]);
     case 14:
-      return ClampedAddSubtract(256,
-                                argb[y * xsize + x - 1],
-                                argb[(y - 1) * xsize + x],
-                                argb[(y - 1) * xsize + x - 1]);
+      return ClampedAddSubtractFull(argb[y * xsize + x - 1],
+                                    argb[(y - 1) * xsize + x],
+                                    argb[(y - 1) * xsize + x - 1]);
     case 15:
       {
         uint32 ave = Average2(argb[y * xsize + x - 1],
                               argb[(y - 1) * xsize + x]);
-        return ClampedAddSubtract(128, ave, ave, argb[(y - 1) * xsize + x - 1]);
+        return ClampedAddSubtractHalf(ave, argb[(y - 1) * xsize + x - 1]);
       }
   }
   printf("Impossible %d\n", mode);

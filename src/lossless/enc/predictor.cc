@@ -112,6 +112,7 @@ void PredictorImage(int xsize, int ysize, int bits,
       }
     }
   }
+#ifndef NDEBUG
   uint32 *argb = (uint32 *)malloc(sizeof(to_argb[0]) * xsize * ysize);
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   PredictorInverseTransform(xsize, ysize, bits, image,
@@ -120,6 +121,7 @@ void PredictorImage(int xsize, int ysize, int bits,
     VERIFY(argb[i] == argb_orig[i]);
   }
   free(argb);
+#endif
   free(argb_orig);
 }
 
@@ -346,6 +348,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
       }
     }
   }
+#ifndef NDEBUG
   uint32 *argb = (uint32 *)malloc(sizeof(to_argb[0]) * xsize * ysize);
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   ColorSpaceInverseTransform(xsize, ysize, bits, image, &argb[0], &argb[0]);
@@ -353,6 +356,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
     VERIFY(argb[i] == argb_orig[i]);
   }
   free(argb);
+#endif
   free(argb_orig);
 }
 
