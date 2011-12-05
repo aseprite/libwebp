@@ -29,186 +29,21 @@
 
 static const int kMaxImageTransforms = 100;
 
-void DecodeImageInternal(const int xsize,
-                         const int ysize,
-                         BitStream* stream,
-                         uint32** argb_image);
+static void DecodeImageInternal(const int xsize,
+                                const int ysize,
+                                BitStream* stream,
+                                uint32** argb_image);
 
-namespace {
+// -----------------------------------------------------------------------------
+// COMMON FUNCTIONS
 
-int MetaSize(int size, int bits) {
+static int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-int AlphabetSize(int type, int num_green, int palette_size) {
-  if (type == 0) return num_green + palette_size + kNumLengthSymbols;
-  if (type == 1) return 256;
-  if (type == 2) return kNumDistanceSymbols;
-  return 0;
-}
-
-int GetMetaIndex(int xsize, int bits, const uint32* image, int x, int y) {
-  if (bits == 0) return 0;
-  int xs = (xsize + (1 << bits) - 1) >> bits;
-  return (image[(y >> bits) * xs + (x >> bits)] >> 8) & 0xffff;
-}
-
-void ReadMetaCodes(const int num_rba,
-                   BitStream* stream,
-                   std::vector<int>* meta_codes,
-                   std::map<int, int>* tree_types,
-                   int* num_trees) {
-  int meta_codes_nbits = stream->Read(4);
-  int num_meta_codes = stream->Read(meta_codes_nbits) + 2;
-  int nbits = stream->Read(4);
-  *num_trees = 0;
-  for (int i = 0; i < num_meta_codes; ++i) {
-    for (int k = 0; k < num_rba + 2; ++k) {
-      int tree_index = stream->Read(nbits);
-      meta_codes->push_back(tree_index);
-      (*tree_types)[tree_index] = (k == 0) ? 0 : (k == num_rba + 1) ? 2 : 1;
-      *num_trees = std::max(tree_index + 1, *num_trees);
-    }
-  }
-}
-
-int GetCopyDistance(int distance_symbol, BitStream* stream) {
-  if (distance_symbol < 4) {
-    return distance_symbol + 1;
-  }
-  int extra_bits = (distance_symbol - 2) / 2;
-  int offset =
-      (1 << (extra_bits + 1)) + (distance_symbol % 2) * (1 << extra_bits) + 1;
-  return offset + READ(stream, extra_bits);
-}
-
-int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
-  if (plane_code > 120) {
-    return plane_code - 120;
-  }
-  int dist_code = code_to_plane_lut[plane_code - 1];
-  int yoffset = dist_code / 16;
-  int xoffset = dist_code % 16;
-  if (xoffset <= 8) {
-    xoffset = 8 - xoffset;
-  } else {
-    xoffset = xsize - (xoffset - 8);
-    yoffset -= 1;
-  }
-  return yoffset * xsize + xoffset;
-}
-
-int GetCopyLength(int length_symbol, BitStream* stream) {
-  return GetCopyDistance(length_symbol, stream);
-}
-
-static const int kCodeLengthCodes = 19;
-static const uint8 kCodeLengthCodeOrder[kCodeLengthCodes] = {
-  17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-};
-static const int kCodeLengthLiterals = 16;
-static const int kCodeLengthRepeatCode = 16;
-static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
-static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
-
-std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
-  std::string out = "Code Lengths: ";
-  for (int i = 0; i < code_lengths.size(); ++i) {
-    if (code_lengths[i] > 0) {
-      char str[32];
-      sprintf(str, " %d:%d", i, code_lengths[i]);
-      out.append(std::string(&str[0]));
-    }
-  }
-  return out;
-}
-
-inline int ReadSymbol(const HuffmanTreeNode& root,
-                      BitStream* stream) {
-  const HuffmanTreeNode* node = &root;
-  while (!node->IsLeaf()) node = node->child(stream->ReadOneBit());
-  assert(node);
-  assert(node->symbol() != -1);
-  return node->symbol();
-}
-
-void ReadCodeLengthTree(BitStream* stream,
-                        HuffmanTreeNode* root) {
-  std::vector<int> code_lengths(kCodeLengthCodes);
-  int hclen = READ(stream, 4);
-  for (int i = 0; i < hclen + 4; ++i) {
-    code_lengths[kCodeLengthCodeOrder[i]] = READ(stream, 3);
-  }
-  if(!root->BuildTree(code_lengths)) {
-    printf("error: %s\n", CodeLengthDebugString(code_lengths).c_str());
-    abort();
-  }
-}
-
-void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
-                            BitStream* stream,
-                            std::vector<int>* code_lengths) {
-  bool use_length = READ(stream, 1);
-  int max_length = 0;
-  if (use_length) {
-    int length_nbits = (READ(stream, 3) + 1) * 2;
-    max_length = READ(stream, length_nbits) + 2;
-  }
-  int previous = 8;
-  int num_symbols = 0;
-  for (int i = 0; i < code_lengths->size(); ++i) {
-    if (use_length && ++num_symbols > max_length) break;
-    int code_length = ReadSymbol(decoder_root, stream);
-    VERIFY(code_length < kCodeLengthCodes);
-    if (code_length < kCodeLengthLiterals) {
-      (*code_lengths)[i] = code_length;
-      if (code_length != 0) previous = code_length;
-    } else {
-      int repeat_ix = code_length - kCodeLengthLiterals;
-      int extra_bits = kCodeLengthExtraBits[repeat_ix];
-      int repeat_offset = kCodeLengthRepeatOffsets[repeat_ix];
-      int repeat = stream->Read(extra_bits) + repeat_offset;
-      bool use_previous = code_length == kCodeLengthRepeatCode;
-      for (int k = 0; k < repeat; ++k) {
-        (*code_lengths)[i + k] = use_previous ? previous : 0;
-      }
-      i += repeat - 1;
-    }
-  }
-}
-
-void ReadHuffmanCode(const int alphabet_size,
-                     BitStream* stream,
-                     HuffmanTreeNode* root) {
-  bool simple_code = stream->Read(1);
-  if (simple_code) {
-    int num_symbols = stream->Read(1) + 1;
-    int nbits = stream->Read(3);
-    if (nbits == 0) {
-      root->AddSymbol(0, 0, 0);
-    } else {
-      int num_bits = (nbits - 1) * 2 + 4;
-      VERIFY(num_bits <= 12);
-      for (int i = 0; i < num_symbols; ++i) {
-        root->AddSymbol(stream->Read(num_bits), num_symbols - 1, i);
-      }
-    }
-    VERIFY(root->IsFull());
-  } else {
-    HuffmanTreeNode decoder_root;
-    ReadCodeLengthTree(stream, &decoder_root);
-    std::vector<int> code_lengths(alphabet_size);
-    ReadHuffmanCodeLengths(decoder_root, stream, &code_lengths);
-    if (!root->BuildTree(code_lengths)) {
-      printf("error #2: %s\n", CodeLengthDebugString(code_lengths).c_str());
-      abort();
-    }
-  }
-}
-
-void ReadTransform(int* xsize, int* ysize,
-                   ImageTransform* transform,
-                   BitStream* stream) {
+static void ReadTransform(int* xsize, int* ysize,
+                          ImageTransform* transform,
+                          BitStream* stream) {
   transform->type = (ImageTransformType)READ(stream, 3);
   transform->xsize = *xsize;
   transform->ysize = *ysize;
@@ -273,12 +108,179 @@ void ReadTransform(int* xsize, int* ysize,
   }
 }
 
-}  // namespace
+// -----------------------------------------------------------------------------
+// HUFFMAN CODING
 
-void DecodeImageInternal(const int original_xsize,
-                         const int original_ysize,
-                         BitStream* stream,
-                         uint32** argb_image) {
+static int GetCopyDistance(int distance_symbol, BitStream* stream) {
+  if (distance_symbol < 4) {
+    return distance_symbol + 1;
+  }
+  int extra_bits = (distance_symbol - 2) / 2;
+  int offset =
+      (1 << (extra_bits + 1)) + (distance_symbol % 2) * (1 << extra_bits) + 1;
+  return offset + READ(stream, extra_bits);
+}
+
+static int GetCopyLength(int length_symbol, BitStream* stream) {
+  return GetCopyDistance(length_symbol, stream);
+}
+
+static int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
+  if (plane_code > 120) {
+    return plane_code - 120;
+  }
+  int dist_code = code_to_plane_lut[plane_code - 1];
+  int yoffset = dist_code / 16;
+  int xoffset = dist_code % 16;
+  if (xoffset <= 8) {
+    xoffset = 8 - xoffset;
+  } else {
+    xoffset = xsize - (xoffset - 8);
+    yoffset -= 1;
+  }
+  return yoffset * xsize + xoffset;
+}
+
+static int AlphabetSize(int type, int num_green, int palette_size) {
+  if (type == 0) return num_green + palette_size + kNumLengthSymbols;
+  if (type == 1) return 256;
+  if (type == 2) return kNumDistanceSymbols;
+  return 0;
+}
+
+int GetMetaIndex(int xsize, int bits, const uint32* image, int x, int y) {
+  if (bits == 0) return 0;
+  int xs = (xsize + (1 << bits) - 1) >> bits;
+  return (image[(y >> bits) * xs + (x >> bits)] >> 8) & 0xffff;
+}
+
+static void ReadMetaCodes(const int num_rba,
+                          BitStream* stream,
+                          std::vector<int>* meta_codes,
+                          std::map<int, int>* tree_types,
+                          int* num_trees) {
+  int meta_codes_nbits = stream->Read(4);
+  int num_meta_codes = stream->Read(meta_codes_nbits) + 2;
+  int nbits = stream->Read(4);
+  *num_trees = 0;
+  for (int i = 0; i < num_meta_codes; ++i) {
+    for (int k = 0; k < num_rba + 2; ++k) {
+      int tree_index = stream->Read(nbits);
+      meta_codes->push_back(tree_index);
+      (*tree_types)[tree_index] = (k == 0) ? 0 : (k == num_rba + 1) ? 2 : 1;
+      *num_trees = std::max(tree_index + 1, *num_trees);
+    }
+  }
+}
+
+static const int kCodeLengthCodes = 19;
+static const uint8 kCodeLengthCodeOrder[kCodeLengthCodes] = {
+  17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+};
+static const int kCodeLengthLiterals = 16;
+static const int kCodeLengthRepeatCode = 16;
+static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
+static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
+
+static std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
+  std::string out = "Code Lengths: ";
+  for (int i = 0; i < code_lengths.size(); ++i) {
+    if (code_lengths[i] > 0) {
+      char str[32];
+      snprintf(str, sizeof(str), " %d:%d", i, code_lengths[i]);
+      out.append(std::string(&str[0]));
+    }
+  }
+  return out;
+}
+
+static inline int ReadSymbol(const HuffmanTreeNode& root,
+                             BitStream* stream) {
+  const HuffmanTreeNode* node = &root;
+  while (!node->IsLeaf()) node = node->child(stream->ReadOneBit());
+  assert(node);
+  assert(node->symbol() != -1);
+  return node->symbol();
+}
+
+static void ReadCodeLengthTree(BitStream* stream,
+                               HuffmanTreeNode* root) {
+  std::vector<int> code_lengths(kCodeLengthCodes);
+  int hclen = stream->Read(4);
+  for (int i = 0; i < hclen + 4; ++i) {
+    code_lengths[kCodeLengthCodeOrder[i]] = stream->Read(3);
+  }
+  if (!root->BuildTree(code_lengths)) {
+    printf("error: %s\n", CodeLengthDebugString(code_lengths).c_str());
+    abort();
+  }
+}
+
+static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
+                                   BitStream* stream,
+                                   std::vector<int>* code_lengths) {
+  bool use_length = stream->Read(1);
+  int max_length = 0;
+  if (use_length) {
+    int length_nbits = (stream->Read(3) + 1) * 2;
+    max_length = stream->Read(length_nbits) + 2;
+  }
+  int previous = 8;
+  int num_symbols = 0;
+  for (int i = 0; i < code_lengths->size(); ++i) {
+    if (use_length && ++num_symbols > max_length) break;
+    int code_length = ReadSymbol(decoder_root, stream);
+    VERIFY(code_length < kCodeLengthCodes);
+    if (code_length < kCodeLengthLiterals) {
+      (*code_lengths)[i] = code_length;
+      if (code_length != 0) previous = code_length;
+    } else {
+      int repeat_ix = code_length - kCodeLengthLiterals;
+      int extra_bits = kCodeLengthExtraBits[repeat_ix];
+      int repeat_offset = kCodeLengthRepeatOffsets[repeat_ix];
+      int repeat = stream->Read(extra_bits) + repeat_offset;
+      bool use_previous = code_length == kCodeLengthRepeatCode;
+      for (int k = 0; k < repeat; ++k) {
+        (*code_lengths)[i + k] = use_previous ? previous : 0;
+      }
+      i += repeat - 1;
+    }
+  }
+}
+
+static void ReadHuffmanCode(const int alphabet_size,
+                            BitStream* stream,
+                            HuffmanTreeNode* root) {
+  bool simple_code = stream->Read(1);
+  if (simple_code) {
+    int num_symbols = stream->Read(1) + 1;
+    int nbits = stream->Read(3);
+    if (nbits == 0) {
+      root->AddSymbol(0, 0, 0);
+    } else {
+      int num_bits = (nbits - 1) * 2 + 4;
+      VERIFY(num_bits <= 12);
+      for (int i = 0; i < num_symbols; ++i) {
+        root->AddSymbol(stream->Read(num_bits), num_symbols - 1, i);
+      }
+    }
+    VERIFY(root->IsFull());
+  } else {
+    HuffmanTreeNode decoder_root;
+    ReadCodeLengthTree(stream, &decoder_root);
+    std::vector<int> code_lengths(alphabet_size);
+    ReadHuffmanCodeLengths(decoder_root, stream, &code_lengths);
+    if (!root->BuildTree(code_lengths)) {
+      printf("error #2: %s\n", CodeLengthDebugString(code_lengths).c_str());
+      abort();
+    }
+  }
+}
+
+static void DecodeImageInternal(const int original_xsize,
+                                const int original_ysize,
+                                BitStream* stream,
+                                uint32** argb_image) {
   int xsize = original_xsize;
   int ysize = original_ysize;
 
