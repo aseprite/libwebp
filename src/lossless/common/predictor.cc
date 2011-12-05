@@ -186,16 +186,18 @@ void CopyTileWithPrediction(int xsize, int ysize,
                             const uint32 *from_argb,
                             int tile_x, int tile_y, int bits, int mode,
                             uint32 *to_argb) {
-  for (int y = 0; y < (1 << bits); ++y) {
+  int ymax = 1 << bits;
+  if (ymax > ysize - (tile_y << bits)) {
+    ymax = ysize - (tile_y << bits);
+  }
+  int xmax = 1 << bits;
+  if (xmax > xsize - (tile_x << bits)) {
+    xmax = xsize - (tile_x << bits);
+  }
+  for (int y = 0; y < ymax; ++y) {
     int all_y = (tile_y << bits) + y;
-    if (all_y >= ysize) {
-      break;
-    }
-    for (int x = 0; x < (1 << bits); ++x) {
+    for (int x = 0; x < xmax; ++x) {
       int all_x = (tile_x << bits) + x;
-      if (all_x >= xsize) {
-        break;
-      }
       const int ix = all_y * xsize + all_x;
       const uint32 predict =
           PredictValue(mode, all_x, all_y, xsize, from_argb);
@@ -270,9 +272,9 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
 void AddGreenToBlueAndRed(int n, uint32 *argb_array) {
   for (int i = 0; i < n; ++i) {
     uint32 argb = argb_array[i];
-    uint32 green = (argb >> 8) & 0xff;
-    uint32 new_r = (((argb >> 16) & 0xff) + green) & 0xff;
-    uint32 new_b = ((argb & 0xff) + green) & 0xff;
-    argb_array[i] = (argb & 0xff00ff00) | (new_r << 16) | new_b;
+    uint32 green = ((argb >> 8) & 0xff);
+    green += green << 16;
+    argb_array[i] = (argb & 0xff00ff00) |
+        (((argb & 0x00ff00ff) + green) & 0x00ff00ff);
   }
 }
