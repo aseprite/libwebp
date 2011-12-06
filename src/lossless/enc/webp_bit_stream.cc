@@ -830,8 +830,10 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   const int write_error_detection_bits = false;
   bool use_emerging_palette = true;
+  const int kHeaderSize = 2048;
   std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
-  std::vector<uint8> storage(xsize * ysize * 32 + 2048);
+  // TODO: Come up with a good estimate w.r.t 'storage' size.
+  std::vector<uint8> storage(xsize * ysize * 8 + kHeaderSize);
   int storage_ix = 0;
 
   WriteBitsPrepareStorage(storage_ix, &storage[0]);
