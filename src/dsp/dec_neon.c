@@ -12,128 +12,187 @@
 #if defined(__GNUC__) && defined(__ARM_NEON__)
 
 #include "../dec/vp8i.h"
+#include <arm_neon.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
-#define QRegs "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7",                  \
-              "q8", "q9", "q10", "q11", "q12", "q13", "q14", "q15"
-
-#define FLIP_SIGN_BIT2(a, b, s)                                                \
-  "veor     " #a "," #a "," #s "               \n"                             \
-  "veor     " #b "," #b "," #s "               \n"                             \
-
-#define FLIP_SIGN_BIT4(a, b, c, d, s)                                          \
-  FLIP_SIGN_BIT2(a, b, s)                                                      \
-  FLIP_SIGN_BIT2(c, d, s)                                                      \
-
-#define NEEDS_FILTER(p1, p0, q0, q1, thresh, mask)                             \
-  "vabd.u8    q15," #p0 "," #q0 "         \n"  /* abs(p0 - q0) */              \
-  "vabd.u8    q14," #p1 "," #q1 "         \n"  /* abs(p1 - q1) */              \
-  "vqadd.u8   q15, q15, q15               \n"  /* abs(p0 - q0) * 2 */          \
-  "vshr.u8    q14, q14, #1                \n"  /* abs(p1 - q1) / 2 */          \
-  "vqadd.u8   q15, q15, q14     \n"  /* abs(p0 - q0) * 2 + abs(p1 - q1) / 2 */ \
-  "vdup.8     q14, " #thresh "            \n"                                  \
-  "vcge.u8   " #mask ", q14, q15          \n"  /* mask <= thresh */
-
-#define GET_BASE_DELTA(p1, p0, q0, q1, o)                                      \
-  "vqsub.s8   q15," #q0 "," #p0 "         \n"  /* (q0 - p0) */                 \
-  "vqsub.s8  " #o "," #p1 "," #q1 "       \n"  /* (p1 - q1) */                 \
-  "vqadd.s8  " #o "," #o ", q15           \n"  /* (p1 - q1) + 1 * (p0 - q0) */ \
-  "vqadd.s8  " #o "," #o ", q15           \n"  /* (p1 - q1) + 2 * (p0 - q0) */ \
-  "vqadd.s8  " #o "," #o ", q15           \n"  /* (p1 - q1) + 3 * (p0 - q0) */
-
-#define DO_SIMPLE_FILTER(p0, q0, fl)                                           \
-  "vmov.i8    q15, #0x03                  \n"                                  \
-  "vqadd.s8   q15, q15, " #fl "           \n"  /* filter1 = filter + 3 */      \
-  "vshr.s8    q15, q15, #3                \n"  /* filter1 >> 3 */              \
-  "vqadd.s8  " #p0 "," #p0 ", q15         \n"  /* p0 += filter1 */             \
-                                                                               \
-  "vmov.i8    q15, #0x04                  \n"                                  \
-  "vqadd.s8   q15, q15, " #fl "           \n"  /* filter1 = filter + 4 */      \
-  "vshr.s8    q15, q15, #3                \n"  /* filter2 >> 3 */              \
-  "vqsub.s8  " #q0 "," #q0 ", q15         \n"  /* q0 -= filter2 */
-
-// Applies filter on 2 pixels (p0 and q0)
-#define DO_FILTER2(p1, p0, q0, q1, thresh)                                     \
-  NEEDS_FILTER(p1, p0, q0, q1, thresh, q9)     /* filter mask in q9 */         \
-  "vmov.i8    q10, #0x80                  \n"  /* sign bit */                  \
-  FLIP_SIGN_BIT4(p1, p0, q0, q1, q10)          /* convert to signed value */   \
-  GET_BASE_DELTA(p1, p0, q0, q1, q11)          /* get filter level  */         \
-  "vand       q9, q9, q11                 \n"  /* apply filter mask */         \
-  DO_SIMPLE_FILTER(p0, q0, q9)                 /* apply filter */              \
-  FLIP_SIGN_BIT2(p0, q0, q10)
-
-// Load/Store vertical edge
-#define LOAD8x4(c1, c2, c3, c4, b1, b2, stride)                                \
-  "vld4.8   {" #c1"[0], " #c2"[0], " #c3"[0], " #c4"[0]}," #b1 "," #stride"\n" \
-  "vld4.8   {" #c1"[1], " #c2"[1], " #c3"[1], " #c4"[1]}," #b2 "," #stride"\n" \
-  "vld4.8   {" #c1"[2], " #c2"[2], " #c3"[2], " #c4"[2]}," #b1 "," #stride"\n" \
-  "vld4.8   {" #c1"[3], " #c2"[3], " #c3"[3], " #c4"[3]}," #b2 "," #stride"\n" \
-  "vld4.8   {" #c1"[4], " #c2"[4], " #c3"[4], " #c4"[4]}," #b1 "," #stride"\n" \
-  "vld4.8   {" #c1"[5], " #c2"[5], " #c3"[5], " #c4"[5]}," #b2 "," #stride"\n" \
-  "vld4.8   {" #c1"[6], " #c2"[6], " #c3"[6], " #c4"[6]}," #b1 "," #stride"\n" \
-  "vld4.8   {" #c1"[7], " #c2"[7], " #c3"[7], " #c4"[7]}," #b2 "," #stride"\n"
-
-#define STORE8x2(c1, c2, p,stride)                                             \
-  "vst2.8   {" #c1"[0], " #c2"[0]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[1], " #c2"[1]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[2], " #c2"[2]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[3], " #c2"[3]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[4], " #c2"[4]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[5], " #c2"[5]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[6], " #c2"[6]}," #p "," #stride " \n"                      \
-  "vst2.8   {" #c1"[7], " #c2"[7]}," #p "," #stride " \n"
-
 //-----------------------------------------------------------------------------
 // Simple In-loop filtering (Paragraph 15.2)
 
+static WEBP_INLINE uint8x16_t needs_filter_neon(uint8x16_t p1, uint8x16_t p0,
+                                                uint8x16_t q0, uint8x16_t q1,
+                                                int thresh) {
+  uint8x16_t p0_q0,
+             p1_q1,
+             sum,
+             dup_thresh,
+             mask;
+
+  dup_thresh = vdupq_n_u8(thresh);
+
+  p0_q0 = vabdq_u8(p0, q0);
+  p1_q1 = vabdq_u8(p1, q1);
+
+  p0_q0 = vqaddq_u8(p0_q0, p0_q0); /* abs(p0-q0) * 2 */
+  p1_q1 = vshrq_n_u8(p1_q1, 1); /* abs(p1-q1) / 2 */
+
+  sum = vqaddq_u8(p0_q0, p1_q1);
+
+  mask = vcgeq_u8(dup_thresh, sum);
+
+  return mask;
+}
+
+static WEBP_INLINE int8x16_t get_base_delta(int8x16_t ps1, int8x16_t ps0,
+                                            int8x16_t qs0, int8x16_t qs1) {
+  int8x16_t qs0_ps0,
+            ps1_qs1,
+            sum;
+
+  qs0_ps0 = vqsubq_s8(qs0, ps0);
+  ps1_qs1 = vqsubq_s8(ps1, qs1);
+
+  sum = vqaddq_s8(ps1_qs1, qs0_ps0);
+  sum = vqaddq_s8(sum, qs0_ps0);
+  sum = vqaddq_s8(sum, qs0_ps0);
+
+  return sum;
+}
+
+static WEBP_INLINE int8x16_t do_simple_filter_ps0(int8x16_t ps0,
+                                                  int8x16_t filter) {
+  int8x16_t const3 = vdupq_n_s8(3);
+
+  filter = vqaddq_s8(filter, const3);
+  filter = vshrq_n_s8(filter, 3);
+
+  ps0 = vqaddq_s8(ps0, filter);
+
+  return ps0;
+}
+
+static WEBP_INLINE int8x16_t do_simple_filter_qs0(int8x16_t qs0,
+                                                  int8x16_t filter) {
+  /* "rounding" = 1 << (shift-1)
+   * 1 << 2 == 4
+   */
+  filter = vrshrq_n_s8(filter, 3); //(+4) >> 3
+
+  qs0 = vqsubq_s8(qs0, filter);
+
+  return qs0;
+}
+
 static void SimpleVFilter16NEON(uint8_t* p, int stride, int thresh) {
-  __asm__ volatile (
-    "sub        %[p], %[p], %[stride], lsl #1  \n"  // p -= 2 * stride
+  uint8x16_t p1, p0, q0, q1,
+             mask, sign_bit;
+  int8x16_t ps1, ps0, qs0, qs1,
+            ps0_qs0, ps1_qs1,
+            filter;
 
-    "vld1.u8    {q1}, [%[p]], %[stride]        \n"  // p1
-    "vld1.u8    {q2}, [%[p]], %[stride]        \n"  // p0
-    "vld1.u8    {q3}, [%[p]], %[stride]        \n"  // q0
-    "vld1.u8    {q4}, [%[p]]                   \n"  // q1
+  p1 = vld1q_u8(p - 2 * stride);
+  p0 = vld1q_u8(p - stride);
+  q0 = vld1q_u8(p);
+  q1 = vld1q_u8(p + stride);
 
-    DO_FILTER2(q1, q2, q3, q4, %[thresh])
+  mask = needs_filter_neon(p1, p0, q0, q1, thresh);
 
-    "sub        %[p], %[p], %[stride], lsl #1  \n"  // p -= 2 * stride
+  sign_bit = vdupq_n_u8(0x80);
+  ps1 = vreinterpretq_s8_u8(veorq_u8(p1, sign_bit));
+  ps0 = vreinterpretq_s8_u8(veorq_u8(p0, sign_bit));
+  qs0 = vreinterpretq_s8_u8(veorq_u8(q0, sign_bit));
+  qs1 = vreinterpretq_s8_u8(veorq_u8(q1, sign_bit));
 
-    "vst1.u8    {q2}, [%[p]], %[stride]        \n"  // store op0
-    "vst1.u8    {q3}, [%[p]]                   \n"  // store oq0
-    : [p] "+r"(p)
-    : [stride] "r"(stride), [thresh] "r"(thresh)
-    : "memory", QRegs
-  );
+  filter = get_base_delta(ps1, ps0, qs0, qs1);
+
+  filter = vandq_s8(filter, (int8x16_t)mask);
+
+  qs0 = do_simple_filter_qs0(qs0, filter);
+  q0 = veorq_u8((uint8x16_t)qs0, sign_bit);
+
+  ps0 = do_simple_filter_ps0(ps0, filter);
+  p0 = veorq_u8(vreinterpretq_u8_s8(ps0), sign_bit);
+
+  vst1q_u8(p - stride, p0);
+  vst1q_u8(p, q0);
 }
 
 static void SimpleHFilter16NEON(uint8_t* p, int stride, int thresh) {
-  __asm__ volatile (
-    "sub        r4, %[p], #2                   \n"  // base1 = p - 2
-    "lsl        r6, %[stride], #1              \n"  // r6 = 2 * stride
-    "add        r5, r4, %[stride]              \n"  // base2 = base1 + stride
+  uint8x8x4_t top, bottom;
+  uint8x16_t p1, p0, q1, q0,
+             mask, sign_bit;
+  int8x16_t ps1, ps0, qs0, qs1,
+            ps0_qs0, ps1_qs1,
+            filter;
+  uint8x8x2_t op0_oq0_top, op0_oq0_bottom;
 
-    LOAD8x4(d2, d3, d4, d5, [r4], [r5], r6)
-    LOAD8x4(d6, d7, d8, d9, [r4], [r5], r6)
-    "vswp       d3, d6                         \n"  // p1:q1 p0:q3
-    "vswp       d5, d8                         \n"  // q0:q2 q1:q4
-    "vswp       q2, q3                         \n"  // p1:q1 p0:q2 q0:q3 q1:q4
+  p -= 2;
 
-    DO_FILTER2(q1, q2, q3, q4, %[thresh])
+  top = vld4_lane_u8(p+0*stride, top, 0);
+  top = vld4_lane_u8(p+1*stride, top, 1);
+  top = vld4_lane_u8(p+2*stride, top, 2);
+  top = vld4_lane_u8(p+3*stride, top, 3);
+  top = vld4_lane_u8(p+4*stride, top, 4);
+  top = vld4_lane_u8(p+5*stride, top, 5);
+  top = vld4_lane_u8(p+6*stride, top, 6);
+  top = vld4_lane_u8(p+7*stride, top, 7);
+  bottom = vld4_lane_u8(p+8*stride, bottom, 0);
+  bottom = vld4_lane_u8(p+9*stride, bottom, 1);
+  bottom = vld4_lane_u8(p+10*stride, bottom, 2);
+  bottom = vld4_lane_u8(p+11*stride, bottom, 3);
+  bottom = vld4_lane_u8(p+12*stride, bottom, 4);
+  bottom = vld4_lane_u8(p+13*stride, bottom, 5);
+  bottom = vld4_lane_u8(p+14*stride, bottom, 6);
+  bottom = vld4_lane_u8(p+15*stride, bottom, 7);
 
-    "sub        %[p], %[p], #1                 \n"  // p - 1
+  p1 = vcombine_u8(top.val[0], bottom.val[0]);
+  p0 = vcombine_u8(top.val[1], bottom.val[1]);
+  q0 = vcombine_u8(top.val[2], bottom.val[2]);
+  q1 = vcombine_u8(top.val[3], bottom.val[3]);
 
-    "vswp        d5, d6                        \n"
-    STORE8x2(d4, d5, [%[p]], %[stride])
-    STORE8x2(d6, d7, [%[p]], %[stride])
+  mask = needs_filter_neon(p1, p0, q0, q1, thresh);
 
-    : [p] "+r"(p)
-    : [stride] "r"(stride), [thresh] "r"(thresh)
-    : "memory", "r4", "r5", "r6", QRegs
-  );
+  sign_bit = vdupq_n_u8(0x80);
+  ps1 = vreinterpretq_s8_u8(veorq_u8(p1, sign_bit));
+  ps0 = vreinterpretq_s8_u8(veorq_u8(p0, sign_bit));
+  qs0 = vreinterpretq_s8_u8(veorq_u8(q0, sign_bit));
+  qs1 = vreinterpretq_s8_u8(veorq_u8(q1, sign_bit));
+
+  filter = get_base_delta(ps1, ps0, qs0, qs1);
+
+  filter = vandq_s8(filter, (int8x16_t)mask);
+
+  qs0 = do_simple_filter_qs0(qs0, filter);
+  q0 = veorq_u8((uint8x16_t)qs0, sign_bit);
+
+  ps0 = do_simple_filter_ps0(ps0, filter);
+  p0 = veorq_u8(vreinterpretq_u8_s8(ps0), sign_bit);
+
+  op0_oq0_top.val[0] = vget_low_u8(p0);
+  op0_oq0_top.val[1] = vget_low_u8(q0);
+  op0_oq0_bottom.val[0] = vget_high_u8(p0);
+  op0_oq0_bottom.val[1] = vget_high_u8(q0);
+
+  p += 1;
+
+  vst2_lane_u8(p+0*stride, op0_oq0_top, 0);
+  vst2_lane_u8(p+1*stride, op0_oq0_top, 1);
+  vst2_lane_u8(p+2*stride, op0_oq0_top, 2);
+  vst2_lane_u8(p+3*stride, op0_oq0_top, 3);
+  vst2_lane_u8(p+4*stride, op0_oq0_top, 4);
+  vst2_lane_u8(p+5*stride, op0_oq0_top, 5);
+  vst2_lane_u8(p+6*stride, op0_oq0_top, 6);
+  vst2_lane_u8(p+7*stride, op0_oq0_top, 7);
+  vst2_lane_u8(p+8*stride, op0_oq0_bottom, 0);
+  vst2_lane_u8(p+9*stride, op0_oq0_bottom, 1);
+  vst2_lane_u8(p+10*stride, op0_oq0_bottom, 2);
+  vst2_lane_u8(p+11*stride, op0_oq0_bottom, 3);
+  vst2_lane_u8(p+12*stride, op0_oq0_bottom, 4);
+  vst2_lane_u8(p+13*stride, op0_oq0_bottom, 5);
+  vst2_lane_u8(p+14*stride, op0_oq0_bottom, 6);
+  vst2_lane_u8(p+15*stride, op0_oq0_bottom, 7);
 }
 
 static void SimpleVFilter16iNEON(uint8_t* p, int stride, int thresh) {
