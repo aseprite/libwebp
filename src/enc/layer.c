@@ -11,15 +11,12 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include "vp8enci.h"
+
+#include "./vp8enci.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
-
-#ifdef WEBP_EXPERIMENTAL_FEATURES
-
-#endif    /* WEBP_EXPERIMENTAL_FEATURES */
 
 //------------------------------------------------------------------------------
 
@@ -34,8 +31,6 @@ void VP8EncInitLayer(VP8Encoder* const enc) {
 
 void VP8EncCodeLayerBlock(VP8EncIterator* it) {
   (void)it;   // remove a warning
-#ifdef WEBP_EXPERIMENTAL_FEATURES
-#endif    /* WEBP_EXPERIMENTAL_FEATURES */
 }
 
 int VP8EncFinishLayer(VP8Encoder* const enc) {

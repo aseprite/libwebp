@@ -13,8 +13,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "webpi.h"
-#include "vp8i.h"
+#include "./webpi.h"
+#include "./vp8i.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -258,7 +258,9 @@ static VP8StatusCode DecodeWebPHeaders(WebPIDecoder* const idec) {
   uint32_t bytes_skipped;
   VP8StatusCode status;
 
-  status = WebPParseHeaders(&data, &curr_size, &vp8_size, &bytes_skipped);
+  status = WebPParseHeaders(&data, &curr_size, &vp8_size, &bytes_skipped,
+                            &idec->dec_->alpha_data_,
+                            &idec->dec_->alpha_data_size_);
   if (status == VP8_STATUS_NOT_ENOUGH_DATA) {
     return VP8_STATUS_SUSPENDED;  // We haven't found a VP8 chunk yet.
   } else if (status == VP8_STATUS_OK) {
@@ -279,7 +281,7 @@ static VP8StatusCode DecodeVP8FrameHeader(WebPIDecoder* const idec) {
     // Not enough data bytes to extract VP8 Frame Header.
     return VP8_STATUS_SUSPENDED;
   }
-  if (!VP8GetInfo(data, curr_size, idec->vp8_size_, NULL, NULL, NULL)) {
+  if (!VP8GetInfo(data, curr_size, idec->vp8_size_, NULL, NULL)) {
     return IDecError(idec, VP8_STATUS_BITSTREAM_ERROR);
   }
 
@@ -366,13 +368,11 @@ static VP8StatusCode DecodePartition0(WebPIDecoder* const idec) {
 
 // Remaining partitions
 static VP8StatusCode DecodeRemaining(WebPIDecoder* const idec) {
-  VP8BitReader* br;
   VP8Decoder* const dec = idec->dec_;
   VP8Io* const io = &idec->io_;
 
   assert(dec->ready_);
 
-  br = &dec->br_;
   for (; dec->mb_y_ < dec->mb_h_; ++dec->mb_y_) {
     VP8BitReader* token_br = &dec->parts_[dec->mb_y_ & (dec->num_parts_ - 1)];
     if (dec->mb_x_ == 0) {
