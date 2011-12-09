@@ -14,42 +14,16 @@
 
 #include "integral_types.h"
 
-inline uint32 Average2(uint32 a0, uint32 a1) {
-  uint32 alpha_and_green =
-      ((((a0 >> 8) & 0x00ff00ff) +
-        ((a1 >> 8) & 0x00ff00ff) + 0x00010001) >> 1) & 0x00ff00ff;
-  uint32 red_and_blue =
-      (((a0 & 0x00ff00ff) +
-        (a1 & 0x00ff00ff) + 0x00010001) >> 1) & 0x00ff00ff;
-  return (alpha_and_green << 8) | red_and_blue;
+static inline uint32 Average2(uint32 a0, uint32 a1) {
+  return ( ((((a0) ^ (a1)) & 0xfefefefeL) >> 1) + ((a0) & (a1)) );
 }
 
-uint32 Average(uint32 a0, uint32 a1, uint32 a2) {
-  int alpha = ((a0 >> 24) + (a1 >> 24) + (a2 >> 24) + 2) / 3;
-  int red = (((a0 >> 16) & 0xff) +
-             ((a1 >> 16) & 0xff) +
-             ((a2 >> 16) & 0xff) + 2) / 3;
-  int green = (((a0 >> 8) & 0xff) +
-               ((a1 >> 8) & 0xff) +
-               ((a2 >> 8) & 0xff) + 2) / 3;
-  int blue = (((a0 >> 0) & 0xff) +
-              ((a1 >> 0) & 0xff) +
-              ((a2 >> 0) & 0xff) + 2) / 3;
-  return (alpha << 24) | (red << 16) | (green << 8) | blue;
+static inline uint32 Average(uint32 a0, uint32 a1, uint32 a2) {
+  return Average2(Average2(a0, a2), a1);
 }
 
-uint32 Average(uint32 a0, uint32 a1, uint32 a2, uint32 a3) {
-  uint32 alpha_and_green =
-      ((((a0 >> 8) & 0x00ff00ff) +
-        ((a1 >> 8) & 0x00ff00ff) +
-        ((a2 >> 8) & 0x00ff00ff) +
-        ((a3 >> 8) & 0x00ff00ff) + 0x00020002) >> 2) & 0x00ff00ff;
-  uint32 red_and_blue =
-      (((a0 & 0x00ff00ff) +
-        (a1 & 0x00ff00ff) +
-        (a2 & 0x00ff00ff) +
-        (a3 & 0x00ff00ff) + 0x00020002) >> 2) & 0x00ff00ff;
-  return (alpha_and_green << 8) | red_and_blue;
+static inline uint32 Average(uint32 a0, uint32 a1, uint32 a2, uint32 a3) {
+  return Average2(Average2(a0, a1), Average2(a2, a3));
 }
 
 uint32 Add(uint32 a, uint32 b) {
@@ -81,13 +55,13 @@ inline uint8 Paeth8(uint8 a, uint8 b, uint8 c) {
 
 uint32 Paeth32(uint32 a, uint32 b, uint32 c) {
   return
-      (Paeth8(a >> 24, b >> 24, c >> 24) << 24) |
+      (Paeth8(a >> 24, b >> 24, c >> 24) << 24) +
       (Paeth8((a >> 16) & 0xff,
               (b >> 16) & 0xff,
-              (c >> 16) & 0xff) << 16) |
+              (c >> 16) & 0xff) << 16) +
       (Paeth8((a >> 8) & 0xff,
               (b >> 8) & 0xff,
-              (c >> 8) & 0xff) << 8) |
+              (c >> 8) & 0xff) << 8) +
       Paeth8(a & 0xff, b & 0xff, c & 0xff);
 }
 
@@ -254,7 +228,8 @@ void CopyTileWithColorTransform(int xsize, int ysize,
         break;
       }
       int ix = all_y * xsize + (tile_x << bits);
-      for (int x = 0; x < xscan; ++x, ++ix) {
+      int end_ix = ix + xscan;
+      for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.InverseTransform(from_argb[ix]);
       }
     }
@@ -265,7 +240,8 @@ void CopyTileWithColorTransform(int xsize, int ysize,
         break;
       }
       int ix = all_y * xsize + (tile_x << bits);
-      for (int x = 0; x < xscan; ++x, ++ix) {
+      int end_ix = ix + xscan;
+      for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.Transform(from_argb[ix]);
       }
     }
@@ -296,7 +272,7 @@ void AddGreenToBlueAndRed(int n, uint32 *argb_array) {
     uint32 argb = argb_array[i];
     uint32 green = ((argb >> 8) & 0xff);
     green += green << 16;
-    argb_array[i] = (argb & 0xff00ff00) |
+    argb_array[i] = (argb & 0xff00ff00) +
         (((argb & 0x00ff00ff) + green) & 0x00ff00ff);
   }
 }
