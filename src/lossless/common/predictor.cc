@@ -217,29 +217,28 @@ void CopyTileWithColorTransform(int xsize, int ysize,
                                 ColorSpaceTransformElement color_transform,
                                 bool inverse,
                                 uint32 *to_argb) {
+  tile_x <<= bits;
+  tile_y <<= bits;
   int xscan = 1 << bits;
-  if (xscan > xsize - (tile_x << bits)) {
-    xscan = xsize - (tile_x << bits);
+  if (xscan > xsize - tile_x) {
+    xscan = xsize - tile_x;
   }
+  int yscan = 1 << bits;
+  if (yscan > ysize - tile_y) {
+    yscan = ysize - tile_y;
+  }
+  yscan += tile_y;
   if (inverse) {
-    for (int y = 0; y < (1 << bits); ++y) {
-      int all_y = (tile_y << bits) + y;
-      if (all_y >= ysize) {
-        break;
-      }
-      int ix = all_y * xsize + (tile_x << bits);
+    for (int y = tile_y; y < yscan; ++y) {
+      int ix = y * xsize + tile_x;
       int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.InverseTransform(from_argb[ix]);
       }
     }
   } else {
-    for (int y = 0; y < (1 << bits); ++y) {
-      int all_y = (tile_y << bits) + y;
-      if (all_y >= ysize) {
-        break;
-      }
-      int ix = all_y * xsize + (tile_x << bits);
+    for (int y = tile_y; y < yscan; ++y) {
+      int ix = y * xsize + tile_x;
       int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.Transform(from_argb[ix]);
@@ -254,10 +253,10 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
                                 uint32* to_argb) {
   int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
   int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
+  int tile_ix = 0;
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
-    for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
+    for (int tile_x = 0; tile_x < tile_xsize; ++tile_x, ++tile_ix) {
       ColorSpaceTransformElement color_transform;
-      int tile_ix = tile_y * tile_xsize + tile_x;
       color_transform.InitFromCode(image[tile_ix]);
       CopyTileWithColorTransform(xsize, ysize, from_argb,
                                  tile_x, tile_y, bits, color_transform,
