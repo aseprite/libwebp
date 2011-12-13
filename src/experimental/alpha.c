@@ -10,6 +10,7 @@
 // Author: vikasa@google.com (Vikas Arora)
 
 #include <string.h>  // for memcpy()
+
 #include "./alpha.h"
 #include "../utils/alpha.h"    // for QuantizeLevels()
 
@@ -19,6 +20,9 @@
 #include "../lossless/dec/decode.h"
 #include "zlib.h"
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
 
 #define MAX_SYMBOLS      255
 #define ZLIB_CHUNK_SIZE  8192
@@ -356,3 +360,7 @@ int DecodeAlphaExperimental(const uint8_t* data, size_t data_size,
 
   return ok;
 }
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}    // extern "C"
+#endif
