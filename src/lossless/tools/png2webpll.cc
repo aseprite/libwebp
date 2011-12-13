@@ -383,12 +383,13 @@ static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
                            double *predicted_bits) {
   Histogram *predicted = new Histogram(0);
   Histogram *nonpredicted = new Histogram(0);
-  for (int k = 0; k < xsize * ysize - 1; ++k) {
-    if (argb[k] == argb[k - 1] || (k >= xsize && argb[k] == argb[k - xsize])) {
+  for (int k = 0; k < xsize * ysize; ++k) {
+    if ((k > 0 && argb[k] == argb[k - 1]) ||
+        (k >= xsize && argb[k] == argb[k - xsize])) {
       continue;
     }
     nonpredicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[k]));
-    uint32 diff = Subtract(argb[k], argb[k - 1]);
+    const uint32 diff = Subtract(argb[k], argb[k - 1]);
     predicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(diff));
   }
   *predicted_bits = predicted->EstimateBitsBulk();
