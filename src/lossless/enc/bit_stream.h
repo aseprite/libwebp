@@ -18,10 +18,15 @@
 #include <machine/endian.h>  // Gross overassumption.
 #endif
 
+#include "./backward_distance.h"
 #include "../common/integral_types.h"
 
 #define UNALIGNED_LOAD32(_p) (*reinterpret_cast<const uint32 *>(_p))
 #define UNALIGNED_STORE32(_p, _val) (*reinterpret_cast<uint32 *>(_p) = (_val))
+
+#define TAG_SIZE 4
+#define CHUNK_HEADER_SIZE 8
+#define RIFF_HEADER_SIZE 12
 
 // This function writes bits into bytes in increasing addresses, and within
 // a byte least-significant-bit first.

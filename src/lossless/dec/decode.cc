@@ -27,6 +27,11 @@
 
 #define READ(S, N) ((S)->Read((N)))
 
+// TODO(jyrki): Move these to some 'common' Header file.
+#define TAG_SIZE 4
+#define CHUNK_HEADER_SIZE 8
+#define RIFF_HEADER_SIZE 12
+
 static const int kMaxImageTransforms = 100;
 
 static void DecodeImageInternal(const int xsize,
@@ -459,7 +464,12 @@ int DecodeWebpLLImage(size_t encoded_image_size,
                       int* xsize,
                       int* ysize,
                       uint32** argb_image) {
-  BitStream stream(encoded_image_size, encoded_image);
+  if (encoded_image_size < RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE) return false;
+  const size_t webpll_size = encoded_image_size -
+      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE);
+  const uint8* webpll_data = encoded_image +
+      RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE;
+  BitStream stream(webpll_size, webpll_data);
   int size_bits = (READ(&stream, 3) + 1) * 4;
   *xsize = READ(&stream, size_bits);
   *ysize = READ(&stream, size_bits);

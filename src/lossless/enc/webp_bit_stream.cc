@@ -32,6 +32,24 @@
 
 static const uint8 kMagicByte = 0xa3;
 
+static void PutLE32(uint8* const data, uint32 val) {
+  data[0] = (val >>  0) & 0xff;
+  data[1] = (val >>  8) & 0xff;
+  data[2] = (val >> 16) & 0xff;
+  data[3] = (val >> 24) & 0xff;
+}
+
+static void PutRiffHeader(uint8 *bytes, size_t webpll_size) {
+  uint8 riff[RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE] = {
+    'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P',
+    'V', 'P', '8', 'L', 0, 0, 0, 0
+  };
+  const size_t riff_size = TAG_SIZE + CHUNK_HEADER_SIZE + webpll_size;
+  PutLE32(riff + TAG_SIZE, riff_size);
+  PutLE32(riff + RIFF_HEADER_SIZE + TAG_SIZE, webpll_size);
+  memcpy(bytes, riff, sizeof(riff));
+}
+
 // Heuristics for selecting the stride ranges to collapse.
 bool ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
   return abs(a - b) < 4;
@@ -998,9 +1016,14 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       write_error_detection_bits,
                       &storage_ix, &storage[0]);
 
-  *num_bytes = (storage_ix + 7) >> 3;
+  const size_t webpll_size = (storage_ix + 7) >> 3;
+  *num_bytes = RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE + webpll_size;
   *bytes = (uint8 *)malloc(*num_bytes);
   memcpy(*bytes, &storage[0], *num_bytes);
+  if (*bytes == NULL) return false;
+  PutRiffHeader(*bytes, webpll_size);
+  memcpy(*bytes + RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE, &storage[0],
+         webpll_size);
 
   return true;
 }
