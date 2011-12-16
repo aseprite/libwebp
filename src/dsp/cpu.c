@@ -37,11 +37,12 @@ static WEBP_INLINE void GetCPUInfo(int cpu_info[4], int info_type) {
     : "=a"(cpu_info[0]), "=b"(cpu_info[1]), "=c"(cpu_info[2]), "=d"(cpu_info[3])
     : "a"(info_type));
 }
-#elif defined(_MSC_VER)  // Visual C++
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))  // Visual C++
 #define GetCPUInfo __cpuid
 #endif
 
-#if defined(__i386__) || defined(__x86_64__) || defined(_MSC_VER)
+#if defined(__i386__) || defined(__x86_64__) || \
+    (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86)))
 static int x86CPUInfo(CPUFeature feature) {
   int cpu_info[4];
   GetCPUInfo(cpu_info, 1);

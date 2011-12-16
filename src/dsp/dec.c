@@ -715,7 +715,8 @@ void VP8DspInit(void) {
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo) {
-#if defined(__SSE2__) || defined(_MSC_VER)
+#if defined(__SSE2__) || \
+    (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86)))
     if (VP8GetCPUInfo(kSSE2)) {
       VP8DspInitSSE2();
     }

@@ -10,7 +10,8 @@
 // Author: somnath@google.com (Somnath Banerjee)
 //         cduvivier@google.com (Christian Duvivier)
 
-#if defined(__SSE2__) || defined(_MSC_VER)
+#if defined(__SSE2__) || \
+    (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86)))
 
 #include <emmintrin.h>
 #include "../dec/vp8i.h"
