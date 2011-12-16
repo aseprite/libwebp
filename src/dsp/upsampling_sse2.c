@@ -9,7 +9,8 @@
 //
 // Author: somnath@google.com (Somnath Banerjee)
 
-#if defined(__SSE2__) || defined(_MSC_VER)
+#if defined(__SSE2__) || \
+    (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86)))
 
 #include <assert.h>
 #include <emmintrin.h>
