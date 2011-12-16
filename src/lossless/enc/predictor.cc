@@ -62,7 +62,8 @@ int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
         if (all_x >= xsize) {
           break;
         }
-        const uint32 predict = PredictValue(mode, all_x, all_y, xsize, argb);
+        const uint32 predict = PredictValue(mode, all_y * xsize + all_x, xsize,
+                                            argb + all_y * xsize + all_x);
         const uint32 predict_diff =
             Subtract(argb[all_y * xsize + all_x], predict);
         histo.AddSingleLiteralOrCopy(

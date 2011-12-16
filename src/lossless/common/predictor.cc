@@ -105,49 +105,46 @@ uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1) {
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb) {
-  const int ix = y * xsize + x;
+uint32 PredictValue(int mode, int ix, int xsize, const uint32 *argb) {
   if (mode <= 1 || ix < xsize + 1) {
     if (mode == 0 || ix == 0) {
       return 0xff000000;
     }
-    return argb[ix - 1];
+    return argb[-1];
   }
   switch (mode) {
-    case 2: return argb[ix - xsize];
-    case 3: return argb[ix - xsize + 1];
-    case 4: return argb[ix - xsize - 1];
+    case 2: return argb[-xsize];
+    case 3: return argb[-xsize + 1];
+    case 4: return argb[-xsize - 1];
 
-    case 5: return Average3(argb[ix - 1],
-                            argb[ix - xsize],
-                            argb[ix - xsize + 1]);
-    case 6: return Average2(argb[ix - 1],
-                            argb[ix - xsize - 1]);
-    case 7: return Average2(argb[ix - 1],
-                            argb[ix - xsize]);
-    case 8: return Average2(argb[ix - xsize - 1],
-                            argb[ix - xsize]);
-    case 9: return Average2(argb[ix - xsize],
-                            argb[ix - xsize + 1]);
-    case 10: return Average4(argb[ix - 1],
-                             argb[ix - xsize - 1],
-                             argb[ix - xsize],
-                             argb[ix - xsize + 1]);
-    case 11: return Paeth32(argb[ix - xsize],
-                            argb[ix - 1],
-                            argb[ix - xsize - 1]);
+    case 5: return Average3(argb[-1],
+                            argb[-xsize],
+                            argb[-xsize + 1]);
+    case 6: return Average2(argb[-1],
+                            argb[-xsize - 1]);
+    case 7: return Average2(argb[-1],
+                            argb[-xsize]);
+    case 8: return Average2(argb[-xsize - 1],
+                            argb[-xsize]);
+    case 9: return Average2(argb[-xsize],
+                            argb[-xsize + 1]);
+    case 10: return Average4(argb[-1],
+                             argb[-xsize - 1],
+                             argb[-xsize],
+                             argb[-xsize + 1]);
+    case 11: return Paeth32(argb[-xsize],
+                            argb[-1],
+                            argb[-xsize - 1]);
     case 12:
-      return ClampedAddSubtractFull(argb[ix - 1],
-                                    argb[ix - xsize],
-                                    argb[ix - xsize - 1]);
+      return ClampedAddSubtractFull(argb[-1],
+                                    argb[-xsize],
+                                    argb[-xsize - 1]);
     case 13:
       {
-        uint32 ave = Average2(argb[ix - 1], argb[ix - xsize]);
-        return ClampedAddSubtractHalf(ave, argb[ix - xsize - 1]);
+        uint32 ave = Average2(argb[-1], argb[-xsize]);
+        return ClampedAddSubtractHalf(ave, argb[-xsize - 1]);
       }
   }
-  printf("Impossible %d\n", mode);
-  abort();
   return 0;
 }
 
@@ -168,8 +165,7 @@ void CopyTileWithPrediction(int xsize, int ysize,
     for (int x = 0; x < xmax; ++x) {
       int all_x = (tile_x << bits) + x;
       const int ix = all_y * xsize + all_x;
-      const uint32 predict =
-          PredictValue(mode, all_x, all_y, xsize, from_argb);
+      const uint32 predict = PredictValue(mode, ix, xsize, from_argb + ix);
       to_argb[ix] = Subtract(from_argb[ix], predict);
     }
   }
@@ -193,7 +189,7 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
       }
       for (; image_x < xend; ++image_x) {
         const uint32 predict =
-            PredictValue(mode, image_x, image_y, xsize, to_argb);
+            PredictValue(mode, ix + image_x, xsize, to_argb + ix + image_x);
         to_argb[ix + image_x] = Add(from_argb[ix + image_x], predict);
       }
     }

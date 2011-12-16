@@ -28,7 +28,7 @@ static inline uint32 ColorTransformDelta(uint8 t, uint32 c) {
   return (t < 128 ? COLOR_TRANSFORM(t, c, s) : COLOR_TRANSFORM(256 - t, c, -s));
 }
 
-uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb);
+uint32 PredictValue(int mode, int ix, int xsize, const uint32 *argb);
 
 uint32 Add(uint32 a, uint32 b);
 uint32 Subtract(uint32 a, uint32 b);
