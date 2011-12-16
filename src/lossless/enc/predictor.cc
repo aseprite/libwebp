@@ -49,8 +49,8 @@ int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
                             Histogram *accumulated,
                             const uint32 *argb) {
   double best_diff = 1e99;
-  int best_mode = 1;
-  for (int mode = 1; mode < 16; ++mode) {
+  int best_mode = 0;
+  for (int mode = 0; mode < 14; ++mode) {
     Histogram histo(0);  // 0 is for only 1 (unused) palette value.
     for (int y = 0; y < (1 << bits); ++y) {
       int all_y = (tile_y << bits) + y;
@@ -91,7 +91,7 @@ void PredictorImage(int xsize, int ysize, int bits,
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       int pred = GetBestPredictorForTile(tile_x, tile_y, bits,
                                          xsize, ysize, &histo, from_argb);
-      image[tile_y * tile_xsize + tile_x] = 0xff000000 | ((pred - 1) << 8);
+      image[tile_y * tile_xsize + tile_x] = 0xff000000 | (pred << 8);
       CopyTileWithPrediction(xsize, ysize, from_argb,
                              tile_x, tile_y, bits, pred,
                              to_argb);
