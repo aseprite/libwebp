@@ -9,7 +9,9 @@
 //
 // Author: Christian Duvivier (cduvivier@google.com)
 
-#if defined(__SSE2__) || defined(_MSC_VER)
+#include "./dsp.h"
+
+#if defined(WEBP_USE_SSE2)
 #include <emmintrin.h>
 
 #include "../enc/vp8enci.h"
