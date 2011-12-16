@@ -107,21 +107,13 @@ uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1) {
 
 uint32 PredictValue(int mode, int x, int y, int xsize, const uint32 *argb) {
   const int ix = y * xsize + x;
-  if (x == 0) {
-    if (y == 0) {
+  if (mode <= 1 || ix < xsize + 1) {
+    if (mode == 0 || ix == 0) {
       return 0xff000000;
     }
-    return argb[ix - xsize];
-  }
-  if (y == 0) {
     return argb[ix - 1];
   }
-  if (x == xsize - 1 && (mode == 3 || mode == 5 || mode == 9 || mode == 10)) {
-    mode = 2;
-  }
   switch (mode) {
-    case 0: return 0xff000000;
-    case 1: return argb[ix - 1];
     case 2: return argb[ix - xsize];
     case 3: return argb[ix - xsize + 1];
     case 4: return argb[ix - xsize - 1];
