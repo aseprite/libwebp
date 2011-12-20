@@ -383,8 +383,8 @@ static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
                            double *predicted_bits) {
   Histogram *predicted = new Histogram(0);
   Histogram *nonpredicted = new Histogram(0);
-  for (int k = 0; k < xsize * ysize; ++k) {
-    if ((k > 0 && argb[k] == argb[k - 1]) ||
+  for (int k = 1; k < xsize * ysize; ++k) {
+    if ((argb[k] == argb[k - 1]) ||
         (k >= xsize && argb[k] == argb[k - xsize])) {
       continue;
     }
