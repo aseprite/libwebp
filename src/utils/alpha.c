@@ -83,8 +83,8 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
                             uint8_t** output, size_t* output_size) {
   int ok = 0;
   const size_t data_size = width * height;
-  const size_t MAX_DIST = 3 * width;
-  const size_t MAX_LEN = 2 * width;
+  const int MAX_DIST = 3 * width;
+  const int MAX_LEN = 2 * width;
   Token* const msg = (Token*)malloc(data_size * sizeof(*msg));
   int num_tokens;
   TCoder* const coder = TCoderNew(MAX_SYMBOLS);
@@ -116,7 +116,7 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
       best.literal = data[n];
       best.len = 1;
       for (dist = 1; dist <= MAX_DIST && dist <= n; ++dist) {
-        const int pos = n - dist;
+        const size_t pos = n - dist;
         const size_t min_len = best.len - 1;
         size_t len;
 
@@ -339,8 +339,8 @@ static int DecompressZlibTCoder(const uint8_t* data, size_t data_size,
                                 int width, int height,
                                 uint8_t* output, size_t output_size) {
   int ok = 1;
-  const size_t MAX_DIST = 3 * width;
-  const size_t MAX_LEN = 2 * width;
+  const int MAX_DIST = 3 * width;
+  const int MAX_LEN = 2 * width;
   TCoder* const coder = TCoderNew(MAX_SYMBOLS);
   TCoder* const coderd = TCoderNew(MAX_DIST);
   TCoder* const coderl = TCoderNew(MAX_LEN - MIN_LEN);
