@@ -60,7 +60,7 @@ LDFLAGS = $(EXTRA_LIBS) -lm
 
 DEC_OBJS = src/dec/frame.o src/dec/webp.o src/dec/quant.o src/dec/tree.o \
            src/dec/vp8.o src/dec/idec.o src/dec/alpha.o src/dec/layer.o \
-           src/dec/io.o src/dec/buffer.o
+           src/dec/io.o src/dec/buffer.o src/dec/lossless.o
 ENC_OBJS = src/enc/webpenc.o src/enc/syntax.o \
            src/enc/alpha.o src/enc/layer.o \
            src/enc/tree.o src/enc/config.o src/enc/frame.o \
