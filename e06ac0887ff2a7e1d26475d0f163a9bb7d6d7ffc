@@ -2,6 +2,15 @@ Change-Id: Ie06ac0887ff2a7e1d26475d0f163a9bb7d6d7ffc
 Code-Review+2: James Zern <jzern@google.com>
 Verified+1: James Zern <jzern@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Tue, 13 Sep 2011 14:24:50 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/7627
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Change-Id: Ie06ac0887ff2a7e1d26475d0f163a9bb7d6d7ffc
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Tue, 13 Sep 2011 15:24:50 -0700
 Reviewed-on: http://gerrit.chromium.org/gerrit/7627
 Project: webm/libwebp
