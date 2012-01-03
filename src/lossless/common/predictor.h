@@ -14,18 +14,15 @@
 
 #include "integral_types.h"
 
-#define COLOR_TRANSFORM(t, c, s) ((s) * (((t) * (c) + 16) >> 5))
-
 static const int kCrossPredictMax = 128;
 
-static inline uint32 ColorTransformDelta(uint8 t, uint32 c) {
-  int s = -1;
-  if (c >= kCrossPredictMax) {
-    c = 256 - c;
-    s = -s;
+static inline uint32 ColorTransformDelta(signed char t, signed char c) {
+  int mul = int(t) * c;
+  if (mul < 0) {
+    return -((-mul + 16) >> 5);
+  } else {
+    return (mul + 16) >> 5;
   }
-
-  return (t < 128 ? COLOR_TRANSFORM(t, c, s) : COLOR_TRANSFORM(256 - t, c, -s));
 }
 
 uint32 PredictValue(int mode, int ix, int xsize, const uint32 *argb);
@@ -66,9 +63,9 @@ struct ColorSpaceTransformElement {
     uint32 new_red = red;
     uint32 new_blue = (argb & 0xff);
 
-    new_red += ColorTransformDelta(green_to_red_, green);
-    new_blue += ColorTransformDelta(green_to_blue_, green);
-    new_blue += ColorTransformDelta(red_to_blue_, red);
+    new_red -= ColorTransformDelta(green_to_red_, green);
+    new_blue -= ColorTransformDelta(green_to_blue_, green);
+    new_blue -= ColorTransformDelta(red_to_blue_, red);
 
     new_red &= 0xff;
     new_blue &= 0xff;
@@ -81,10 +78,10 @@ struct ColorSpaceTransformElement {
     uint32 new_red = red;
     uint32 new_blue = (argb & 0xff);
 
-    new_red -= ColorTransformDelta(green_to_red_, green);
-    new_blue -= ColorTransformDelta(green_to_blue_, green);
+    new_red += ColorTransformDelta(green_to_red_, green);
+    new_blue += ColorTransformDelta(green_to_blue_, green);
     new_red &= 0xff;
-    new_blue -= ColorTransformDelta(red_to_blue_, new_red);
+    new_blue += ColorTransformDelta(red_to_blue_, new_red);
     new_blue &= 0xff;
     return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
   }
