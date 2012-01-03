@@ -169,23 +169,26 @@ VP8StatusCode WebPParseOptionalChunks(const uint8_t** data, uint32_t* data_size,
 
 VP8StatusCode WebPParseVP8Header(const uint8_t** data, uint32_t* data_size,
                                  uint32_t riff_size, uint32_t* bytes_skipped,
-                                 uint32_t* vp8_chunk_size) {
+                                 uint32_t* chunk_size, int* is_lossless) {
+  int is_vp8 = !memcmp(*data, "VP8 ", TAG_SIZE);
+  int is_vp8l = !memcmp(*data, "VP8L", TAG_SIZE);
   assert(data);
   assert(data_size);
   assert(bytes_skipped);
-  assert(vp8_chunk_size);
+  assert(chunk_size);
 
   *bytes_skipped = 0;
-  *vp8_chunk_size = 0;
+  *chunk_size = 0;
 
   if (*data_size < CHUNK_HEADER_SIZE) {
     return VP8_STATUS_NOT_ENOUGH_DATA;  // Insufficient data.
   }
 
-  if (!memcmp(*data, "VP8 ", TAG_SIZE)) {
-    *vp8_chunk_size = get_le32(*data + TAG_SIZE);
+  if (is_vp8 || is_vp8l) {
+    if (is_lossless) *is_lossless = is_vp8l;
+    *chunk_size = get_le32(*data + TAG_SIZE);
     if (riff_size >= TAG_SIZE + CHUNK_HEADER_SIZE &&  // "WEBP" + "VP8 nnnn".
-        (*vp8_chunk_size > riff_size - (TAG_SIZE + CHUNK_HEADER_SIZE))) {
+        (*chunk_size > riff_size - (TAG_SIZE + CHUNK_HEADER_SIZE))) {
       return VP8_STATUS_BITSTREAM_ERROR;  // Inconsistent size information.
     }
     // We have consumed CHUNK_HEADER_SIZE bytes from VP8 Header. Skip them.
@@ -199,7 +202,7 @@ VP8StatusCode WebPParseVP8Header(const uint8_t** data, uint32_t* data_size,
 VP8StatusCode WebPParseHeaders(const uint8_t** data, uint32_t* data_size,
                                uint32_t* vp8_size, uint32_t* bytes_skipped,
                                const uint8_t** alpha_data,
-                               uint32_t* alpha_size) {
+                               uint32_t* alpha_size, int* is_lossless) {
   const uint8_t* buf;
   uint32_t buf_size;
   uint32_t riff_size;
@@ -250,7 +253,7 @@ VP8StatusCode WebPParseHeaders(const uint8_t** data, uint32_t* data_size,
 
   // Skip over VP8 chunk header.
   status = WebPParseVP8Header(&buf, &buf_size, riff_size, &vp8_skip_size,
-                              &vp8_size_tmp);
+                              &vp8_size_tmp, is_lossless);
   if (status != VP8_STATUS_OK) {
     return status;  // Invalid VP8 header / Insufficient data.
   }
@@ -478,11 +481,12 @@ static void DefaultFeatures(WebPBitstreamFeatures* const features) {
 
 static VP8StatusCode GetFeatures(const uint8_t* data, uint32_t data_size,
                                  WebPBitstreamFeatures* const features) {
-  uint32_t vp8_chunk_size = 0;
+  uint32_t chunk_size = 0;
   uint32_t riff_size = 0;
   uint32_t flags = 0;
   uint32_t vp8x_skip_size = 0;
   uint32_t vp8_skip_size = 0;
+  int is_lossless = 0;
   VP8StatusCode status;
 
   if (features == NULL) {
@@ -513,18 +517,25 @@ static VP8StatusCode GetFeatures(const uint8_t* data, uint32_t data_size,
 
   // Skip over VP8 header.
   status = WebPParseVP8Header(&data, &data_size, riff_size, &vp8_skip_size,
-                              &vp8_chunk_size);
+                              &chunk_size, &is_lossless);
   if (status != VP8_STATUS_OK) {
     return status;  // Wrong VP8 Chunk-header / insufficient data.
   }
   if (vp8_skip_size == 0) {
-    vp8_chunk_size = data_size;  // No VP8 chunk wrapper over raw VP8 data.
+    chunk_size = data_size;  // No VP8 chunk wrapper over raw VP8 data.
   }
 
-  // Validates raw VP8 data.
-  if (!VP8GetInfo(data, data_size, vp8_chunk_size,
-                  &features->width, &features->height)) {
-    return VP8_STATUS_BITSTREAM_ERROR;
+  if (!is_lossless) {
+    // Validates raw VP8 data.
+    if (!VP8GetInfo(data, data_size, chunk_size,
+                    &features->width, &features->height)) {
+      return VP8_STATUS_BITSTREAM_ERROR;
+    }
+  } else {
+    // Validates raw VP8L data.
+    if (!VP8LGetInfo(data, data_size, &features->width, &features->height)) {
+      return VP8_STATUS_BITSTREAM_ERROR;
+    }
   }
 
   return VP8_STATUS_OK;  // Return features from VP8 header.

@@ -288,13 +288,20 @@ struct VP8Decoder {
 int VP8SetError(VP8Decoder* const dec,
                 VP8StatusCode error, const char * const msg);
 
-// Validates the VP8 data-header and retrieve basic header information viz width
-// and height. Returns 0 in case of formatting error. *width/*height
+// Validates the VP8 data-header and retrieves basic header information viz
+// width and height. Returns 0 in case of formatting error. *width/*height
 // can be passed NULL.
 int VP8GetInfo(const uint8_t* data,
                uint32_t data_size,    // data available so far
                uint32_t chunk_size,   // total data size expect in the chunk
                int *width, int *height);
+
+// Validates the VP8L data-header and retrieves basic header information viz
+// width and height. Returns 0 in case of formatting error. *width/*height
+// can be passed NULL.
+int VP8LGetInfo(const uint8_t* data,
+                uint32_t data_size,    // data available so far
+                int *width, int *height);
 
 // in tree.c
 void VP8ResetProba(VP8Proba* const proba);

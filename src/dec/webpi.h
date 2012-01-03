@@ -103,31 +103,33 @@ VP8StatusCode WebPParseOptionalChunks(const uint8_t** data, uint32_t* data_size,
                                       const uint8_t** alpha_data,
                                       uint32_t* alpha_size);
 
-// Validates the VP8 Header ("VP8 nnnn") and skips over it.
+// Validates the VP8 Header ("VP8 nnnn" or "VP8L nnnn") and skips over it.
 // Returns VP8_STATUS_BITSTREAM_ERROR for invalid (vp8_chunk_size greater than
 //         riff_size) VP8 header,
 //         VP8_STATUS_NOT_ENOUGH_DATA in case of insufficient data, and
 //         VP8_STATUS_OK otherwise.
-// If a VP8 chunk is found, bytes_skipped is set to the total number of bytes
-// that are skipped and vp8_chunk_size is set to the corresponding size
-// extracted from the VP8 chunk header.
-// For a partial VP8 chunk, vp8_chunk_size is set to 0.
+// If a VP8/VP8L chunk is found, bytes_skipped is set to the total number of
+// bytes that are skipped and chunk_size is set to the corresponding size
+// extracted from the VP8/VP8L chunk header. In case of VP8L chunk, flag
+// is_lossless is set.
+// For a partial VP8/VP8L chunk, chunk_size is set to 0.
 VP8StatusCode WebPParseVP8Header(const uint8_t** data, uint32_t* data_size,
                                  uint32_t riff_size, uint32_t* bytes_skipped,
-                                 uint32_t* vp8_chunk_size);
+                                 uint32_t* chunk_size, int* is_lossless);
 
-// Skips over all valid chunks prior to the first VP8 frame header.
+// Skips over all valid chunks prior to the first VP8/VP8L frame header.
 // Returns VP8_STATUS_OK on success,
 //         VP8_STATUS_BITSTREAM_ERROR if an invalid header/chunk is found, and
 //         VP8_STATUS_NOT_ENOUGH_DATA if case of insufficient data.
 // Also, data, data_size, vp8_size, bytes_skipped, alpha_data & alpha_size are
 // updated appropriately on success, where
-// vp8_size is the size of VP8 chunk data (extracted from VP8 chunk header) and
-// bytes_skipped is set to the total number of bytes that are skipped.
+// vp8_size is the size of VP8 chunk data (extracted from VP8 chunk header),
+// bytes_skipped is set to the total number of bytes that are skipped and
+// is_lossless flag is set for VP8L chunk.
 VP8StatusCode WebPParseHeaders(const uint8_t** data, uint32_t* data_size,
                                uint32_t* vp8_size, uint32_t* bytes_skipped,
                                const uint8_t** alpha_data,
-                               uint32_t* alpha_size);
+                               uint32_t* alpha_size, int* is_lossless);
 
 //------------------------------------------------------------------------------
 // Misc utils

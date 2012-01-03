@@ -13,10 +13,13 @@
 
 #include "./vp8i.h"
 #include "./webpi.h"
+#include "../utils/bit_reader.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
+
+#define LOSSLESS_MAGIC_BYTE 0x64
 
 //------------------------------------------------------------------------------
 
@@ -78,6 +81,30 @@ int VP8SetError(VP8Decoder* const dec,
 }
 
 //------------------------------------------------------------------------------
+
+int VP8LGetInfo(const uint8_t* data, uint32_t data_size,
+                int* width, int* height) {
+  const int kHeaderBytes = 10;  // Max value of size_bits is 32 bits.
+  if (data_size >= kHeaderBytes) {
+    VP8BitReader br;
+    int size_bits;
+    int signature;
+    int w,h;
+    VP8InitBitReader(&br, data, data + kHeaderBytes);
+
+    signature = VP8GetValue(&br, 8);
+    if (signature != LOSSLESS_MAGIC_BYTE) return 0;
+    size_bits = (VP8GetValue(&br, 3) + 1) * 4;
+    w = VP8GetValue(&br, size_bits);
+    h = VP8GetValue(&br, size_bits);
+    if (br.eof_) return 0;
+    *width = w;
+    *height = h;
+    return 1;
+  } else {
+    return 0;         // not enough data
+  }
+}
 
 int VP8GetInfo(const uint8_t* data, uint32_t data_size, uint32_t chunk_size,
                int* width, int* height) {
@@ -265,7 +292,7 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
 
   // Process Pre-VP8 chunks.
   status = WebPParseHeaders(&buf, &buf_size, &vp8_chunk_size, &bytes_skipped,
-                            &alpha_data_tmp, &alpha_size_tmp);
+                            &alpha_data_tmp, &alpha_size_tmp, NULL);
   if (status != VP8_STATUS_OK) {
     return VP8SetError(dec, status, "Incorrect/incomplete header.");
   }

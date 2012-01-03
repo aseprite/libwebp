@@ -65,6 +65,7 @@ struct WebPIDecoder {
   MemBuffer mem_;          // input memory buffer.
   WebPDecBuffer output_;   // output buffer (when no external one is supplied)
   uint32_t vp8_size_;      // VP8 size extracted from VP8 Header.
+  int is_lossless_;
 };
 
 // MB context to restore in case VP8DecodeMB() fails
@@ -260,7 +261,7 @@ static VP8StatusCode DecodeWebPHeaders(WebPIDecoder* const idec) {
 
   status = WebPParseHeaders(&data, &curr_size, &vp8_size, &bytes_skipped,
                             &idec->dec_->alpha_data_,
-                            &idec->dec_->alpha_data_size_);
+                            &idec->dec_->alpha_data_size_, &idec->is_lossless_);
   if (status == VP8_STATUS_NOT_ENOUGH_DATA) {
     return VP8_STATUS_SUSPENDED;  // We haven't found a VP8 chunk yet.
   } else if (status == VP8_STATUS_OK) {
@@ -423,14 +424,19 @@ static VP8StatusCode IDecode(WebPIDecoder* idec) {
   if (idec->state_ == STATE_PRE_VP8) {
     status = DecodeWebPHeaders(idec);
   }
-  if (idec->state_ == STATE_VP8_FRAME_HEADER) {
-    status = DecodeVP8FrameHeader(idec);
-  }
-  if (idec->state_ == STATE_VP8_PARTS0) {
-    status = DecodePartition0(idec);
-  }
-  if (idec->state_ == STATE_VP8_DATA) {
-    status = DecodeRemaining(idec);
+  if (!idec->is_lossless_) {
+    if (idec->state_ == STATE_VP8_FRAME_HEADER) {
+      status = DecodeVP8FrameHeader(idec);
+    }
+    if (idec->state_ == STATE_VP8_PARTS0) {
+      status = DecodePartition0(idec);
+    }
+    if (idec->state_ == STATE_VP8_DATA) {
+      status = DecodeRemaining(idec);
+    }
+  } else {
+    // Return an error until lossless decoding is implemented.
+    return IDecError(idec, VP8_STATUS_BITSTREAM_ERROR);
   }
   return status;
 }
