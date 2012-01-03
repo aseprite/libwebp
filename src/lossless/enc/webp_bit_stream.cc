@@ -40,9 +40,9 @@ static void PutLE32(uint8* const data, uint32 val) {
 }
 
 static void PutRiffHeader(uint8 *bytes, size_t webpll_size) {
-  uint8 riff[RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE] = {
+  uint8 riff[HEADER_SIZE + SIGNATURE_SIZE] = {
     'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P',
-    'V', 'P', '8', 'L', 0, 0, 0, 0
+    'V', 'P', '8', 'L', 0, 0, 0, 0, 0x64
   };
   const size_t riff_size = TAG_SIZE + CHUNK_HEADER_SIZE + webpll_size;
   PutLE32(riff + TAG_SIZE, riff_size);
@@ -1017,13 +1017,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       &storage_ix, &storage[0]);
 
   const size_t webpll_size = (storage_ix + 7) >> 3;
-  *num_bytes = RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE + webpll_size;
+  uint8 *webpll_data = &storage[0];
+
+  *num_bytes = HEADER_SIZE + SIGNATURE_SIZE + webpll_size;
   *bytes = (uint8 *)malloc(*num_bytes);
-  memcpy(*bytes, &storage[0], *num_bytes);
   if (*bytes == NULL) return false;
   PutRiffHeader(*bytes, webpll_size);
-  memcpy(*bytes + RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE, &storage[0],
-         webpll_size);
+  memcpy(*bytes + HEADER_SIZE + SIGNATURE_SIZE, webpll_data, webpll_size);
 
   return true;
 }

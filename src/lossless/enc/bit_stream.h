@@ -27,6 +27,8 @@
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8
 #define RIFF_HEADER_SIZE 12
+#define HEADER_SIZE      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE)
+#define SIGNATURE_SIZE   1
 
 // This function writes bits into bytes in increasing addresses, and within
 // a byte least-significant-bit first.

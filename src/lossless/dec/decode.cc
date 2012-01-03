@@ -31,6 +31,8 @@
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8
 #define RIFF_HEADER_SIZE 12
+#define HEADER_SIZE      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE)
+#define SIGNATURE_SIZE   1
 
 static const int kMaxImageTransforms = 100;
 
@@ -464,11 +466,12 @@ int DecodeWebpLLImage(size_t encoded_image_size,
                       int* xsize,
                       int* ysize,
                       uint32** argb_image) {
-  if (encoded_image_size < RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE) return false;
-  const size_t webpll_size = encoded_image_size -
-      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE);
-  const uint8* webpll_data = encoded_image +
-      RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE;
+  if (encoded_image_size < HEADER_SIZE + SIGNATURE_SIZE) return false;
+  const uint8* sig = encoded_image + HEADER_SIZE;
+  if (sig[0] != 0x64) return false;
+  const uint8* webpll_data = encoded_image + HEADER_SIZE + SIGNATURE_SIZE;
+  const size_t webpll_size = encoded_image_size - HEADER_SIZE - SIGNATURE_SIZE;
+
   BitStream stream(webpll_size, webpll_data);
   int size_bits = (READ(&stream, 3) + 1) * 4;
   *xsize = READ(&stream, size_bits);
