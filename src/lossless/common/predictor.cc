@@ -49,26 +49,19 @@ uint32 Paeth32(uint32 a, uint32 b, uint32 c) {
   const int p2 = int((a >> 8) & 0xff) + int((b >> 8) & 0xff) -
       int((c >> 8) & 0xff);
   const int p3 = int(a & 0xff) + int(b & 0xff) - int(c & 0xff);
-
-  int pa = abs(p0 - (a >> 24)) +
+  const int pa = abs(p0 - (a >> 24)) +
       abs(p1 - ((a >> 16) & 0xff)) +
       abs(p2 - ((a >> 8) & 0xff)) +
       abs(p3 - (a & 0xff));
-  int pb = abs(p0 - (b >> 24)) +
+  const int pb = abs(p0 - (b >> 24)) +
       abs(p1 - ((b >> 16) & 0xff)) +
       abs(p2 - ((b >> 8) & 0xff)) +
       abs(p3 - (b & 0xff));
-  int pc = abs(p0 - (c >> 24)) +
-      abs(p1 - ((c >> 16) & 0xff)) +
-      abs(p2 - ((c >> 8) & 0xff)) +
-      abs(p3 - (c & 0xff));
-
-  if (pa <= pb && pa <= pc) {
+  if (pa <= pb) {
     return a;
-  } else if (pb <= pc) {
+  } else {
     return b;
   }
-  return c;
 }
 
 inline uint32 Clamp(uint32 a) {
