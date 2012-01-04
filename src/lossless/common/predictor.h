@@ -14,15 +14,9 @@
 
 #include "integral_types.h"
 
-static const int kCrossPredictMax = 128;
-
-static inline uint32 ColorTransformDelta(signed char t, signed char c) {
-  int mul = int(t) * c;
-  if (mul < 0) {
-    return -((-mul + 16) >> 5);
-  } else {
-    return (mul + 16) >> 5;
-  }
+static inline uint32 ColorTransformDelta(signed char transform,
+                                         signed char color) {
+  return uint32(int(transform) * color) >> 5;
 }
 
 uint32 PredictValue(int mode, int xsize, const uint32 *argb);
