@@ -71,10 +71,13 @@ uint32 Paeth32(uint32 a, uint32 b, uint32 c) {
   return c;
 }
 
-inline int Clamp(int a) {
-  if (a < 0) return 0;
-  if (a > 255) return 255;
-  return a;
+inline uint32 Clamp(uint32 a) {
+  if (a <= 255) {
+    return a;
+  }
+  // return 0, when a is a negative integer.
+  // return 255, when a is positive.
+  return ~a >> 24;
 }
 
 inline int AddSubtractComponentFull(int a, int b, int c) {
@@ -89,9 +92,9 @@ uint32 ClampedAddSubtractFull(uint32 c0, uint32 c1, uint32 c2) {
   int g = AddSubtractComponentFull((c0 >> 8) & 0xff,
                                    (c1 >> 8) & 0xff,
                                    (c2 >> 8) & 0xff);
-  int b = AddSubtractComponentFull((c0 >> 0) & 0xff,
-                                   (c1 >> 0) & 0xff,
-                                   (c2 >> 0) & 0xff);
+  int b = AddSubtractComponentFull(c0 & 0xff,
+                                   c1 & 0xff,
+                                   c2 & 0xff);
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
@@ -99,11 +102,12 @@ inline int AddSubtractComponentHalf(int a, int b) {
   return Clamp(a + (a - b) / 2);
 }
 
-uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1) {
-  int a = AddSubtractComponentHalf(c0 >> 24, c1 >> 24);
-  int r = AddSubtractComponentHalf((c0 >> 16) & 0xff, (c1 >> 16) & 0xff);
-  int g = AddSubtractComponentHalf((c0 >> 8) & 0xff, (c1 >> 8) & 0xff);
-  int b = AddSubtractComponentHalf((c0 >> 0) & 0xff, (c1 >> 0) & 0xff);
+uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1, uint32 c2) {
+  uint32 ave = Average2(c0, c1);
+  int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
+  int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
+  int g = AddSubtractComponentHalf((ave >> 8) & 0xff, (c2 >> 8) & 0xff);
+  int b = AddSubtractComponentHalf((ave >> 0) & 0xff, (c2 >> 0) & 0xff);
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
@@ -138,10 +142,9 @@ uint32 PredictValue(int mode, int xsize, const uint32 *argb) {
                                     argb[-xsize],
                                     argb[-xsize - 1]);
     case 13:
-      {
-        uint32 ave = Average2(argb[-1], argb[-xsize]);
-        return ClampedAddSubtractHalf(ave, argb[-xsize - 1]);
-      }
+      return ClampedAddSubtractHalf(argb[-1],
+                                    argb[-xsize],
+                                    argb[-xsize - 1]);
   }
   return 0;
 }
