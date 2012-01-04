@@ -105,14 +105,10 @@ uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1) {
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-uint32 PredictValue(int mode, int ix, int xsize, const uint32 *argb) {
-  if (mode <= 1 || ix < xsize + 1) {
-    if (mode == 0 || ix == 0) {
-      return 0xff000000;
-    }
-    return argb[-1];
-  }
+uint32 PredictValue(int mode, int xsize, const uint32 *argb) {
   switch (mode) {
+    case 0: return 0xff000000;
+    case 1: return argb[-1];
     case 2: return argb[-xsize];
     case 3: return argb[-xsize + 1];
     case 4: return argb[-xsize - 1];
@@ -165,7 +161,18 @@ void CopyTileWithPrediction(int xsize, int ysize,
     for (int x = 0; x < xmax; ++x) {
       int all_x = (tile_x << bits) + x;
       const int ix = all_y * xsize + all_x;
-      const uint32 predict = PredictValue(mode, ix, xsize, from_argb + ix);
+      uint32 predict;
+      if (all_y == 0) {
+        if (all_x == 0) {
+          predict = 0xff000000;
+        } else {
+          predict = from_argb[ix - 1];
+        }
+      } else if (all_x == 0) {
+        predict = from_argb[ix - xsize];
+      } else {
+        predict = PredictValue(mode, xsize, from_argb + ix);
+      }
       to_argb[ix] = Subtract(from_argb[ix], predict);
     }
   }
@@ -176,7 +183,15 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
                                const uint32 *from_argb,
                                uint32* to_argb) {
   const int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
-  for (int image_y = 0; image_y < ysize; ++image_y) {
+  {
+    // The first row is special.
+    to_argb[0] = from_argb[0] + 0xff000000;
+    for (int image_x = 1; image_x < xsize; ++image_x) {
+      uint32 predict = to_argb[image_x - 1];
+      to_argb[image_x] = Add(from_argb[image_x], predict);
+    }
+  }
+  for (int image_y = 1; image_y < ysize; ++image_y) {
     int tile_y = image_y >> bits;
     int ix = image_y * xsize;
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
@@ -187,10 +202,30 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
       if (xend > xsize) {
         xend = xsize;
       }
-      for (; image_x < xend; ++image_x) {
-        const uint32 predict =
-            PredictValue(mode, ix + image_x, xsize, to_argb + ix + image_x);
+      if (image_x == 0) {
+        uint32 predict = to_argb[ix + image_x - xsize];
         to_argb[ix + image_x] = Add(from_argb[ix + image_x], predict);
+        ++image_x;
+      }
+      if (mode == 0) {
+        for (; image_x < xend; ++image_x) {
+          to_argb[ix + image_x] = from_argb[ix + image_x] + 0xff000000;
+        }
+      } else if (mode == 1) {
+        for (; image_x < xend; ++image_x) {
+          to_argb[ix + image_x] =
+              Add(from_argb[ix + image_x], to_argb[ix + image_x - 1]);
+        }
+      } else if (mode == 2) {
+        for (; image_x < xend; ++image_x) {
+          to_argb[ix + image_x] =
+              Add(from_argb[ix + image_x], to_argb[ix + image_x - xsize]);
+        }
+      } else {
+        for (; image_x < xend; ++image_x) {
+          uint32 predict = PredictValue(mode, xsize, to_argb + ix + image_x);
+          to_argb[ix + image_x] = Add(from_argb[ix + image_x], predict);
+        }
       }
     }
   }

@@ -25,7 +25,7 @@ static inline uint32 ColorTransformDelta(signed char t, signed char c) {
   }
 }
 
-uint32 PredictValue(int mode, int ix, int xsize, const uint32 *argb);
+uint32 PredictValue(int mode, int xsize, const uint32 *argb);
 
 uint32 Add(uint32 a, uint32 b);
 uint32 Subtract(uint32 a, uint32 b);
