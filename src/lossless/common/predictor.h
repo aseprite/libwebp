@@ -52,10 +52,12 @@ struct ColorSpaceTransformElement {
   }
 
   uint32 Transform(uint32 argb) const {
-    const uint32 green = ((argb >> 8) & 0xff);
-    const uint32 red = ((argb >> 16) & 0xff);
+    // green, red, new_red and new_blue temporarily contain dirty upper bits,
+    // which is not a problem since they are masked off in the end.
+    const uint32 green = argb >> 8;
+    const uint32 red = argb >> 16;
     uint32 new_red = red;
-    uint32 new_blue = (argb & 0xff);
+    uint32 new_blue = argb;
 
     new_red -= ColorTransformDelta(green_to_red_, green);
     new_blue -= ColorTransformDelta(green_to_blue_, green);
@@ -67,10 +69,12 @@ struct ColorSpaceTransformElement {
   }
 
   uint32 InverseTransform(uint32 argb) const {
-    const uint32 green = ((argb >> 8) & 0xff);
-    const uint32 red = ((argb >> 16) & 0xff);
+    // green, red, new_red and new_blue temporarily contain dirty upper bits,
+    // which is not a problem since they are masked off in the end.
+    const uint32 green = argb >> 8;
+    const uint32 red = argb >> 16;
     uint32 new_red = red;
-    uint32 new_blue = (argb & 0xff);
+    uint32 new_blue = argb;
 
     new_red += ColorTransformDelta(green_to_red_, green);
     new_blue += ColorTransformDelta(green_to_blue_, green);
