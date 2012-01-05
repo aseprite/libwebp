@@ -84,7 +84,7 @@ int VP8SetError(VP8Decoder* const dec,
 
 int VP8LGetInfo(const uint8_t* data, uint32_t data_size,
                 int* width, int* height) {
-  const int kHeaderBytes = 10;  // Max value of size_bits is 32 bits.
+  const uint32_t kHeaderBytes = 10;  // Max value of size_bits is 32 bits.
   if (data_size >= kHeaderBytes) {
     VP8BitReader br;
     int size_bits;
