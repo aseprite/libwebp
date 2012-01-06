@@ -32,8 +32,6 @@ LOCAL_SRC_FILES := \
 	src/enc/tree.c \
 	src/enc/webpenc.c \
 	src/experimental/alpha.c \
-	src/experimental/filters.c \
-	src/experimental/quant_levels.c \
 	src/mux/muxedit.c \
 	src/mux/muxinternal.c \
 	src/mux/muxread.c \

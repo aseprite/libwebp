@@ -196,7 +196,6 @@ EXAMPLES_OBJS = \
 X_OBJS= \
     $(X_OBJS) \
     $(DIROBJ)\experimental\alpha.obj \
-    $(DIROBJ)\experimental\filters.obj \
 
 !ENDIF
 

@@ -80,12 +80,11 @@ OBJS = $(DEC_OBJS) $(ENC_OBJS) $(DSP_OBJS) $(UTILS_OBJS)
 MUX_OBJS = src/mux/muxedit.o src/mux/muxinternal.o src/mux/muxread.o
 
 EXPERIMENTAL_OBJS = src/experimental/alpha.o \
-                    src/experimental/filters.o \
 
 HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/webp/mux.h \
        src/dec/vp8i.h  \
        src/dsp/yuv.h src/dsp/dsp.h \
-       src/experimental/alpha.h src/experimental/filters.h \
+       src/experimental/alpha.h \
        src/utils/alpha.h src/utils/bit_writer.h src/utils/bit_reader.h \
        src/utils/filters.h src/utils/thread.h src/utils/tcoder.h
 
