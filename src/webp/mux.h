@@ -38,7 +38,7 @@
 //   WebPMuxGetImage(mux, &image_data, &image_data_size,
 //                   &alpha_data, &alpha_size);
 //   // ... (Consume image_data; e.g. call WebPDecode() to decode the data).
-//   WebPMuxGetColorProfile(mux, &icc_data, &icc_data_size);
+//   WebPMuxGetColorProfile(mux, &icc_chunkdata);
 //   // ... (Consume icc_data).
 //   WebPMuxDelete(mux);
 //   free(data);
@@ -80,6 +80,12 @@ typedef enum {
 } FeatureFlags;
 
 typedef struct WebPMux WebPMux;   // main opaque object.
+
+// WebP RIFF chunk payload, e.g., ICC profile, metadata
+typedef struct {
+  const uint8_t* bytes_;
+  uint32_t size_;
+} WebPChunkData;
 
 //------------------------------------------------------------------------------
 // Life of a Mux object
@@ -185,15 +191,13 @@ WEBP_EXTERN(WebPMuxError) WebPMuxSetMetadata(WebPMux* const mux,
 // The caller should NOT free the returned data.
 // Parameters:
 //   mux - (in) object from which the XMP metadata is to be fetched
-//   data - (out) the returned XMP metadata
-//   size - (out) size of the returned XMP metadata
+//   chunkdata - (out) XMP metadata
 // Returns:
-//   WEBP_MUX_INVALID_ARGUMENT - if either of mux, data or size is NULL
+//   WEBP_MUX_INVALID_ARGUMENT - if either mux or chunkdata is NULL.
 //   WEBP_MUX_NOT_FOUND - if metadata is not present in mux object.
 //   WEBP_MUX_OK - on success.
-WEBP_EXTERN(WebPMuxError) WebPMuxGetMetadata(const WebPMux* const mux,
-                                             const uint8_t** data,
-                                             uint32_t* size);
+WEBP_EXTERN(WebPMuxError) WebPMuxGetMetadata(
+    const WebPMux* const mux, WebPChunkData* const chunkdata);
 
 // Deletes the XMP metadata in the mux object.
 // Parameters:
@@ -227,15 +231,13 @@ WEBP_EXTERN(WebPMuxError) WebPMuxSetColorProfile(WebPMux* const mux,
 // The caller should NOT free the returned data.
 // Parameters:
 //   mux - (in) object from which the color profile data is to be fetched
-//   data - (out) the returned color profile data
-//   size - (out) size of the returned color profile data
+//   chunkdata - (out) color profile data
 // Returns:
-//   WEBP_MUX_INVALID_ARGUMENT - if either of mux, data or size is NULL
+//   WEBP_MUX_INVALID_ARGUMENT - if either mux or chunkdata is NULL.
 //   WEBP_MUX_NOT_FOUND - if color profile is not present in mux object.
 //   WEBP_MUX_OK - on success.
-WEBP_EXTERN(WebPMuxError) WebPMuxGetColorProfile(const WebPMux* const mux,
-                                                 const uint8_t** data,
-                                                 uint32_t* size);
+WEBP_EXTERN(WebPMuxError) WebPMuxGetColorProfile(
+    const WebPMux* const mux, WebPChunkData* const chunkdata);
 
 // Deletes the color profile in the mux object.
 // Parameters:

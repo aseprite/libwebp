@@ -265,22 +265,22 @@ WebPMuxError WebPMuxGetImage(const WebPMux* const mux,
   return WEBP_MUX_OK;
 }
 
-WebPMuxError WebPMuxGetMetadata(const WebPMux* const mux, const uint8_t** data,
-                                uint32_t* size) {
-  if (mux == NULL || data == NULL || size == NULL) {
+WebPMuxError WebPMuxGetMetadata(const WebPMux* const mux,
+                                WebPChunkData* const chunkdata) {
+  if (mux == NULL || chunkdata == NULL) {
     return WEBP_MUX_INVALID_ARGUMENT;
   }
 
-  return MuxGet(mux, META_ID, 1, data, size);
+  return MuxGet(mux, META_ID, 1, &chunkdata->bytes_, &chunkdata->size_);
 }
 
 WebPMuxError WebPMuxGetColorProfile(const WebPMux* const mux,
-                                    const uint8_t** data, uint32_t* size) {
-  if (mux == NULL || data == NULL || size == NULL) {
+                                    WebPChunkData* const chunkdata) {
+  if (mux == NULL || chunkdata == NULL) {
     return WEBP_MUX_INVALID_ARGUMENT;
   }
 
-  return MuxGet(mux, ICCP_ID, 1, data, size);
+  return MuxGet(mux, ICCP_ID, 1, &chunkdata->bytes_, &chunkdata->size_);
 }
 
 WebPMuxError WebPMuxGetLoopCount(const WebPMux* const mux,

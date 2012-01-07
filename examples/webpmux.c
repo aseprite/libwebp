@@ -155,6 +155,7 @@ static int IsNotCompatible(int count1, int count2) {
 static WebPMuxError DisplayInfo(const WebPMux* mux) {
   int nFrames;
   int nTiles;
+  WebPChunkData chunkdata;
   const uint8_t* data = NULL;
   uint32_t size = 0;
   const uint8_t* alpha_data;
@@ -228,13 +229,13 @@ static WebPMuxError DisplayInfo(const WebPMux* mux) {
   }
 
   if (flag & ICCP_FLAG) {
-    err = WebPMuxGetColorProfile(mux, &data, &size);
+    err = WebPMuxGetColorProfile(mux, &chunkdata);
     RETURN_IF_ERROR("Failed to retrieve the color profile\n");
-    fprintf(stderr, "Size of the color profile data: %d\n", size);
+    fprintf(stderr, "Size of the color profile data: %d\n", chunkdata.size_);
   }
 
   if (flag & META_FLAG) {
-    err = WebPMuxGetMetadata(mux, &data, &size);
+    err = WebPMuxGetMetadata(mux, &chunkdata);
     RETURN_IF_ERROR("Failed to retrieve the XMP metadata\n");
     fprintf(stderr, "Size of the XMP metadata: %d\n", size);
   }
@@ -418,7 +419,7 @@ static int ReadImage(const char* filename,
   return ok;
 }
 
-static int WriteData(const char* filename, void* data, uint32_t size) {
+static int WriteData(const char* filename, const void* data, uint32_t size) {
   int ok = 0;
   FILE* fout = strcmp(filename, "-") ? fopen(filename, "wb") : stdout;
   if (!fout) {
@@ -834,6 +835,7 @@ static int GetFrameTile(const WebPMux* mux,
 // Read and process config.
 static int Process(const WebPMuxConfig* config) {
   WebPMux* mux = NULL;
+  WebPChunkData chunkdata;
   const uint8_t* data = NULL;
   uint32_t size = 0;
   const uint8_t* alpha_data = NULL;
@@ -862,19 +864,18 @@ static int Process(const WebPMuxConfig* config) {
           break;
 
         case FEATURE_ICCP:
-          err = WebPMuxGetColorProfile(mux, &data, &size);
+          err = WebPMuxGetColorProfile(mux, &chunkdata);
           if (err != WEBP_MUX_OK) {
             ERROR_GOTO2("ERROR#%d: Could not get color profile.\n", err, Err2);
           }
-          ok = WriteData(config->output_, (void*)data, size);
+          ok = WriteData(config->output_, chunkdata.bytes_, chunkdata.size_);
           break;
-
         case FEATURE_XMP:
-          err = WebPMuxGetMetadata(mux, &data, &size);
+          err = WebPMuxGetMetadata(mux, &chunkdata);
           if (err != WEBP_MUX_OK) {
             ERROR_GOTO2("ERROR#%d: Could not get XMP metadata.\n", err, Err2);
           }
-          ok = WriteData(config->output_, (void*)data, size);
+          ok = WriteData(config->output_, chunkdata.bytes_, chunkdata.size_);
           break;
 
         default:
