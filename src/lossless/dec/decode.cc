@@ -353,29 +353,44 @@ static void DecodeImageInternal(const int original_xsize,
   int red = 0;
   int blue = 0;
   int alpha = 0xff000000;
-  int meta_index = 0;  // Does not have to be initialized.
-  int meta_ix = 0;  // Does not have to be initialized.
+  int meta_ix = -1;
   // Green values >= num_green but < palette_limit are from the palette.
   const int palette_limit = num_green + palette_size;
-
+  const HuffmanTreeNode *huff_green = 0;
+  const HuffmanTreeNode *huff_red = 0;
+  const HuffmanTreeNode *huff_blue = 0;
+  const HuffmanTreeNode *huff_alpha = 0;
+  const HuffmanTreeNode *huff_dist = 0;
   for (int pos = 0; pos < xsize * ysize; ) {
     if ((x & ((1 << huffman_bits) - 1)) == 0) {
       // Only update the huffman code when moving from one block to the
       // next.
-      meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
-      meta_ix = meta_index * (num_rba + 2);
+      const int meta_index = (num_rba + 2) *
+          GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+      if (meta_ix != meta_index) {
+        meta_ix = meta_index;
+        huff_green = &htrees[meta_codes[meta_ix]];
+        huff_red = &htrees[meta_codes[meta_ix + 1]];
+        if (num_rba > 1) {
+          huff_blue = &htrees[meta_codes[meta_ix + 2]];
+        }
+        if (num_rba > 2) {
+          huff_alpha = &htrees[meta_codes[meta_ix + 3]];
+        }
+        huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
+      }
     }
-    int green = ReadSymbol(htrees[meta_codes[meta_ix]], stream);
+    int green = ReadSymbol(*huff_green, stream);
     // Literal
     if (green < num_green) {
       if (num_rba > 1) {
-        red = ReadSymbol(htrees[meta_codes[meta_ix + 1]], stream) << 16;
-        blue = ReadSymbol(htrees[meta_codes[meta_ix + 2]], stream);
+        red = ReadSymbol(*huff_red, stream) << 16;
+        blue = ReadSymbol(*huff_blue, stream);
         if (num_rba > 2) {
-          alpha = ReadSymbol(htrees[meta_codes[meta_ix + 3]], stream) << 24;
+          alpha = ReadSymbol(*huff_alpha, stream) << 24;
         }
       } else if (num_rba > 0) {
-        red = ReadSymbol(htrees[meta_codes[meta_ix + 1]], stream) << 16;
+        red = ReadSymbol(*huff_red, stream) << 16;
       }
 
       uint32 argb = alpha + red + (green << 8) + blue;
@@ -408,8 +423,7 @@ static void DecodeImageInternal(const int original_xsize,
     const int length_symbol = green - palette_limit;
     if (length_symbol < kNumLengthSymbols) {
       const int length = GetCopyLength(length_symbol, stream);
-      const int dist_symbol =
-          ReadSymbol(htrees[meta_codes[meta_ix + num_rba + 1]], stream);
+      const int dist_symbol = ReadSymbol(*huff_dist, stream);
       uint32 dist = GetCopyDistance(dist_symbol, stream);
       dist = PlaneCodeToDistance(xsize, ysize, dist);
       VERIFY(dist <= pos);
@@ -436,8 +450,20 @@ static void DecodeImageInternal(const int original_xsize,
           }
         }
       }
-      meta_index = GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
-      meta_ix = meta_index * (num_rba + 2);
+      const int meta_index = (num_rba + 2) *
+          GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+      if (meta_ix != meta_index) {
+        meta_ix = meta_index;
+        huff_green = &htrees[meta_codes[meta_ix]];
+        huff_red = &htrees[meta_codes[meta_ix + 1]];
+        if (num_rba > 1) {
+          huff_blue = &htrees[meta_codes[meta_ix + 2]];
+        }
+        if (num_rba > 2) {
+          huff_alpha = &htrees[meta_codes[meta_ix + 3]];
+        }
+        huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
+      }
       continue;
     }
     printf("Error: Could not interpret GREEN symbol %d\n", green);
