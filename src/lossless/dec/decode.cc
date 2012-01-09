@@ -149,10 +149,12 @@ static int AlphabetSize(int type, int num_green, int palette_size) {
   return 0;
 }
 
-int GetMetaIndex(int xsize, int bits, const uint32* image, int x, int y) {
-  if (bits == 0) return 0;
-  int xs = (xsize + (1 << bits) - 1) >> bits;
-  return (image[(y >> bits) * xs + (x >> bits)] >> 8) & 0xffff;
+int GetMetaIndex(int huffman_xsize, int bits, const uint32* image,
+                 int x, int y) {
+  if (bits == 0) {
+    return 0;
+  }
+  return (image[(y >> bits) * huffman_xsize + (x >> bits)] >> 8) & 0xffff;
 }
 
 static void ReadMetaCodes(const int num_rba,
@@ -347,7 +349,7 @@ static void DecodeImageInternal(const int original_xsize,
     VERIFY(kMagicByteForErrorDetection == stream->Read(8));
   }
 
-  *argb_image = (uint32*)malloc(xsize * ysize * sizeof(uint32));
+  uint32 *image = (uint32*)malloc(xsize * ysize * sizeof(uint32));
   int x = 0;
   int y = 0;
   int red = 0;
@@ -361,12 +363,14 @@ static void DecodeImageInternal(const int original_xsize,
   const HuffmanTreeNode *huff_blue = 0;
   const HuffmanTreeNode *huff_alpha = 0;
   const HuffmanTreeNode *huff_dist = 0;
+  const int huffman_mask = huffman_bits == 0 ? ~0 : (1 << huffman_bits) - 1;
+  const int huffman_xsize = (xsize + (1 << huffman_bits) - 1) >> huffman_bits;
   for (int pos = 0; pos < xsize * ysize; ) {
-    if ((x & ((1 << huffman_bits) - 1)) == 0) {
+    if ((x & huffman_mask) == 0) {
       // Only update the huffman code when moving from one block to the
       // next.
       const int meta_index = (num_rba + 2) *
-          GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+          GetMetaIndex(huffman_xsize, huffman_bits, huffman_image, x, y);
       if (meta_ix != meta_index) {
         meta_ix = meta_index;
         huff_green = &htrees[meta_codes[meta_ix]];
@@ -394,7 +398,7 @@ static void DecodeImageInternal(const int original_xsize,
       }
 
       uint32 argb = alpha + red + (green << 8) + blue;
-      (*argb_image)[pos] = argb;
+      image[pos] = argb;
       if (palette) palette->Insert(x, argb);
       ++x;
       if (x >= xsize) {
@@ -408,7 +412,7 @@ static void DecodeImageInternal(const int original_xsize,
     if (green < palette_limit) {
       int palette_symbol = green - num_green;
       const uint32 argb = palette->Lookup(x, palette_symbol);
-      (*argb_image)[pos] = argb;
+      image[pos] = argb;
       palette->Insert(x, argb);
       ++x;
       if (x >= xsize) {
@@ -430,7 +434,7 @@ static void DecodeImageInternal(const int original_xsize,
       VERIFY(pos + length <= xsize * ysize);
       if (!palette) {
         for (int i = 0; i < length; ++i) {
-          (*argb_image)[pos] = (*argb_image)[pos - dist];
+          image[pos] = image[pos - dist];
           ++pos;
         }
         x += length;
@@ -440,8 +444,8 @@ static void DecodeImageInternal(const int original_xsize,
         }
       } else {
         for (int i = 0; i < length; ++i) {
-          (*argb_image)[pos] = (*argb_image)[pos - dist];
-          palette->Insert(x, (*argb_image)[pos]);
+          image[pos] = image[pos - dist];
+          palette->Insert(x, image[pos]);
           ++pos;
           ++x;
           if (x >= xsize) {
@@ -451,7 +455,7 @@ static void DecodeImageInternal(const int original_xsize,
         }
       }
       const int meta_index = (num_rba + 2) *
-          GetMetaIndex(xsize, huffman_bits, huffman_image, x, y);
+          GetMetaIndex(huffman_xsize, huffman_bits, huffman_image, x, y);
       if (meta_ix != meta_index) {
         meta_ix = meta_index;
         huff_green = &htrees[meta_codes[meta_ix]];
@@ -480,6 +484,7 @@ static void DecodeImageInternal(const int original_xsize,
     VERIFY(kMagicByteForErrorDetection == stream->Read(8));
   }
 
+  *argb_image = image;
   for (int i = num_transforms - 1; i >= 0; --i) {
     ApplyInverseImageTransform(transforms[i], argb_image);
     FreeImageTransformData(transforms[i]);
