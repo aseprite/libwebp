@@ -39,4 +39,24 @@ class BitStream {
   uint32 window_;
 };
 
+inline void BitStream::ShiftOneByte() {
+  window_ = window_ >> 8;
+  if (byte_position_ < length_) {
+    window_ += stream_[byte_position_] << 24;
+  } else {
+    VERIFY(byte_position_ < length_ + 4);
+  }
+  ++byte_position_;
+}
+
+inline int BitStream::ReadOneBit() {
+  uint32 result = (window_ >> bit_position_) & 1;
+  ++bit_position_;
+  if (bit_position_ >= 8) {
+    ShiftOneByte();
+    bit_position_ = 0;
+  }
+  return result;
+}
+
 #endif  // WEBP_DEC_BIT_STREAM_H_
