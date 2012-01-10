@@ -13,16 +13,16 @@
 
 BitStream::BitStream(int length, const uint8* stream)
     : length_(length), stream_(stream),
-      byte_position_(4), bit_position_(0), window_(0) {
+      byte_position_(8), bit_position_(0), window_(0) {
 
   // Read first four bytes to window_
-  for (int i = 0; i < 4 && i < length_; ++i) {
-    window_ += stream_[i] << (8 * i);
+  for (int i = 0; i < 8 && i < length_; ++i) {
+    window_ += (uint64)(stream_[i]) << (8 * i);
   }
 }
 
 void BitStream::Shift(int num_bytes) {
-  for (int i = 0; i< num_bytes; ++i) {
+  for (int i = 0; i < num_bytes; ++i) {
     ShiftOneByte();
   }
 }

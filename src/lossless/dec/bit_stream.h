@@ -35,27 +35,30 @@ class BitStream {
   int byte_position_;
   int bit_position_;
 
-  // The next four bytes stored.
-  uint32 window_;
+  // The next eight bytes stored.
+  uint64 window_;
 };
 
 inline void BitStream::ShiftOneByte() {
   window_ = window_ >> 8;
   if (byte_position_ < length_) {
-    window_ += stream_[byte_position_] << 24;
+    window_ += ((uint64)stream_[byte_position_]) << 56;
   } else {
-    VERIFY(byte_position_ < length_ + 4);
+    VERIFY(byte_position_ < length_ + 8);
   }
   ++byte_position_;
 }
 
 inline int BitStream::ReadOneBit() {
   uint32 result = (window_ >> bit_position_) & 1;
-  ++bit_position_;
-  if (bit_position_ >= 8) {
+  if (bit_position_ == 31) {
     ShiftOneByte();
-    bit_position_ = 0;
+    ShiftOneByte();
+    ShiftOneByte();
+    ShiftOneByte();
+    bit_position_ = -1;
   }
+  ++bit_position_;
   return result;
 }
 
