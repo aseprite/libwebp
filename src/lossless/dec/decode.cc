@@ -151,10 +151,12 @@ static int AlphabetSize(int type, int num_green, int palette_size) {
 
 int GetMetaIndex(int huffman_xsize, int bits, const uint32* image,
                  int x, int y) {
+  y >>= bits;
+  x >>= bits;
   if (bits == 0) {
     return 0;
   }
-  return (image[(y >> bits) * huffman_xsize + (x >> bits)] >> 8) & 0xffff;
+  return image[y * huffman_xsize + x];
 }
 
 static void ReadMetaCodes(const int num_rba,
@@ -313,9 +315,16 @@ static void DecodeImageInternal(const int original_xsize,
   int num_huffman_trees = num_rba + 2;
   if (use_meta_codes) {
     huffman_bits = stream->Read(4);
-    DecodeImageInternal(MetaSize(xsize, huffman_bits),
-                        MetaSize(ysize, huffman_bits),
-                        stream, &huffman_image);
+    const int huffman_xsize = MetaSize(xsize, huffman_bits);
+    const int huffman_ysize = MetaSize(ysize, huffman_bits);
+    DecodeImageInternal(huffman_xsize, huffman_ysize, stream, &huffman_image);
+    const int huffman_pixels = huffman_xsize * huffman_ysize;
+    for (int i = 0; i < huffman_pixels; ++i) {
+      // The actual value is stored in red (high bits) and green (low bits).
+      huffman_image[i] >>= 8;
+      // Strip alpha (in bits [24..17]).
+      huffman_image[i] &= 0xffff;
+    }
     ReadMetaCodes(num_rba, stream, &meta_codes, &tree_types,
                   &num_huffman_trees);
     if (error_detection_bits) {
