@@ -20,8 +20,8 @@ class HuffmanTreeNode {
     child_[0] = child_[1] = NULL;
   }
   ~HuffmanTreeNode() {
-    if (child_[0]) delete child_[0];
-    if (child_[1]) delete child_[1];
+    delete child_[0];
+    delete child_[1];
   }
 
   int symbol() const { return symbol_; }
@@ -29,7 +29,7 @@ class HuffmanTreeNode {
   HuffmanTreeNode* child(int i) const { return child_[i & 1]; }
 
   bool IsLeaf() const {
-    return child_[0] == NULL && child_[1] == NULL;
+    return child_[0] == NULL;  // Implies also child_[1] == NULL.
   }
 
   bool IsFull() const {
