@@ -463,6 +463,9 @@ static void DecodeImageInternal(const int original_xsize,
           }
         }
       }
+      if (pos == xsize * ysize) {
+        break;
+      }
       const int meta_index = (num_rba + 2) *
           GetMetaIndex(huffman_xsize, huffman_bits, huffman_image, x, y);
       if (meta_ix != meta_index) {
