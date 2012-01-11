@@ -7,7 +7,7 @@
 //
 // Author: jyrki@google.com (Jyrki Alakuijala)
 
-#include "predictor.h"
+#include "./predictor.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -15,50 +15,56 @@
 
 #include <algorithm>
 
-#include "backward_references.h"
-#include "histogram.h"
+#include "./backward_references.h"
+#include "./histogram.h"
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
 
-double PredictionCostSpatial(int *counts) {
-  double bits = -0.1 * counts[0];
-  double exp_val = 0.094;
-  for (int i = 1; i < 40; ++i) {
-    bits -= exp_val * (counts[i] + counts[256 - i]);
-    exp_val *= 0.6;
+static double PredictionCostSpatial(int *counts, int weight_0,
+                                    double exp_val) {
+  const int significant_symbols = 40;
+  const double exp_decay_factor = 0.6;
+  double bits = weight_0 * counts[0];
+  for (int i = 1; i < significant_symbols; ++i) {
+    bits += exp_val * (counts[i] + counts[256 - i]);
+    exp_val *= exp_decay_factor;
   }
-  return bits;
+  return -0.1 * bits;
 }
 
-double PredictionCostSpatialHistogram(Histogram *accumulated,
-                                      Histogram *tile) {
+static double PredictionCostSpatialHistogram(Histogram *accumulated,
+                                             Histogram *tile) {
+  const double exp_val = 0.94;
   Histogram combo(0);
   combo.Add(*accumulated);
   combo.Add(*tile);
   return
       tile->EstimateBitsBulk() +
       combo.EstimateBitsBulk() +
-      PredictionCostSpatial(tile->alpha_) +
-      PredictionCostSpatial(tile->literal_) +
-      PredictionCostSpatial(tile->red_) +
-      PredictionCostSpatial(tile->blue_);
+      PredictionCostSpatial(tile->alpha_, 1, exp_val) +
+      PredictionCostSpatial(tile->literal_, 1, exp_val) +
+      PredictionCostSpatial(tile->red_, 1, exp_val) +
+      PredictionCostSpatial(tile->blue_, 1, exp_val);
 }
 
-int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
-                            int xsize, int ysize,
-                            Histogram *accumulated,
-                            const uint32 *argb) {
+static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
+                                   int xsize, int ysize,
+                                   Histogram *accumulated,
+                                   const uint32 *argb) {
+  const int num_pred_modes = 14;
+  const int tile_y_offset = tile_y * max_tile_size;
+  const int tile_x_offset = tile_x * max_tile_size;
   double best_diff = 1e99;
   int best_mode = 0;
-  for (int mode = 0; mode < 14; ++mode) {
+  for (int mode = 0; mode < num_pred_modes; ++mode) {
     Histogram histo(0);  // 0 is for only 1 (unused) palette value.
-    for (int y = 0; y < (1 << bits); ++y) {
-      int all_y = (tile_y << bits) + y;
+    for (int y = 0; y < max_tile_size; ++y) {
+      int all_y = tile_y_offset + y;
       if (all_y >= ysize) {
         break;
       }
-      for (int x = 0; x < (1 << bits); ++x) {
-        int all_x = (tile_x << bits) + x;
+      for (int x = 0; x < max_tile_size; ++x) {
+        int all_x = tile_x_offset + x;
         if (all_x >= xsize) {
           break;
         }
@@ -67,10 +73,10 @@ int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
           if (all_x == 0) {
             predict = 0xff000000;
           } else {
-            predict = argb[all_y * xsize + all_x - 1];
+            predict = argb[all_x - 1];  // Top Row: Pick Left Element.
           }
         } else if (all_x == 0) {
-          predict = argb[all_y * xsize + all_x - xsize];
+          predict = argb[(all_y - 1) * xsize];  // First Col: Pick Top Element.
         } else {
           predict = PredictValue(mode, xsize, argb + all_y * xsize + all_x);
         }
@@ -80,7 +86,7 @@ int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
             LiteralOrCopy::CreateLiteral(predict_diff));
       }
     }
-    double cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
+    const double cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
     if (cur_diff < best_diff) {
       best_diff = cur_diff;
       best_mode = mode;
@@ -90,29 +96,31 @@ int GetBestPredictorForTile(int tile_x, int tile_y, int bits,
 }
 
 void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32 *from_argb,
-                    uint32 *to_argb,
-                    uint32 *image) {
-  uint32 *argb_orig = (uint32 *)malloc(sizeof(from_argb[0]) * xsize * ysize);
+                    const uint32 *from_argb, uint32 *to_argb, uint32 *image) {
+  uint32 *argb_orig = reinterpret_cast<uint32 *>(
+      malloc(sizeof(from_argb[0]) * xsize * ysize));
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
-  int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
-  int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
+  const int max_tile_size = 1 << bits;
+  const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
+  const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   Histogram histo(0);
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
-      int pred = GetBestPredictorForTile(tile_x, tile_y, bits,
+      const int tile_y_offset = tile_y * max_tile_size;
+      const int tile_x_offset = tile_x * max_tile_size;
+      int pred = GetBestPredictorForTile(tile_x, tile_y, max_tile_size,
                                          xsize, ysize, &histo, from_argb);
       image[tile_y * tile_xsize + tile_x] = 0xff000000 | (pred << 8);
       CopyTileWithPrediction(xsize, ysize, from_argb,
                              tile_x, tile_y, bits, pred,
                              to_argb);
-      for (int y = 0; y < 1 << bits; ++y) {
-        int all_y = (tile_y << bits) + y;
+      for (int y = 0; y < max_tile_size; ++y) {
+        int all_y = tile_y_offset + y;
         if (all_y >= ysize) {
           break;
         }
-        for (int x = 0; x < 1 << bits; ++x) {
-          int all_x = (tile_x << bits) + x;
+        for (int x = 0; x < max_tile_size; ++x) {
+          int all_x = tile_x_offset + x;
           if (all_x >= xsize) {
             break;
           }
@@ -124,7 +132,8 @@ void PredictorImage(int xsize, int ysize, int bits,
     }
   }
 #ifndef NDEBUG
-  uint32 *argb = (uint32 *)malloc(sizeof(to_argb[0]) * xsize * ysize);
+  uint32 *argb = reinterpret_cast<uint32 *>(
+      malloc(sizeof(to_argb[0]) * xsize * ysize));
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   PredictorInverseTransform(xsize, ysize, bits, image,
                             &argb[0], &argb[0]);
@@ -136,8 +145,7 @@ void PredictorImage(int xsize, int ysize, int bits,
   free(argb_orig);
 }
 
-double PredictionCostCrossColor(int *accumulated,
-                                int *counts) {
+static double PredictionCostCrossColor(int *accumulated, int *counts) {
   // Favor low entropy, locally and globally.
   const int length = 256;
   int *combo = new int[length];
@@ -147,47 +155,38 @@ double PredictionCostCrossColor(int *accumulated,
   double bits = BitsEntropy(combo, length) + BitsEntropy(counts, length);
   delete[] combo;
   // Favor small absolute values.
-  bits -= 0.3 * counts[0];
-  double exp_val = 0.24;
-  for (int i = 1; i < 40; ++i) {
-    bits -= exp_val * (counts[i] + counts[length - i]);
-    exp_val *= 0.6;
-  }
+  bits += PredictionCostSpatial(counts, 3, 2.4);
   return bits;
 }
 
-ColorSpaceTransformElement GetBestColorTransformForTile(
+static ColorSpaceTransformElement GetBestColorTransformForTile(
     int tile_x, int tile_y, int bits,
     ColorSpaceTransformElement prevX,
     ColorSpaceTransformElement prevY,
-    int quality,
-    int xsize, int ysize,
+    int quality, int xsize, int ysize,
     int *accumulated_red_histo,
     int *accumulated_blue_histo,
     const uint32 *argb) {
   double best_diff = 1e99;
   ColorSpaceTransformElement best_tx;
   best_tx.Clear();
-  int step = 4;
-  if (quality < 10) {
-    step = 8;
-  }
-  if (quality == 0) {
-    step = 16;
-  }
+  const int step = (quality == 0) ? 16 : ((quality < 10) ? 8 : 4);
+  const int max_tile_size = 1 << bits;
+  const int tile_y_offset = tile_y * max_tile_size;
+  const int tile_x_offset = tile_x * max_tile_size;
   for (int green_to_red = -64; green_to_red <= 64; green_to_red += step) {
     ColorSpaceTransformElement tx;
     tx.Clear();
     tx.green_to_red_ = green_to_red & 0xff;
 
     int histo[256] = { 0 };
-    for (int y = 0; y < (1 << bits); ++y) {
-      int all_y = (tile_y << bits) + y;
+    for (int y = 0; y < max_tile_size; ++y) {
+      int all_y = tile_y_offset + y;
       if (all_y >= ysize) {
         continue;
       }
-      for (int x = 0; x < (1 << bits); ++x) {
-        int all_x = (tile_x << bits) + x;
+      for (int x = 0; x < max_tile_size; ++x) {
+        int all_x = tile_x_offset + x;
         if (all_x >= xsize) {
           continue;
         }
@@ -196,7 +195,7 @@ ColorSpaceTransformElement GetBestColorTransformForTile(
             argb[ix] == argb[ix - 3] &&
             argb[ix] == argb[ix - 2] &&
             argb[ix] == argb[ix - 1]) {
-          // 4 same pixels (3 did not help in compression ratio).
+          // 4 same pixels in a row (3 did not help in compression ratio).
           continue;  // repeated pixels will be handled by backward references
         }
         if (ix >= xsize + 3 &&
@@ -214,10 +213,10 @@ ColorSpaceTransformElement GetBestColorTransformForTile(
     double cur_diff =
         PredictionCostCrossColor(&accumulated_red_histo[0], &histo[0]);
     if (tx.green_to_red_ == prevX.green_to_red_) {
-      cur_diff -= 3; // favor keeping the areas locally similar
+      cur_diff -= 3;  // favor keeping the areas locally similar
     }
     if (tx.green_to_red_ == prevY.green_to_red_) {
-      cur_diff -= 3; // favor keeping the areas locally similar
+      cur_diff -= 3;  // favor keeping the areas locally similar
     }
     if (tx.green_to_red_ == 0) {
       cur_diff -= 3;
@@ -237,13 +236,13 @@ ColorSpaceTransformElement GetBestColorTransformForTile(
       tx.green_to_blue_ = green_to_blue;
       tx.red_to_blue_ = red_to_blue;
       int histo[256] = { 0 };
-      for (int y = 0; y < (1 << bits); ++y) {
-        int all_y = (tile_y << bits) + y;
+      for (int y = 0; y < max_tile_size; ++y) {
+        int all_y = tile_y_offset + y;
         if (all_y >= ysize) {
           continue;
         }
-        for (int x = 0; x < (1 << bits); ++x) {
-          int all_x = (tile_x << bits) + x;
+        for (int x = 0; x < max_tile_size; ++x) {
+          int all_x = tile_x_offset + x;
           if (all_x >= xsize) {
             continue;
           }
@@ -268,16 +267,16 @@ ColorSpaceTransformElement GetBestColorTransformForTile(
       double cur_diff =
         PredictionCostCrossColor(&accumulated_blue_histo[0], &histo[0]);
       if (tx.green_to_blue_ == prevX.green_to_blue_) {
-        cur_diff -= 3; // favor keeping the areas locally similar
+        cur_diff -= 3;  // favor keeping the areas locally similar
       }
       if (tx.green_to_blue_ == prevY.green_to_blue_) {
-        cur_diff -= 3; // favor keeping the areas locally similar
+        cur_diff -= 3;  // favor keeping the areas locally similar
       }
       if (tx.red_to_blue_ == prevX.red_to_blue_) {
-        cur_diff -= 3; // favor keeping the areas locally similar
+        cur_diff -= 3;  // favor keeping the areas locally similar
       }
       if (tx.red_to_blue_ == prevY.red_to_blue_) {
-        cur_diff -= 3; // favor keeping the areas locally similar
+        cur_diff -= 3;  // favor keeping the areas locally similar
       }
       if (tx.green_to_blue_ == 0) {
         cur_diff -= 3;
@@ -295,18 +294,20 @@ ColorSpaceTransformElement GetBestColorTransformForTile(
 }
 
 void ColorSpaceTransform(int xsize, int ysize, int bits,
-                         const uint32 *from_argb,
-                         int quality,
-                         uint32 *to_argb,
-                         uint32 *image) {
-  uint32 *argb_orig = (uint32 *)malloc(sizeof(from_argb[0]) * xsize * ysize);
+                         const uint32 *from_argb, int quality,
+                         uint32 *to_argb, uint32 *image) {
+  uint32 *argb_orig = reinterpret_cast<uint32 *>(
+      malloc(sizeof(from_argb[0]) * xsize * ysize));
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
-  int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
-  int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
+  const int max_tile_size = 1 << bits;
+  int tile_xsize = (xsize + max_tile_size - 1) >> bits;
+  int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   int accumulated_red_histo[256] = { 0 };
   int accumulated_blue_histo[256] = { 0 };
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
+      const int tile_y_offset = tile_y * max_tile_size;
+      const int tile_x_offset = tile_x * max_tile_size;
       ColorSpaceTransformElement prevX;
       ColorSpaceTransformElement prevY;
       prevX.Clear();
@@ -320,8 +321,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
       const ColorSpaceTransformElement color_transform =
           GetBestColorTransformForTile(tile_x, tile_y, bits,
                                        prevX, prevY,
-                                       quality,
-                                       xsize, ysize,
+                                       quality, xsize, ysize,
                                        &accumulated_red_histo[0],
                                        &accumulated_blue_histo[0],
                                        from_argb);
@@ -331,13 +331,13 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
                                  false,  // forward transform
                                  to_argb);
       // Gather accumulated histogram data.
-      for (int y = 0; y < 1 << bits; ++y) {
-        int all_y = (tile_y << bits) + y;
+      for (int y = 0; y < max_tile_size; ++y) {
+        int all_y = tile_y_offset + y;
         if (all_y >= ysize) {
           break;
         }
-        for (int x = 0; x < 1 << bits; ++x) {
-          int all_x = (tile_x << bits) + x;
+        for (int x = 0; x < max_tile_size; ++x) {
+          int all_x = tile_x_offset + x;
           if (all_x >= xsize) {
             break;
           }
@@ -360,7 +360,8 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
     }
   }
 #ifndef NDEBUG
-  uint32 *argb = (uint32 *)malloc(sizeof(to_argb[0]) * xsize * ysize);
+  uint32 *argb = reinterpret_cast<uint32 *>(
+      malloc(sizeof(to_argb[0]) * xsize * ysize));
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   ColorSpaceInverseTransform(xsize, ysize, bits, image, &argb[0], &argb[0]);
   for (int i = 0; i < xsize * ysize; ++i) {
