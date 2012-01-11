@@ -198,11 +198,13 @@ double HuffmanCost(const int *population, int length) {
   static const double kSmallBias = 9.1;
   double retval = kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
   int streak = 0;
-  for (int i = 0; i < length; ++i) {
+  int i = 0;
+  for (; i < length - 1; ++i) {
     ++streak;
-    if (i != length - 1 && population[i] == population[i + 1]) {
+    if (population[i] == population[i + 1]) {
       continue;
     }
+ last_streak_hack:
     // population[i] points now to the symbol in the streak of same values.
     int begin = streak;
     if (begin > 3) {
@@ -221,6 +223,10 @@ double HuffmanCost(const int *population, int length) {
       retval += streak * 0.703125;
     }
     streak = 0;
+  }
+  if (i == length - 1) {
+    ++streak;
+    goto last_streak_hack;
   }
   return retval;
 }
