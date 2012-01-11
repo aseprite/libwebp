@@ -123,47 +123,45 @@ void Histogram::Build(const LiteralOrCopy *literal_and_length,
   }
 }
 
-static double TCoderCost(const int* symbols, int n);
-
 double BitsEntropy(const int *array, int n) {
+  double retval = 0;
   int sum = 0;
   int nonzeros = 0;
+  int max_val = 0;
   for (int i = 0; i < n; ++i) {
     sum += array[i];
     if (array[i] != 0) {
       ++nonzeros;
     }
-  }
-  if (nonzeros <= 1) {
-    return 0;
-  }
-  // This leads to a combo of 1 bit, 2 bit, 2 bit code words.
-  int max_val = array[0];
-  for (int i = 1; i < n; ++i) {
+    retval += array[i] * FastLog(array[i]);
     if (max_val < array[i]) {
       max_val = array[i];
     }
   }
-  double min_limit = 2 * sum - max_val;
-  double retval = -sum * FastLog(sum);
-  for (int i = 0; i < n; ++i) {
-    retval += array[i] * FastLog(array[i]);
+  if (nonzeros <= 1) {
+    return 0;
   }
+  retval -= sum * FastLog(sum);
   retval *= -1.4426950408889634;  // 1.0 / -FastLog(2);
+
+  // Two symbols, they will be 0 and 1 in a Huffman code.
+  // Let's mix in a bit of entropy to favor good clustering when
+  // distributions of these are combined.
+  if (nonzeros == 2) {
+    return 0.99 * sum + 0.01 * retval;
+  }
 
   // No matter what the entropy says, we cannot be better than min_limit
   // with Huffman coding. I am mixing a bit of entropy into the
   // min_limit since it produces much better (~0.5 %) compression results
   // perhaps because of better entropy clustering.
-  if (nonzeros == 2) {
-    return 0.99 * sum + 0.01 * retval;
-  }
   double mix = 0.627;
   if (nonzeros == 3) {
     mix = 0.95;
   } else if (nonzeros == 4) {
     mix = 0.7;
   }
+  double min_limit = 2 * sum - max_val;
   min_limit = mix * min_limit + (1.0 - mix) * retval;
   if (retval < min_limit) {
     return min_limit;
@@ -229,40 +227,8 @@ double HuffmanCost(const int *population, int length) {
 
 double Histogram::EstimateBitsHeader() const {
   return HuffmanCost(&alpha_[0], 256) +
-      HuffmanCost(&literal_[0], NumLiteralOrCopyCodes()) +
       HuffmanCost(&red_[0], 256) +
+      HuffmanCost(&literal_[0], NumLiteralOrCopyCodes()) +
       HuffmanCost(&blue_[0], 256) +
       HuffmanCost(&distance_[0], kDistanceCodes);
-}
-
-static double TCoderCost(const int* symbols, int n) {
-  int i;
-  double total = 0;
-  double cost = 0;
-  double num_nz = 0., num_z = 0.;
-  for (i = 0; i < n; ++i) {
-    if (symbols[i]) {
-      cost -= log2(1. * symbols[i]) * symbols[i];
-      total += symbols[i];
-      num_nz += 1.;
-    } else {
-      num_z += 1.;
-    }
-  }
-  if (total) {
-    cost += log2(total) * total;
-  }
-  cost += 0.8 * num_z;
-  cost += 2.5 * num_nz;
-  return cost;
-}
-
-double Histogram::EstimateBitsTCoder() const {
-  double cost = 0;
-  cost += TCoderCost(&literal_[0], NumLiteralOrCopyCodes());
-  cost += TCoderCost(&red_[0], 256);
-  cost += TCoderCost(&blue_[0], 256);
-  cost += TCoderCost(&alpha_[0], 256);
-  cost += TCoderCost(&distance_[0], kDistanceCodes);
-  return cost;
 }

@@ -63,9 +63,6 @@ struct Histogram {
   // represent the entropy code itself.
   double EstimateBitsBulk() const;
 
-  // Estimates the bits for TCoder
-  double EstimateBitsTCoder() const;
-
   void Add(const Histogram &a) {
     for (int i = 0; i < kLiteralOrCopyCodesMax; ++i) {
       literal_[i] += a.literal_[i];
