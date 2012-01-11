@@ -210,15 +210,14 @@ double HuffmanCost(const int *population, int length) {
     if (begin > 3) {
       begin = 1;
     }
-    streak -= begin;
     if (population[i] == 0) {
       // 0s are usually encoded more efficiently than non-0s.
-      retval += begin * 1.796875;
+      retval += begin * 1.5625;
       // Many zeros in the histogram are covered efficiently
       // by a run-length encode.
       retval += streak * 0.234375;
     } else {
-      retval += begin * 3.28125;
+      retval += begin * 2.578125;
       // Constant values are encoded less efficiently, but still RLE'ed.
       retval += streak * 0.703125;
     }
