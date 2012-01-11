@@ -22,7 +22,7 @@
 
 static double PredictionCostSpatial(int *counts, int weight_0,
                                     double exp_val) {
-  const int significant_symbols = 40;
+  const int significant_symbols = 16;
   const double exp_decay_factor = 0.6;
   double bits = weight_0 * counts[0];
   for (int i = 1; i < significant_symbols; ++i) {
