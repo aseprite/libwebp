@@ -240,12 +240,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
         if (all_y >= ysize) {
           continue;
         }
-        for (int x = 0; x < max_tile_size; ++x) {
-          int all_x = tile_x_offset + x;
-          if (all_x >= xsize) {
-            continue;
-          }
-          int ix = all_y * xsize + all_x;
+        int ix = all_y * xsize + tile_x_offset;
+        for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
           if (ix >= 3 &&
               argb[ix] == argb[ix - 3] &&
               argb[ix] == argb[ix - 2] &&
@@ -303,19 +299,19 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
   int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   int accumulated_red_histo[256] = { 0 };
   int accumulated_blue_histo[256] = { 0 };
+  ColorSpaceTransformElement prevX;
+  ColorSpaceTransformElement prevY;
+  prevY.Clear();
+  prevX.Clear();
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       const int tile_y_offset = tile_y * max_tile_size;
       const int tile_x_offset = tile_x * max_tile_size;
-      ColorSpaceTransformElement prevX;
-      ColorSpaceTransformElement prevY;
-      prevX.Clear();
-      prevY.Clear();
-      if (tile_x != 0 || tile_y != 0) {
-        prevX.InitFromCode(image[tile_y * tile_xsize + tile_x - 1]);
-      }
       if (tile_y != 0) {
         prevY.InitFromCode(image[(tile_y - 1) * tile_xsize + tile_x]);
+        prevX.InitFromCode(image[tile_y * tile_xsize + tile_x - 1]);
+      } else if (tile_x != 0) {
+        prevX.InitFromCode(image[tile_y * tile_xsize + tile_x - 1]);
       }
       const ColorSpaceTransformElement color_transform =
           GetBestColorTransformForTile(tile_x, tile_y, bits,
