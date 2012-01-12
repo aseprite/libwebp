@@ -54,6 +54,10 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   const int num_pred_modes = 14;
   const int tile_y_offset = tile_y * max_tile_size;
   const int tile_x_offset = tile_x * max_tile_size;
+  int all_x_max = tile_x_offset + max_tile_size;
+  if (all_x_max > xsize) {
+    all_x_max = xsize;
+  }
   double best_diff = 1e99;
   int best_mode = 0;
   for (int mode = 0; mode < num_pred_modes; ++mode) {
@@ -63,11 +67,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
       if (all_y >= ysize) {
         break;
       }
-      for (int x = 0; x < max_tile_size; ++x) {
-        int all_x = tile_x_offset + x;
-        if (all_x >= xsize) {
-          break;
-        }
+      for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x) {
         uint32 predict;
         if (all_y == 0) {
           if (all_x == 0) {
