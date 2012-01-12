@@ -206,20 +206,18 @@ double HuffmanCost(const int *population, int length) {
     }
  last_streak_hack:
     // population[i] points now to the symbol in the streak of same values.
-    int begin = streak;
-    if (begin > 3) {
-      begin = 1;
-    }
-    if (population[i] == 0) {
-      // 0s are usually encoded more efficiently than non-0s.
-      retval += begin * 1.5625;
-      // Many zeros in the histogram are covered efficiently
-      // by a run-length encode.
-      retval += streak * 0.234375;
+    if (streak > 3) {
+      if (population[i] == 0) {
+        retval += 1.5625 + 0.234375 * streak;
+      } else {
+        retval += 2.578125 + 0.703125 * streak;
+      }
     } else {
-      retval += begin * 2.578125;
-      // Constant values are encoded less efficiently, but still RLE'ed.
-      retval += streak * 0.703125;
+      if (population[i] == 0) {
+        retval += 1.796875 * streak;
+      } else {
+        retval += 3.28125 * streak;
+      }
     }
     streak = 0;
   }
