@@ -129,13 +129,13 @@ double BitsEntropy(const int *array, int n) {
   int nonzeros = 0;
   int max_val = 0;
   for (int i = 0; i < n; ++i) {
-    sum += array[i];
     if (array[i] != 0) {
+      sum += array[i];
       ++nonzeros;
-    }
-    retval += array[i] * FastLog(array[i]);
-    if (max_val < array[i]) {
-      max_val = array[i];
+      retval += array[i] * FastLog(array[i]);
+      if (max_val < array[i]) {
+        max_val = array[i];
+      }
     }
   }
   if (nonzeros <= 1) {
