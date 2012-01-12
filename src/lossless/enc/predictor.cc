@@ -148,12 +148,11 @@ void PredictorImage(int xsize, int ysize, int bits,
 static double PredictionCostCrossColor(int *accumulated, int *counts) {
   // Favor low entropy, locally and globally.
   const int length = 256;
-  int *combo = new int[length];
+  int combo[256];
   for (int i = 0; i < length; ++i) {
     combo[i] = accumulated[i] + counts[i];
   }
-  double bits = BitsEntropy(combo, length) + BitsEntropy(counts, length);
-  delete[] combo;
+  double bits = BitsEntropy(&combo[0], length) + BitsEntropy(counts, length);
   // Favor small absolute values.
   bits += PredictionCostSpatial(counts, 3, 2.4);
   return bits;
