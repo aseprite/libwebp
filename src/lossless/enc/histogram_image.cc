@@ -51,10 +51,12 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
                            std::vector<Histogram *> *out) {
   // Copy
   out->resize(in.size());
+  std::vector<double> bit_costs(in.size());
   for (int i = 0; i < in.size(); ++i) {
     Histogram *new_histo = new Histogram(palettebits);
     *new_histo = *(in[i]);
     (*out)[i] = new_histo;
+    bit_costs[i] = (*out)[i]->EstimateBits();
   }
   // Collapse similar histograms.
   unsigned int seed = 0;
@@ -80,8 +82,7 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
       *combo = *(*out)[ix0];
       combo->Add(*(*out)[ix1]);
       const double val = combo->EstimateBits() -
-          (*out)[ix0]->EstimateBits() -
-          (*out)[ix1]->EstimateBits();
+          bit_costs[ix0] - bit_costs[ix1];
       if (best_val > val) {
         best_val = val;
         best_ix0 = ix0;
@@ -91,8 +92,11 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
     }
     if (best_val < 0.0) {
       (*out)[best_ix0]->Add(*((*out)[best_ix1]));
+      bit_costs[best_ix0] =
+          best_val + bit_costs[best_ix0] + bit_costs[best_ix1];
       delete *(out->begin() + best_ix1);
       out->erase(out->begin() + best_ix1);
+      bit_costs.erase(bit_costs.begin() + best_ix1);
       tries_with_no_success = 0;
     }
     if (++tries_with_no_success >= 50) {
