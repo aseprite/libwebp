@@ -37,7 +37,7 @@ CCNODBG    = cl.exe /nologo /O2 /DNDEBUG
 CCDEBUG    = cl.exe /nologo /Od /Gm /Zi /D_DEBUG /RTC1
 CFLAGS     = /Isrc /nologo /W3 /EHsc /FD /c /GS
 CFLAGS     = $(CFLAGS) /DWIN32 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN
-CFLAGS     = $(CFLAGS) /DHAVE_WINCODEC_H /DWEBP_USE_THREAD
+CFLAGS     = $(CFLAGS) /DHAVE_WINCODEC_H /DWEBP_USE_THREAD /DNOT_HAVE_LOG2
 LDFLAGS    = /LARGEADDRESSAWARE /MANIFEST /NXCOMPAT /DYNAMICBASE
 LDFLAGS    = $(LDFLAGS) $(PLATFORM_LDFLAGS)
 LNKDLL     = link.exe /DLL
@@ -175,10 +175,13 @@ X_OBJS= \
     $(DIROBJ)\enc\syntax.obj \
     $(DIROBJ)\enc\tree.obj \
     $(DIROBJ)\enc\webpenc.obj \
-    $(DIROBJ)\mux\mux.obj \
+    $(DIROBJ)\mux\muxedit.obj \
+    $(DIROBJ)\mux\muxinternal.obj \
+    $(DIROBJ)\mux\muxread.obj \
     $(DIROBJ)\utils\alpha.obj \
     $(DIROBJ)\utils\bit_reader.obj \
     $(DIROBJ)\utils\bit_writer.obj \
+    $(DIROBJ)\utils\filters.obj \
     $(DIROBJ)\utils\quant_levels.obj \
     $(DIROBJ)\utils\tcoder.obj \
     $(DIROBJ)\utils\thread.obj \

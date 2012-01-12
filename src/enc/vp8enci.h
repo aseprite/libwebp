@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -12,7 +12,7 @@
 #ifndef WEBP_ENC_VP8ENCI_H_
 #define WEBP_ENC_VP8ENCI_H_
 
-#include "string.h"     // for memcpy()
+#include <string.h>     // for memcpy()
 #include "../webp/encode.h"
 #include "../dsp/dsp.h"
 #include "../utils/bit_writer.h"

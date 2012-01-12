@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -8,8 +8,6 @@
 // Selecting filter level
 //
 // Author: somnath@google.com (Somnath Banerjee)
-
-#include <math.h>
 
 #include "./vp8enci.h"
 

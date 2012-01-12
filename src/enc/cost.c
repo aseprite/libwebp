@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -8,8 +8,6 @@
 // Cost tables for level and modes
 //
 // Author: Skal (pascal.massimino@gmail.com)
-
-#include <assert.h>
 
 #include "./cost.h"
 

@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -74,6 +74,8 @@ typedef struct {
   int alpha_compression;  // Algorithm for encoding the alpha plane (0 = none,
                           // 1 = backward reference counts encoded with
                           // arithmetic encoder). Default is 1.
+  int alpha_filtering;    // Predictive filtering method for alpha plane.
+                          //  0: none, 1: fast, 2: best. Default if 1.
   int alpha_quality;      // Between 0 (smallest size) and 100 (lossless).
                           // Default is 100.
 } WebPConfig;

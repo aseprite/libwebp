@@ -34,11 +34,19 @@ LOCAL_SRC_FILES := \
 	src/experimental/alpha.c \
 	src/experimental/paeth.c \
 	src/experimental/quant_levels.c \
+	src/mux/muxedit.c \
+	src/mux/muxinternal.c \
+	src/mux/muxread.c \
+	src/utils/alpha.c \
 	src/utils/bit_reader.c \
 	src/utils/bit_writer.c \
+	src/utils/filters.c \
+	src/utils/quant_levels.c \
+	src/utils/tcoder.c \
 	src/utils/thread.c \
 
-LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD -DWEBP_USE_THREAD \
+LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD \
+                -DNOT_HAVE_LOG2 -DWEBP_USE_THREAD \
                 -finline-functions -frename-registers -ffast-math \
                 -s -fomit-frame-pointer -Isrc/webp
 

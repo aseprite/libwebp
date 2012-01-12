@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -98,8 +98,8 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
   if (mem->end_ + data_size > mem->buf_size_) {  // Need some free memory
     int p;
     uint8_t* new_buf = NULL;
-    const int num_chunks = (MemDataSize(mem) + data_size + CHUNK_SIZE - 1)
-        / CHUNK_SIZE;
+    const size_t num_chunks =
+        (MemDataSize(mem) + data_size + CHUNK_SIZE - 1) / CHUNK_SIZE;
     const size_t new_size = num_chunks * CHUNK_SIZE;
     const uint8_t* const base = mem->buf_ + mem->start_;
 

@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2011 Google Inc. All Rights Reserved.
 //
 // This code is licensed under the same terms as WebM:
 //  Software License Agreement:  http://www.webmproject.org/license/software/
@@ -28,6 +28,10 @@
 #ifdef FREEGLUT
 #include <GL/freeglut.h>
 #endif
+#endif
+
+#ifdef _MSC_VER
+#define snprintf _snprintf
 #endif
 
 // Unfortunate global variables
@@ -87,12 +91,12 @@ static void HandleDisplay(void) {
     char tmp[32];
 
     glColor4f(0.0, 0.0, 0.0, 0.0);
-    glRasterPos2f(-0.95, 0.90);
+    glRasterPos2f(-0.95f, 0.90f);
     PrintString(file_name);
 
     snprintf(tmp, sizeof(tmp), "Dimension:%d x %d", kPic->width, kPic->height);
     glColor4f(0.0, 0.0, 0.0, 0.0);
-    glRasterPos2f(-0.95, 0.80);
+    glRasterPos2f(-0.95f, 0.80f);
     PrintString(tmp);
   }
   glFlush();
