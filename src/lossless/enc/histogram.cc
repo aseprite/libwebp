@@ -195,28 +195,28 @@ double BitsEntropy(const int *array, int n) {
       }
     }
   }
-  if (nonzeros <= 1) {
-    return 0;
-  }
   retval -= sum * FastLog(sum);
   retval *= -1.4426950408889634;  // 1.0 / -FastLog(2);
-
-  // Two symbols, they will be 0 and 1 in a Huffman code.
-  // Let's mix in a bit of entropy to favor good clustering when
-  // distributions of these are combined.
-  if (nonzeros == 2) {
-    return 0.99 * sum + 0.01 * retval;
-  }
-
-  // No matter what the entropy says, we cannot be better than min_limit
-  // with Huffman coding. I am mixing a bit of entropy into the
-  // min_limit since it produces much better (~0.5 %) compression results
-  // perhaps because of better entropy clustering.
   double mix = 0.627;
-  if (nonzeros == 3) {
-    mix = 0.95;
-  } else if (nonzeros == 4) {
-    mix = 0.7;
+  if (nonzeros < 5) {
+    if (nonzeros <= 1) {
+      return 0;
+    }
+    // Two symbols, they will be 0 and 1 in a Huffman code.
+    // Let's mix in a bit of entropy to favor good clustering when
+    // distributions of these are combined.
+    if (nonzeros == 2) {
+      return 0.99 * sum + 0.01 * retval;
+    }
+    // No matter what the entropy says, we cannot be better than min_limit
+    // with Huffman coding. I am mixing a bit of entropy into the
+    // min_limit since it produces much better (~0.5 %) compression results
+    // perhaps because of better entropy clustering.
+    if (nonzeros == 3) {
+      mix = 0.95;
+    } else {
+      mix = 0.7;  // nonzeros == 4.
+    }
   }
   double min_limit = 2 * sum - max_val;
   min_limit = mix * min_limit + (1.0 - mix) * retval;
