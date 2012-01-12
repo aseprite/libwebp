@@ -108,6 +108,10 @@ void PredictorImage(int xsize, int ysize, int bits,
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       const int tile_y_offset = tile_y * max_tile_size;
       const int tile_x_offset = tile_x * max_tile_size;
+      int all_x_max = tile_x_offset + max_tile_size;
+      if (all_x_max > xsize) {
+        all_x_max = xsize;
+      }
       int pred = GetBestPredictorForTile(tile_x, tile_y, max_tile_size,
                                          xsize, ysize, &histo, from_argb);
       image[tile_y * tile_xsize + tile_x] = 0xff000000 | (pred << 8);
@@ -119,12 +123,8 @@ void PredictorImage(int xsize, int ysize, int bits,
         if (all_y >= ysize) {
           break;
         }
-        for (int x = 0; x < max_tile_size; ++x) {
-          int all_x = tile_x_offset + x;
-          if (all_x >= xsize) {
-            break;
-          }
-          int ix = all_y * xsize + all_x;
+        int ix = all_y * xsize + tile_x_offset;
+        for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
           histo.AddSingleLiteralOrCopy(
               LiteralOrCopy::CreateLiteral(to_argb[ix]));
         }
