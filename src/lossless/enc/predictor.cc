@@ -173,6 +173,10 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
   const int max_tile_size = 1 << bits;
   const int tile_y_offset = tile_y * max_tile_size;
   const int tile_x_offset = tile_x * max_tile_size;
+  int all_x_max = tile_x_offset + max_tile_size;
+  if (all_x_max > xsize) {
+    all_x_max = xsize;
+  }
   for (int green_to_red = -64; green_to_red <= 64; green_to_red += step) {
     ColorSpaceTransformElement tx;
     tx.Clear();
@@ -184,12 +188,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
       if (all_y >= ysize) {
         continue;
       }
-      for (int x = 0; x < max_tile_size; ++x) {
-        int all_x = tile_x_offset + x;
-        if (all_x >= xsize) {
-          continue;
-        }
-        int ix = all_y * xsize + all_x;
+      int ix = all_y * xsize + tile_x_offset;
+      for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
         if (ix >= 3 &&
             argb[ix] == argb[ix - 3] &&
             argb[ix] == argb[ix - 2] &&
@@ -330,17 +330,18 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
                                  false,  // forward transform
                                  to_argb);
       // Gather accumulated histogram data.
+
+      int all_x_max = tile_x_offset + max_tile_size;
+      if (all_x_max > xsize) {
+        all_x_max = xsize;
+      }
       for (int y = 0; y < max_tile_size; ++y) {
         int all_y = tile_y_offset + y;
         if (all_y >= ysize) {
           break;
         }
-        for (int x = 0; x < max_tile_size; ++x) {
-          int all_x = tile_x_offset + x;
-          if (all_x >= xsize) {
-            break;
-          }
-          int ix = all_y * xsize + all_x;
+        int ix = all_y * xsize + tile_x_offset;
+        for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
           if (ix >= 2 &&
               to_argb[ix] == to_argb[ix - 2] &&
               to_argb[ix] == to_argb[ix - 1]) {
