@@ -1,7 +1,7 @@
 # This makefile is a simpler alternative to the autoconf-based build
 # system, for simple local building of the libraries and tools.
 # It will not install the libraries system-wide, but just create the 'cwebp',
-# 'dwebp', 'png2webp', 'webp2png' & 'webpmux' tools in the examples/ directory,
+# 'dwebp' & 'webpmux' tools in the examples/ directory,
 # along with the static libraries 'src/libwebp.a', 'src/mux/libwebpmux.a' and
 # 'src/experimental/libwebpexperimental.a'.
 #
@@ -92,7 +92,6 @@ HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/webp/mux.h \
 
 OUT_LIBS = src/libwebp.a src/mux/libwebpmux.a
 OUT_EXAMPLES = examples/cwebp examples/dwebp examples/webpmux \
-               examples/webp2png examples/png2webp
 
 OUTPUT = $(OUT_LIBS) $(OUT_EXAMPLES)
 
@@ -115,9 +114,6 @@ ex: $(OUT_EXAMPLES)
 examples/cwebp: examples/cwebp.o src/libwebp.a
 examples/dwebp: examples/dwebp.o src/libwebp.a
 examples/webpmux: examples/webpmux.o src/mux/libwebpmux.a src/libwebp.a
-examples/webp2png: examples/webp2png.o src/experimental/libwebpexperimental.a src/mux/libwebpmux.a src/libwebp.a
-examples/png2webp: examples/png2webp.o src/experimental/libwebpexperimental.a src/mux/libwebpmux.a src/libwebp.a
-examples/cwebp examples/dwebp examples/webpmux examples/webp2png examples/png2webp:
 
 $(OUT_EXAMPLES):
 	$(CC) -o $@ $^ $(LDFLAGS)

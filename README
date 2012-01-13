@@ -86,9 +86,9 @@ On platforms with GNU tools installed (gcc and make), running
 
   make -f makefile.unix
 
-will build the binaries examples/cwebp, examples/dwebp, exapmples/webpmux,
-examples/png2webp and examples/webp2png, along with the static libraries
-src/libwebp.a, src/mux/libwebpmux.a & src/experimental/libwebpexperimental.a.
+will build the binaries examples/cwebp, examples/dwebp and examples/webpmux,
+along with the static libraries src/libwebp.a, src/mux/libwebpmux.a &
+src/experimental/libwebpexperimental.a.
 No system-wide installation is supplied, as this is a simple alternative to
 the full installation system based on the autoconf tools (see below).
 Please refer the makefile.unix for additional details and customizations.
@@ -111,12 +111,6 @@ should be all you need to have the following files
 /usr/local/bin/cwebp
 /usr/local/bin/dwebp
 /usr/local/bin/webpmux
-
-For generating binaries png2webp & webp2png,
-use './configure  --enable-experimental' as the second step.
-These experimental binaries will be generated at:
-examples/png2webp
-examples/webp2png
 
 installed.
 

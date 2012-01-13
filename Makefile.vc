@@ -197,14 +197,6 @@ X_OBJS= \
     $(X_OBJS) \
     $(DIROBJ)\experimental\alpha.obj \
     $(DIROBJ)\experimental\paeth.obj \
-    $(DIROBJ)\experimental\quant_levels.obj \
-
-EXAMPLES_OBJS = \
-    $(EXAMPLES_OBJS) \
-    $(DIROBJ)\examples\png2webp.obj \
-    $(DIROBJ)\examples\webp2png.obj \
-
-all: $(DIRBIN)\png2webp.exe $(DIRBIN)\webp2png.exe
 
 !ENDIF
 
