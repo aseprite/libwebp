@@ -159,20 +159,21 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
 }
 
 inline bool SkipRepeatedPixels(const uint32 *argb, int ix, int xsize) {
+  uint32 v = argb[ix];
   if (ix >= xsize + 3) {
-    if (argb[ix] == argb[ix - xsize] &&
+    if (v == argb[ix - xsize] &&
         argb[ix - 1] == argb[ix - xsize - 1] &&
         argb[ix - 2] == argb[ix - xsize - 2] &&
         argb[ix - 3] == argb[ix - xsize - 3]) {
       return true;
     }
-    return argb[ix] == argb[ix - 3] &&
-        argb[ix] == argb[ix - 2] &&
-        argb[ix] == argb[ix - 1];
+    return v == argb[ix - 3] &&
+        v == argb[ix - 2] &&
+        v == argb[ix - 1];
   } else if (ix >= 3) {
-    return argb[ix] == argb[ix - 3] &&
-        argb[ix] == argb[ix - 2] &&
-        argb[ix] == argb[ix - 1];
+    return v == argb[ix - 3] &&
+        v == argb[ix - 2] &&
+        v == argb[ix - 1];
   }
   return false;
 }
@@ -188,7 +189,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
   double best_diff = 1e99;
   ColorSpaceTransformElement best_tx;
   best_tx.Clear();
-  const int step = (quality == 0) ? 16 : ((quality < 10) ? 8 : 4);
+  const int step = (quality == 0) ? 16 : 8;
+  const int halfstep = step / 2;
   const int max_tile_size = 1 << bits;
   const int tile_y_offset = tile_y * max_tile_size;
   const int tile_x_offset = tile_x * max_tile_size;
@@ -196,7 +198,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
   if (all_x_max > xsize) {
     all_x_max = xsize;
   }
-  for (int green_to_red = -64; green_to_red <= 64; green_to_red += step) {
+  for (int green_to_red = -64; green_to_red <= 64; green_to_red += halfstep) {
     ColorSpaceTransformElement tx;
     tx.Clear();
     tx.green_to_red_ = green_to_red & 0xff;
