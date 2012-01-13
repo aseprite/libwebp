@@ -158,6 +158,25 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
   return bits;
 }
 
+inline bool SkipRepeatedPixels(const uint32 *argb, int ix, int xsize) {
+  if (ix >= xsize + 3) {
+    if (argb[ix] == argb[ix - xsize] &&
+        argb[ix - 1] == argb[ix - xsize - 1] &&
+        argb[ix - 2] == argb[ix - xsize - 2] &&
+        argb[ix - 3] == argb[ix - xsize - 3]) {
+      return true;
+    }
+    return argb[ix] == argb[ix - 3] &&
+        argb[ix] == argb[ix - 2] &&
+        argb[ix] == argb[ix - 1];
+  } else if (ix >= 3) {
+    return argb[ix] == argb[ix - 3] &&
+        argb[ix] == argb[ix - 2] &&
+        argb[ix] == argb[ix - 1];
+  }
+  return false;
+}
+
 static ColorSpaceTransformElement GetBestColorTransformForTile(
     int tile_x, int tile_y, int bits,
     ColorSpaceTransformElement prevX,
@@ -190,20 +209,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
       }
       int ix = all_y * xsize + tile_x_offset;
       for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-        if (ix >= 3 &&
-            argb[ix] == argb[ix - 3] &&
-            argb[ix] == argb[ix - 2] &&
-            argb[ix] == argb[ix - 1]) {
-          // 4 same pixels in a row (3 did not help in compression ratio).
-          continue;  // repeated pixels will be handled by backward references
-        }
-        if (ix >= xsize + 3 &&
-            argb[ix - 3] == argb[ix - xsize - 3] &&
-            argb[ix - 2] == argb[ix - xsize - 2] &&
-            argb[ix - 1] == argb[ix - xsize - 1] &&
-            argb[ix] == argb[ix - xsize]) {
-          // copy lenght of 4+ (3 did not help in compression ratio).
-          continue;  // repeated pixels will be handled by backward references
+        if (SkipRepeatedPixels(argb, ix, xsize)) {
+          continue;
         }
         const uint32 predict = tx.Transform(argb[ix]);
         ++histo[(predict >> 16) & 0xff];  // red.
@@ -242,18 +249,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
         }
         int ix = all_y * xsize + tile_x_offset;
         for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          if (ix >= 3 &&
-              argb[ix] == argb[ix - 3] &&
-              argb[ix] == argb[ix - 2] &&
-              argb[ix] == argb[ix - 1]) {
-            continue;  // repeated pixels are handled by backward references
-          }
-          if (ix >= xsize + 3 &&
-              argb[ix - 3] == argb[ix - xsize - 3] &&
-              argb[ix - 2] == argb[ix - xsize - 2] &&
-              argb[ix - 1] == argb[ix - xsize - 1] &&
-              argb[ix] == argb[ix - xsize]) {
-            continue;  // repeated pixels are handled by backward references
+          if (SkipRepeatedPixels(argb, ix, xsize)) {
+            continue;
           }
           const uint32 predict = tx.Transform(argb[ix]);
           ++histo[predict & 0xff];  // blue.
