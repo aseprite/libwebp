@@ -58,15 +58,15 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   if (all_x_max > xsize) {
     all_x_max = xsize;
   }
+  int all_y_max = tile_y_offset + max_tile_size;
+  if (all_y_max > ysize) {
+    all_y_max = ysize;
+  }
   double best_diff = 1e99;
   int best_mode = 0;
   for (int mode = 0; mode < num_pred_modes; ++mode) {
     Histogram histo(0);  // 0 is for only 1 (unused) palette value.
-    for (int y = 0; y < max_tile_size; ++y) {
-      int all_y = tile_y_offset + y;
-      if (all_y >= ysize) {
-        break;
-      }
+    for (int all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x) {
         uint32 predict;
         if (all_y == 0) {
@@ -105,8 +105,8 @@ void PredictorImage(int xsize, int ysize, int bits,
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   Histogram histo(0);
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
+    const int tile_y_offset = tile_y * max_tile_size;
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
-      const int tile_y_offset = tile_y * max_tile_size;
       const int tile_x_offset = tile_x * max_tile_size;
       int all_x_max = tile_x_offset + max_tile_size;
       if (all_x_max > xsize) {
@@ -159,7 +159,7 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
 }
 
 inline bool SkipRepeatedPixels(const uint32 *argb, int ix, int xsize) {
-  uint32 v = argb[ix];
+  const uint32 v = argb[ix];
   if (ix >= xsize + 3) {
     if (v == argb[ix - xsize] &&
         argb[ix - 1] == argb[ix - xsize - 1] &&
@@ -198,17 +198,17 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
   if (all_x_max > xsize) {
     all_x_max = xsize;
   }
+  int all_y_max = tile_y_offset + max_tile_size;
+  if (all_y_max > xsize) {
+    all_y_max = xsize;
+  }
   for (int green_to_red = -64; green_to_red <= 64; green_to_red += halfstep) {
     ColorSpaceTransformElement tx;
     tx.Clear();
     tx.green_to_red_ = green_to_red & 0xff;
 
     int histo[256] = { 0 };
-    for (int y = 0; y < max_tile_size; ++y) {
-      int all_y = tile_y_offset + y;
-      if (all_y >= ysize) {
-        continue;
-      }
+    for (int all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       int ix = all_y * xsize + tile_x_offset;
       for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
         if (SkipRepeatedPixels(argb, ix, xsize)) {
@@ -244,11 +244,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
       tx.green_to_blue_ = green_to_blue;
       tx.red_to_blue_ = red_to_blue;
       int histo[256] = { 0 };
-      for (int y = 0; y < max_tile_size; ++y) {
-        int all_y = tile_y_offset + y;
-        if (all_y >= ysize) {
-          continue;
-        }
+      for (int all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
         int ix = all_y * xsize + tile_x_offset;
         for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
           if (SkipRepeatedPixels(argb, ix, xsize)) {
