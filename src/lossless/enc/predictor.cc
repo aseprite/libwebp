@@ -199,8 +199,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
     all_x_max = xsize;
   }
   int all_y_max = tile_y_offset + max_tile_size;
-  if (all_y_max > xsize) {
-    all_y_max = xsize;
+  if (all_y_max > ysize) {
+    all_y_max = ysize;
   }
   for (int green_to_red = -64; green_to_red <= 64; green_to_red += halfstep) {
     ColorSpaceTransformElement tx;
