@@ -87,8 +87,14 @@ class HashChain {
     int prev_length = 0;
     int64 best_val = 0;
     int give_up = 0;
+    // A window with 1M pixels (4 megabytes)
+    // (- 120 special codes for short distances).
+    int min_pos = n - (1 << 20) + 120;
+    if (min_pos < 0) {
+      min_pos = 0;
+    }
     for (int32 pos = hash_to_first_position_in_chain_[hash_code];
-         pos >= 0;
+         pos >= min_pos;
          pos = chain_[pos]) {
       ++give_up;
       if (give_up >= 101) {

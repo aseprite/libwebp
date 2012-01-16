@@ -14,7 +14,7 @@ static const int kNumLiteralSymbols = 256;
 
 static const int kNumLengthSymbols = 24;
 
-static const int kNumDistanceSymbols = 64;
+static const int kNumDistanceSymbols = 40;
 
 static const unsigned char code_to_plane_lut[120] = {
    0x18, 0x07, 0x17, 0x19, 0x28, 0x06, 0x27, 0x29, 0x16, 0x1a,

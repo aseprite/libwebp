@@ -17,7 +17,7 @@
 #include "../common/integral_types.h"
 
 // Backward reference distance codes, for all 32-bit values.
-static const int kDistanceCodes = 64;
+static const int kDistanceCodes = 40;
 
 // Compression constants
 static const int kLengthCodes = 24;
