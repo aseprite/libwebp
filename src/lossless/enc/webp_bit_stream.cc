@@ -479,28 +479,60 @@ int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-bool DetectSubsamplability(const int xs, const int ys,
-                           const uint32* image, int (*bits)[4]) {
+static int HasCommonShift(int val, int bits) {
+  int comp = val & (0xff << (8 - bits));
+  comp |= comp >> bits;
+  comp |= comp >> (2 * bits);
+  comp |= comp >> (4 * bits);
+  return val == comp;
+}
+
+// Finds if the histogram of bytes in 'exists' represents values that
+// are of the binary form of 'abcabcab', 'abababab', 'abcdefga', etc.
+//
+// A return value of 1 indicates a form of aaaaaaaa, all values are either
+// 0 or 0xff.
+// A return value of 2 indicates a form of abababab, all values are either
+// 0, 0x55, 0xaa, or 0xff.
+// etc.
+// When there is no such pattern that could be used to compact the values,
+// a value of 8 is returned.
+static int ComputeShiftBits(uint8 *exists) {
+  int count = 0;
+  int bits = 0;
+  for (int i = 0; i < 256; ++i) {
+    if (exists[i]) {
+      ++count;
+    }
+  }
+  if (count <= 8) {
+    return 8;
+  }
+  for (int i = 0; i < 256; ++i) {
+    if (exists[i] && !HasCommonShift(i, bits)) {
+      i = -1;
+      ++bits;
+    }
+  }
+  return bits;
+}
+
+static int DetectSubsamplability(const int xs, const int ys,
+                                 const uint32* image, int (*bits_out)[4]) {
+  uint8 exists[4][256];
+  memset(exists, 0, sizeof(exists));
+  for (int i = 0; i < xs * ys; ++i) {
+    const uint32 argb = image[i];
+    exists[0][argb & 0xff] = 1;
+    exists[1][((argb >> 8) & 0xff)] = 1;
+    exists[2][((argb >> 16) & 0xff)] = 1;
+    exists[3][((argb >> 24) & 0xff)] = 1;
+  }
   bool found = false;
   for (int k = 0; k < 4; ++k) {
-    (*bits)[k] = 0;
-    int shift = 4;
-    uint32 mask = 0xf;
-    std::set<uint8> uniq_values;
-    for (int i = 0; i < xs * ys && shift < 8; ++i) {
-      uint8 c = (image[i] >> (8 * k)) & 0xff;
-      uniq_values.insert(c);
-      while (shift < 8 && (c & mask) != (c >> shift)) {
-        shift++;
-        mask >>= 1;
-        // We need to check all previous pixels that they also match with
-        // the lower bit shift.
-        i = 0;
-        uniq_values.clear();
-      }
-    }
-    if (uniq_values.size() > 8 && shift < 8) {
-      (*bits)[k] = 8 - shift;
+    int bits = ComputeShiftBits(&exists[k][0]);
+    (*bits_out)[k] = 8 - bits;
+    if (bits != 8) {
       found = true;
     }
   }
@@ -609,16 +641,11 @@ void EncodeImageInternal(const int xsize,
     Histogram *histo_rle = new Histogram(palette_bits);
     histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
 
-    printf("rle bits %g, lz77 bits %g\n",
-           histo_rle->EstimateBits(),
-           histo_lz77->EstimateBits());
     lz77_is_useful = histo_rle->EstimateBits() > histo_lz77->EstimateBits();
     if (lz77_is_useful) {
-      printf("lz77 is useful\n");
       backward_refs_rle_only.clear();
     } else {
       backward_refs_lz77.clear();
-      printf("lz77 not useful\n");
     }
     delete histo_rle;
     delete histo_lz77;
