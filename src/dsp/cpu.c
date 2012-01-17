@@ -21,7 +21,7 @@ extern "C" {
 // SSE2 detection.
 //
 
-#if defined(__pic__) && defined(__i386__)
+#if (defined(__pic__) || defined(__PIC__)) && defined(__i386__)
 static WEBP_INLINE void GetCPUInfo(int cpu_info[4], int info_type) {
   __asm__ volatile (
     "mov %%ebx, %%edi\n"
