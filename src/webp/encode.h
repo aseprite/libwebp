@@ -276,6 +276,11 @@ WEBP_EXTERN(int) WebPPictureImportBGR(
 WEBP_EXTERN(int) WebPPictureImportBGRA(
     WebPPicture* const picture, const uint8_t* const bgra, int bgra_stride);
 
+// Helper function: given a width x height plane of RGBA or BGRA samples
+// (with stride 'stride'), clean-up the RGB samples under fully transparent
+// area, to help compressibility (no guaranty, though).
+WEBP_EXTERN(void) WebPCleanupTransparentArea(WebPPicture* const picture);
+
 //------------------------------------------------------------------------------
 // Main call
 
