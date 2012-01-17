@@ -604,9 +604,7 @@ void EncodeImageInternal(const int xsize,
     BackwardReferencesRle(
         xsize,
         ysize,
-        use_palette,
         &argb[0],
-        palette_bits,
         &backward_refs_rle_only);
     Histogram *histo_rle = new Histogram(palette_bits);
     histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());

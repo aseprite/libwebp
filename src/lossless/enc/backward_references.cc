@@ -158,30 +158,18 @@ static inline void PushBackCopy(int distance, int length,
 void BackwardReferencesRle(
     int xsize,
     int ysize,
-    bool use_palette,
     const uint32 *argb,
-    int palette_bits,
     std::vector<LiteralOrCopy> *stream) {
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   stream->reserve(xsize * ysize);
   int streak = 0;
-  use_palette = false;
   for (int i = 0; i < xsize * ysize; ++i) {
-    const int x = i % xsize;
     if (i >= 1 && argb[i] == argb[i - 1]) {
       ++streak;
     } else {
       PushBackCopy(1, streak, stream);
       streak = 0;
-      if (use_palette && hashers.Contains(x, argb[i])) {
-        // push pixel as a palette pixel
-        const int ix = hashers.GetIndex(argb[i]);
-        stream->push_back(LiteralOrCopy::CreatePaletteIx(ix));
-      } else {
-        stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
-      }
+      stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
     }
-    hashers.Insert(x, argb[i]);
   }
   PushBackCopy(1, streak, stream);
 }

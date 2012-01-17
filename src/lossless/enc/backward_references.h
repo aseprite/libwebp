@@ -122,9 +122,7 @@ struct LiteralOrCopy {
 void BackwardReferencesRle(
     int xsize,
     int ysize,
-    bool use_palette,
     const uint32 *argb,
-    int palette_bits,
     std::vector<LiteralOrCopy> *stream);
 
 // This is a simple fast function for obtaining backward references
