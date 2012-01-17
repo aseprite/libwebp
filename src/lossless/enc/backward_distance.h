@@ -57,10 +57,6 @@ inline int BitsLog2Ceiling(uint32 n) {
 // (16 GB for 4 byte pixels).
 class BackwardDistance {
  public:
-  struct DistanceCode {
-    uint8 extra_bits;
-    uint8 distance_code;
-  };
   static inline void Encode(
       int distance,
       int * __restrict code,
@@ -69,18 +65,13 @@ class BackwardDistance {
     --distance;
     const int highest_bit = BitsLog2Floor(distance);
     // & 0x3f is to make behavior well defined when highest_bit is -1 or 0.
-    const int second_highest_bit_value =
+    const int second_highest_bit =
         (distance >> ((highest_bit - 1) & 0x3f)) & 1;
-    *extra_bits_count =
-        distance_code_lut_offset_[2 * highest_bit].extra_bits;
+    *extra_bits_count = (highest_bit > 0) ? highest_bit - 1 : 0;
     *extra_bits_value = distance & ((1 << *extra_bits_count) - 1);
-    *code =
-        distance_code_lut_offset_[2 * highest_bit +
-                                  second_highest_bit_value].distance_code;
+    *code = (highest_bit > 0) ? 2 * highest_bit + second_highest_bit :
+            (highest_bit == 0) ? 1 : 0;
   }
- private:
-  static const DistanceCode distance_code_lut_[66];
-  static const DistanceCode *distance_code_lut_offset_;
 };
 
 // Same entropy code for length and distance.

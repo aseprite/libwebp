@@ -44,7 +44,6 @@ OBJS = \
     common/predictor.o \
     dec/bit_stream.o \
     dec/decode.o \
-    enc/backward_distance.o \
     enc/backward_references.o \
     enc/entropy_encode.o \
     enc/histogram.o \
