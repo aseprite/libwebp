@@ -617,7 +617,6 @@ int CalculateEstimateForPaletteSize(const uint32 *argb,
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;
     double cur_entropy = histo.EstimateBits() +
         kMakeLargePaletteSlightlyLessFavorable * palette_bits;
-    printf("palette_bits %d %g\n", palette_bits, cur_entropy);
     if (palette_bits == 0 || cur_entropy < lowest_entropy) {
       best_palette_bits = palette_bits;
       lowest_entropy = cur_entropy;
