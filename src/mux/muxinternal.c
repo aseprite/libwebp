@@ -47,8 +47,7 @@ void ChunkInit(WebPChunk* const chunk) {
   chunk->next_ = NULL;
 }
 
-// Releases chunk and returns chunk->next_.
-static WebPChunk* ChunkRelease(WebPChunk* const chunk) {
+WebPChunk* ChunkRelease(WebPChunk* const chunk) {
   WebPChunk* next;
   if (chunk == NULL) return NULL;
   free(chunk->image_info_);
@@ -239,7 +238,7 @@ void MuxImageInit(WebPMuxImage* const wpi) {
   wpi->next_ = NULL;
 }
 
-static WebPMuxImage* MuxImageRelease(WebPMuxImage* const wpi) {
+WebPMuxImage* MuxImageRelease(WebPMuxImage* const wpi) {
   WebPMuxImage* next;
   if (wpi == NULL) return NULL;
   ChunkDelete(wpi->header_);
@@ -344,7 +343,8 @@ WebPMuxError MuxImageSetNth(const WebPMuxImage* wpi, WebPMuxImage** wpi_list,
 //------------------------------------------------------------------------------
 // MuxImage deletion methods.
 
-static WebPMuxImage* DeleteImage(WebPMuxImage* const wpi) {
+WebPMuxImage* MuxImageDelete(WebPMuxImage* const wpi) {
+  // Delete the components of wpi. If wpi is NULL this is a noop.
   WebPMuxImage* const next = MuxImageRelease(wpi);
   free(wpi);
   return next;
@@ -352,7 +352,7 @@ static WebPMuxImage* DeleteImage(WebPMuxImage* const wpi) {
 
 void MuxImageDeleteAll(WebPMuxImage** const wpi_list) {
   while (*wpi_list) {
-    *wpi_list = DeleteImage(*wpi_list);
+    *wpi_list = MuxImageDelete(*wpi_list);
   }
 }
 
@@ -362,7 +362,7 @@ WebPMuxError MuxImageDeleteNth(WebPMuxImage** wpi_list, uint32_t nth,
   if (!SearchImageToGetOrDelete(wpi_list, nth, id, &wpi_list)) {
     return WEBP_MUX_NOT_FOUND;
   }
-  *wpi_list = DeleteImage(*wpi_list);
+  *wpi_list = MuxImageDelete(*wpi_list);
   return WEBP_MUX_OK;
 }
 
@@ -474,7 +474,12 @@ WebPMuxError WebPMuxValidate(const WebPMux* const mux) {
   WebPMuxError err;
 
   // Verify mux is not NULL.
-  if (mux == NULL) return WEBP_MUX_INVALID_ARGUMENT;
+  if (mux == NULL || mux->state_ == WEBP_MUX_STATE_ERROR) {
+    return WEBP_MUX_INVALID_ARGUMENT;
+  }
+
+  // No further checks if mux is partial.
+  if (mux->state_ == WEBP_MUX_STATE_PARTIAL) return WEBP_MUX_OK;
 
   // Verify mux has at least one image.
   if (mux->images_ == NULL) return WEBP_MUX_INVALID_ARGUMENT;

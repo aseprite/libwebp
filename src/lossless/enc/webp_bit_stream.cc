@@ -858,7 +858,6 @@ void EncodeImageInternal(const int xsize,
   }
 }
 
-
 int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       EncodingStrategy *strategy,
                       size_t *num_bytes, uint8 **bytes) {

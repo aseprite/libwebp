@@ -59,6 +59,7 @@ struct WebPMuxImage {
 
 // Main mux object. Stores data chunks.
 struct WebPMux {
+  WebPMuxState    state_;
   WebPMuxImage*   images_;
   WebPChunk*      iccp_;
   WebPChunk*      meta_;
@@ -102,7 +103,7 @@ typedef struct {
   uint32_t      chunkSize;
 } ChunkInfo;
 
-const ChunkInfo kChunks[LIST_ID + 1];
+extern const ChunkInfo kChunks[LIST_ID + 1];
 
 //------------------------------------------------------------------------------
 // Helper functions.
@@ -119,6 +120,10 @@ static WEBP_INLINE void PutLE16(uint8_t* const data, uint16_t val) {
 static WEBP_INLINE void PutLE32(uint8_t* const data, uint32_t val) {
   PutLE16(data, val);
   PutLE16(data + 2, val >> 16);
+}
+
+static WEBP_INLINE uint32_t SizeWithPadding(uint32_t chunk_size) {
+  return CHUNK_HEADER_SIZE + ((chunk_size + 1) & ~1U);
 }
 
 //------------------------------------------------------------------------------
@@ -148,13 +153,16 @@ WebPMuxError ChunkAssignDataImageInfo(WebPChunk* chunk, const uint8_t* data,
 WebPMuxError ChunkSetNth(const WebPChunk* chunk, WebPChunk** chunk_list,
                          uint32_t nth);
 
+// Releases chunk and returns chunk->next_.
+WebPChunk* ChunkRelease(WebPChunk* const chunk);
+
 // Deletes given chunk & returns chunk->next_.
 WebPChunk* ChunkDelete(WebPChunk* const chunk);
 
 // Size of a chunk including header and padding.
 static WEBP_INLINE uint32_t ChunkDiskSize(const WebPChunk* chunk) {
   assert(chunk->payload_size_ < MAX_CHUNK_PAYLOAD);
-  return CHUNK_HEADER_SIZE + ((chunk->payload_size_ + 1) & ~1U);
+  return SizeWithPadding(chunk->payload_size_);
 }
 
 // Total size of a list of chunks.
@@ -168,6 +176,13 @@ uint8_t* ChunkListEmit(const WebPChunk* chunk_list, uint8_t* dst);
 
 // Initialize.
 void MuxImageInit(WebPMuxImage* const wpi);
+
+// Releases image 'wpi' and returns wpi->next.
+WebPMuxImage* MuxImageRelease(WebPMuxImage* const wpi);
+
+// Delete image 'wpi' and return the next image in the list or NULL.
+// 'wpi' can be NULL.
+WebPMuxImage* MuxImageDelete(WebPMuxImage* const wpi);
 
 // Delete all images in 'wpi_list'.
 void MuxImageDeleteAll(WebPMuxImage** const wpi_list);
