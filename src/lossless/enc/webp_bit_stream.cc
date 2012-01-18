@@ -497,7 +497,7 @@ static int HasCommonShift(int val, int bits) {
 // etc.
 // When there is no such pattern that could be used to compact the values,
 // a value of 8 is returned.
-static int ComputeShiftBits(uint8 *exists) {
+static int ComputeShiftBits(const uint8 * const exists) {
   int count = 0;
   int bits = 0;
   for (int i = 0; i < 256; ++i) {
@@ -506,12 +506,19 @@ static int ComputeShiftBits(uint8 *exists) {
     }
   }
   if (count <= 8) {
+    // Compacting bits is useful for improving the behavior with
+    // spatial predictors. If there are only a few values, the behavior with
+    // spatial predictors is mostly irrelevant: the values are better encoded
+    // without prediction.
     return 8;
   }
   for (int i = 0; i < 256; ++i) {
     if (exists[i] && !HasCommonShift(i, bits)) {
-      i = -1;
+      i = -1;  // Restart loop with a higher bits count.
       ++bits;
+      if (bits == 8) {
+        break;  // Give up when we need 8 bits.
+      }
     }
   }
   return bits;
@@ -530,7 +537,7 @@ static int DetectSubsamplability(const int xs, const int ys,
   }
   bool found = false;
   for (int k = 0; k < 4; ++k) {
-    int bits = ComputeShiftBits(&exists[k][0]);
+    const int bits = ComputeShiftBits(&exists[k][0]);
     (*bits_out)[k] = 8 - bits;
     if (bits != 8) {
       found = true;
