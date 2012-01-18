@@ -10,6 +10,7 @@
 #ifndef WEBP_PIXEL_HASHER_H_
 #define WEBP_PIXEL_HASHER_H_
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -33,32 +34,24 @@ class PixelHasher {
   void insert(uint32 argb) {
     uint32 val = kHashMul * argb;
     val >>= 32 - hash_bits_;
-    if (hash_bits_ == 0) {
-      val = 0;
-    }
     data_[val] = argb;
   }
   bool is_initialized(uint32 argb) const {
     uint32 val = kHashMul * argb;
     val >>= 32 - hash_bits_;
-    if (hash_bits_ == 0) {
-      val = 0;
-    }
     return data_[val] != kNotInitialized;
   }
   bool contains(uint32 argb) const {
     uint32 val = kHashMul * argb;
     val >>= 32 - hash_bits_;
-    if (hash_bits_ == 0) {
-      val = 0;
-    }
     if (argb == kNotInitialized) {
       return false;
     }
     return data_[val] == argb;
   }
   bool lookup(uint32 val, uint32* argb) {
-    if (val < (1 << hash_bits_) && data_[val] != kNotInitialized) {
+    assert(val < (1 << hash_bits_));
+    if (data_[val] != kNotInitialized) {
       *argb = data_[val];
       return true;
     }
@@ -73,6 +66,9 @@ class PixelHasher {
 class PixelHasherLine {
  public:
   PixelHasherLine(int xsize, int x_downsample_bits, int hash_bits) {
+    if (hash_bits == 0) {
+      hash_bits = 1;
+    }
     x_downsample_bits_ = x_downsample_bits;
     hash_bits_ = hash_bits;
     hashers_size_ =
@@ -151,9 +147,6 @@ class PixelHasherLine {
   uint32 GetIndex(uint32 argb) const {
     uint32 val = kHashMul * argb;
     val >>= 32 - hash_bits_;
-    if (hash_bits_ == 0) {
-      return 0;
-    }
     return val;
   }
   bool Contains(int x, uint32 argb) {
