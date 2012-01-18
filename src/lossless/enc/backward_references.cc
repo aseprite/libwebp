@@ -160,9 +160,10 @@ void BackwardReferencesRle(
     int ysize,
     const uint32 *argb,
     std::vector<LiteralOrCopy> *stream) {
-  stream->reserve(xsize * ysize);
+  const int pix_count = xsize * ysize;
+  stream->reserve(pix_count);
   int streak = 0;
-  for (int i = 0; i < xsize * ysize; ++i) {
+  for (int i = 0; i < pix_count; ++i) {
     if (i >= 1 && argb[i] == argb[i - 1]) {
       ++streak;
     } else {
@@ -181,19 +182,20 @@ void BackwardReferencesHashChain(
     const uint32 *argb,
     int palette_bits,
     std::vector<LiteralOrCopy> *stream) {
+  const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   int x = 0;
-  HashChain *hash_chain = new HashChain(xsize * ysize);
-  for (int i = 0; i < xsize * ysize; ) {
+  HashChain *hash_chain = new HashChain(pix_count);
+  for (int i = 0; i < pix_count; ) {
     int offset = 0;
     int len = 0;
-    int maxlen = std::min(xsize * ysize - i, kMaxLength);
+    int maxlen = std::min(pix_count - i, kMaxLength);
     x = i % xsize;
-    if (i + 1 < xsize * ysize) {  // FindCopy reads pixels at [i] and [i + 1].
+    if (i + 1 < pix_count) {  // FindCopy reads pixels at [i] and [i + 1].
       hash_chain->FindCopy(i, xsize, argb, maxlen, NULL, &offset, &len);
     }
     if (len >= kMinLength) {
-      if (i + 1 < xsize * ysize - len) {
+      if (i + 1 < pix_count - len) {
         // Check if there is a better match.
         {
           const uint64 val =
@@ -203,8 +205,8 @@ void BackwardReferencesHashChain(
         }
         int offset2 = 0;
         int len2 = 0;
-        maxlen = std::min(xsize * ysize - i - 1, kMaxLength);
-        if (i + 2 < xsize * ysize &&  // FindCopy reads [i + 1] and [i + 2].
+        maxlen = std::min(pix_count - i - 1, kMaxLength);
+        if (i + 2 < pix_count &&  // FindCopy reads [i + 1] and [i + 2].
             hash_chain->FindCopy(i + 1, xsize, argb, maxlen,
                                  NULL,
                                  &offset2, &len2)) {
@@ -231,7 +233,7 @@ void BackwardReferencesHashChain(
       stream->push_back(LiteralOrCopy::CreateCopy(offset, len));
       for (int k = 0; k < len; ++k) {
         hashers.Insert((i + k) % xsize, argb[i + k]);
-        if (k != 0 && i + k + 1 < xsize * ysize) {
+        if (k != 0 && i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           const uint64 val =
               (static_cast<uint64>(argb[i + k + 1]) << 32) +
@@ -249,7 +251,7 @@ void BackwardReferencesHashChain(
         stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
       }
       hashers.Insert(i % xsize, argb[i]);
-      if (i + 1 < xsize * ysize) {
+      if (i + 1 < pix_count) {
         const uint64 val =
             (static_cast<uint64>(argb[i + 1]) << 32) +
             static_cast<uint64>(argb[i]);
@@ -334,26 +336,27 @@ void BackwardReferencesHashChainDistanceOnly(
     const uint32 *argb,
     int palette_bits,
     std::vector<uint32> *dist_array) {
-  dist_array->resize(xsize * ysize);
-  std::vector<double> cost(xsize * ysize, 1e100);
+  const int pix_count = xsize * ysize;
+  dist_array->resize(pix_count);
+  std::vector<double> cost(pix_count, 1e100);
   CostModel *cost_model = new CostModel;
   cost_model->Build(xsize, ysize, recursive_cost_model, use_palette, argb, palette_bits);
 
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
-  HashChain *hash_chain = new HashChain(xsize * ysize);
+  HashChain *hash_chain = new HashChain(pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
   (*dist_array)[0] = 0;
-  for (int i = 0; i < xsize * ysize; ++i) {
+  for (int i = 0; i < pix_count; ++i) {
     double prev_cost = 0.0;
     if (i != 0) {
       prev_cost = cost[i - 1];
     }
     for (int shortmax = 0; shortmax < 2; ++shortmax) {
-      int maxlen = std::min(xsize * ysize - i, shortmax ? 2 : kMaxLength);
+      int maxlen = std::min(pix_count - i, shortmax ? 2 : kMaxLength);
       int offset = 0;
       int len = 0;
-      if (i + 1 < xsize * ysize) {  // FindCopy reads pixels at [i] and [i + 1].
+      if (i + 1 < pix_count) {  // FindCopy reads pixels at [i] and [i + 1].
         hash_chain->FindCopy(i, xsize, argb, maxlen,
                              &(*dist_array)[0],
                              &offset, &len);
@@ -376,7 +379,7 @@ void BackwardReferencesHashChainDistanceOnly(
           // 1) insert the hashes.
           for (int k = 0; k < len; ++k) {
             hashers.Insert((i + k) % xsize, argb[i + k]);
-            if (i + k + 1 < xsize * ysize) {
+            if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
               const uint64 val =
                   (static_cast<uint64>(argb[i + k + 1]) << 32) +
@@ -390,7 +393,7 @@ void BackwardReferencesHashChainDistanceOnly(
         }
       }
     }
-    if (i != xsize * ysize - 1) {
+    if (i != pix_count - 1) {
       const uint64 val =
           (static_cast<uint64>(argb[i + 1]) << 32) +
           static_cast<uint64>(argb[i]);
@@ -445,8 +448,9 @@ void BackwardReferencesHashChainFollowChosenPath(
     int palette_bits,
     const std::vector<uint32> &chosen_path,
     std::vector<LiteralOrCopy> *stream) {
+  const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
-  HashChain *hash_chain = new HashChain(xsize * ysize);
+  HashChain *hash_chain = new HashChain(pix_count);
   int i = 0;
   for (int ix = 0; ix < chosen_path.size(); ++ix) {
     int offset = 0;
@@ -459,7 +463,7 @@ void BackwardReferencesHashChainFollowChosenPath(
       stream->push_back(LiteralOrCopy::CreateCopy(offset, len));
       for (int k = 0; k < len; ++k) {
         hashers.Insert((i + k) % xsize, argb[i + k]);
-        if (i + k + 1 < xsize * ysize) {
+        if (i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           const uint64 val =
               (static_cast<uint64>(argb[i + k + 1]) << 32) +
@@ -478,7 +482,7 @@ void BackwardReferencesHashChainFollowChosenPath(
         stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
       }
       hashers.Insert(i % xsize, argb[i]);
-      if (i + 1 < xsize * ysize) {
+      if (i + 1 < pix_count) {
         const uint64 val =
             (static_cast<uint64>(argb[i + 1]) << 32) +
             static_cast<uint64>(argb[i]);
@@ -567,9 +571,12 @@ bool VerifyBackwardReferences(const uint32* argb,
       }
     }
   }
-  if (num_pixels != xsize * ysize) {
-    printf("upsala: %d != %d\n", num_pixels, xsize * ysize);
-    return false;
+  {
+    const int pix_count = xsize * ysize;
+    if (num_pixels != pix_count) {
+      printf("upsala: %d != %d\n", num_pixels, pix_count);
+      return false;
+    }
   }
   return true;
 }
