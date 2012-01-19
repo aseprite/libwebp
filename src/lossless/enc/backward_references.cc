@@ -53,6 +53,10 @@ static inline int FindMatchLength(const uint32* s1,
   return matched;
 }
 
+static inline uint64 GetPixPair(const uint32 *argb) {
+  return (static_cast<uint64>(argb[1]) << 32) | argb[0];
+}
+
 class HashChain {
  public:
   // Insertion two pixels at a time.
@@ -79,7 +83,7 @@ class HashChain {
                 int maxlen,
                 uint32 * __restrict dist_array,
                 int * __restrict offset, int * __restrict len) {
-    uint64 next_two_pixels = (static_cast<uint64>(argb[n + 1]) << 32) | argb[n];
+    uint64 next_two_pixels = GetPixPair(&argb[n]);
     uint64 hash_code = next_two_pixels * kMul;
     hash_code >>= 64 - kBits;
     *len = 0;
@@ -89,7 +93,7 @@ class HashChain {
     int give_up = 0;
     // A window with 1M pixels (4 megabytes)
     // (- 120 special codes for short distances).
-    int min_pos = n - (1 << 20) + 120;
+    int min_pos = n - (1 << kBits) + 120;
     if (min_pos < 0) {
       min_pos = 0;
     }
@@ -196,16 +200,12 @@ void BackwardReferencesHashChain(
     }
     if (len >= kMinLength) {
       if (i + 1 < pix_count - len) {
-        // Check if there is a better match.
-        {
-          const uint64 val =
-              (static_cast<uint64>(argb[i + 1]) << 32) +
-              static_cast<uint64>(argb[i]);
-          hash_chain->Insert(val, i);
-        }
+        const uint64 key = GetPixPair(&argb[i]);
+        hash_chain->Insert(key, i);
         int offset2 = 0;
         int len2 = 0;
         maxlen = std::min(pix_count - i - 1, kMaxLength);
+        // Check if there is a better match.
         if (i + 2 < pix_count &&  // FindCopy reads [i + 1] and [i + 2].
             hash_chain->FindCopy(i + 1, xsize, argb, maxlen,
                                  NULL,
@@ -235,10 +235,8 @@ void BackwardReferencesHashChain(
         hashers.Insert((i + k) % xsize, argb[i + k]);
         if (k != 0 && i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
-          const uint64 val =
-              (static_cast<uint64>(argb[i + k + 1]) << 32) +
-              static_cast<uint64>(argb[i + k]);
-          hash_chain->Insert(val, i + k);
+          const uint64 key = GetPixPair(&argb[i + k]);
+          hash_chain->Insert(key, i + k);
         }
       }
       i += len;
@@ -252,10 +250,8 @@ void BackwardReferencesHashChain(
       }
       hashers.Insert(i % xsize, argb[i]);
       if (i + 1 < pix_count) {
-        const uint64 val =
-            (static_cast<uint64>(argb[i + 1]) << 32) +
-            static_cast<uint64>(argb[i]);
-        hash_chain->Insert(val, i);
+        const uint64 key = GetPixPair(&argb[i]);
+        hash_chain->Insert(key, i);
       }
       ++i;
     }
@@ -381,10 +377,8 @@ void BackwardReferencesHashChainDistanceOnly(
             hashers.Insert((i + k) % xsize, argb[i + k]);
             if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
-              const uint64 val =
-                  (static_cast<uint64>(argb[i + k + 1]) << 32) +
-                  static_cast<uint64>(argb[i + k]);
-              hash_chain->Insert(val, i + k);
+              const uint64 key = GetPixPair(&argb[i + k]);
+              hash_chain->Insert(key, i + k);
             }
           }
           // 2) jump.
@@ -394,10 +388,8 @@ void BackwardReferencesHashChainDistanceOnly(
       }
     }
     if (i != pix_count - 1) {
-      const uint64 val =
-          (static_cast<uint64>(argb[i + 1]) << 32) +
-          static_cast<uint64>(argb[i]);
-      hash_chain->Insert(val, i);
+      const uint64 key = GetPixPair(&argb[i]);
+      hash_chain->Insert(key, i);
     }
     {
       // inserting a literal pixel
@@ -465,10 +457,8 @@ void BackwardReferencesHashChainFollowChosenPath(
         hashers.Insert((i + k) % xsize, argb[i + k]);
         if (i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
-          const uint64 val =
-              (static_cast<uint64>(argb[i + k + 1]) << 32) +
-              static_cast<uint64>(argb[i + k]);
-          hash_chain->Insert(val, i + k);
+          const uint64 key = GetPixPair(&argb[i + k]);
+          hash_chain->Insert(key, i + k);
         }
       }
       i += len;
@@ -483,10 +473,8 @@ void BackwardReferencesHashChainFollowChosenPath(
       }
       hashers.Insert(i % xsize, argb[i]);
       if (i + 1 < pix_count) {
-        const uint64 val =
-            (static_cast<uint64>(argb[i + 1]) << 32) +
-            static_cast<uint64>(argb[i]);
-        hash_chain->Insert(val, i);
+        const uint64 key = GetPixPair(&argb[i]);
+        hash_chain->Insert(key, i);
       }
       ++i;
     }
