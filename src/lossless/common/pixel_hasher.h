@@ -22,9 +22,10 @@ static const uint32 kHashMul = 0x1e35a7bd;
 class PixelHasher {
  public:
   void Init(int hash_bits) {
-    data_ = new uint32[1 << hash_bits];
     hash_bits_ = hash_bits;
-    for (int i = 0; i < (1 << hash_bits_); ++i) {
+    hash_size_ = 1 << hash_bits;
+    data_ = new uint32[hash_size_];
+    for (int i = 0; i < hash_size_; ++i) {
       data_[i] = kNotInitialized;
     }
   }
@@ -32,27 +33,25 @@ class PixelHasher {
     delete[] data_;
   }
   void insert(uint32 argb) {
-    uint32 val = kHashMul * argb;
-    val >>= 32 - hash_bits_;
-    data_[val] = argb;
+    const uint32 key = (kHashMul * argb) >> (32 - hash_bits_);
+    data_[key] = argb;
   }
   bool is_initialized(uint32 argb) const {
-    uint32 val = kHashMul * argb;
-    val >>= 32 - hash_bits_;
-    return data_[val] != kNotInitialized;
+    const uint32 key = (kHashMul * argb) >> (32 - hash_bits_);
+    return data_[key] != kNotInitialized;
   }
   bool contains(uint32 argb) const {
-    uint32 val = kHashMul * argb;
-    val >>= 32 - hash_bits_;
+    uint32 key;
     if (argb == kNotInitialized) {
       return false;
     }
-    return data_[val] == argb;
+    key = (kHashMul * argb) >> (32 - hash_bits_);
+    return data_[key] == argb;
   }
-  bool lookup(uint32 val, uint32* argb) {
-    assert(val < (1 << hash_bits_));
-    if (data_[val] != kNotInitialized) {
-      *argb = data_[val];
+  bool lookup(uint32 key, uint32* argb) {
+    assert(key < hash_size_);
+    if (data_[key] != kNotInitialized) {
+      *argb = data_[key];
       return true;
     }
     return false;
@@ -61,6 +60,7 @@ class PixelHasher {
  private:
   uint32 *data_;
   uint32 hash_bits_;
+  uint32 hash_size_;
 };
 
 class PixelHasherLine {
