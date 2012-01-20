@@ -78,8 +78,7 @@ class HashChain {
   }
 
   bool FindCopy(int index, int xsize, const uint32 * __restrict argb,
-                int maxlen, uint32 * __restrict dist_array,
-                int * __restrict offset, int * __restrict len) {
+                int maxlen, int * __restrict offset, int * __restrict len) {
     const uint64 next_two_pixels = GetPixPair(&argb[index]);
     const uint64 hash_code = GetHash64(next_two_pixels);
     *len = 0;
@@ -200,7 +199,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
     const int x = i % xsize;
     if (i < pix_count - 1) {  // FindCopy(i,..) reads pixels at [i] and [i + 1].
       const int maxlen = std::min(pix_count - i, kMaxLength);
-      hash_chain->FindCopy(i, xsize, argb, maxlen, NULL, &offset, &len);
+      hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
     }
     if (len >= kMinLength) {
       hash_chain->Insert(&argb[i], i);
@@ -210,7 +209,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       int len2 = 0;
       if (i < pix_count - 2) {  // FindCopy(i+1,..) reads [i + 1] and [i + 2].
         const int maxlen = std::min(pix_count - (i + 1), kMaxLength);
-        hash_chain->FindCopy(i + 1, xsize, argb, maxlen, NULL, &offset2,
+        hash_chain->FindCopy(i + 1, xsize, argb, maxlen, &offset2,
                              &len2);
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
@@ -279,32 +278,38 @@ class CostModel {
         histo.NumLiteralOrCopyCodes(),
         &histo.literal_[0], &literal_[0]);
     ConvertPopulationCountTableToBitEstimates(
-        256, &histo.red_[0], &red_[0]);
+        kNumSymbols, &histo.red_[0], &red_[0]);
     ConvertPopulationCountTableToBitEstimates(
-        256, &histo.blue_[0], &blue_[0]);
+        kNumSymbols, &histo.blue_[0], &blue_[0]);
     ConvertPopulationCountTableToBitEstimates(
-        256, &histo.alpha_[0], &alpha_[0]);
+        kNumSymbols, &histo.alpha_[0], &alpha_[0]);
     ConvertPopulationCountTableToBitEstimates(
         kDistanceCodes, &histo.distance_[0], &distance_[0]);
   }
+
   double LiteralCost(uint32 v) const {
     return alpha_[v >> 24] +
         red_[(v >> 16) & 0xff] +
         literal_[(v >> 8) & 0xff] +
         blue_[v & 0xff];
   }
+
   double PaletteCost(uint32 ix) const {
-    int literal_ix = 256 + ix;
+    int literal_ix = kNumSymbols + ix;
     return literal_[literal_ix];
   }
+
   double LengthCost(uint32 len) const {
     int code, extra_bits_count, extra_bits_value;
     BackwardLength::Encode(len,
                            &code,
                            &extra_bits_count,
                            &extra_bits_value);
-    return literal_[256 + (1 << palette_bits_) + code] + extra_bits_count;
+    return literal_[kNumSymbols +
+           (1 << palette_bits_) + code] +
+           extra_bits_count;
   }
+
   double DistanceCost(uint32 distance) const {
     int code, extra_bits_count, extra_bits_value;
     BackwardDistance::Encode(distance,
@@ -313,22 +318,23 @@ class CostModel {
                              &extra_bits_value);
     return distance_[code] + extra_bits_count;
   }
-  double alpha_[256];
-  double red_[256];
-  double literal_[256 + (1 << kPaletteCodeBitsMax) + kLengthCodes];
-  double blue_[256];
+
+ private:
+  static const int kNumSymbols = 256;
+  double alpha_[kNumSymbols];
+  double red_[kNumSymbols];
+  double literal_[kNumSymbols + (1 << kPaletteCodeBitsMax) + kLengthCodes];
+  double blue_[kNumSymbols];
   double distance_[kDistanceCodes];
   int palette_bits_;
 };
 
-void BackwardReferencesHashChainDistanceOnly(
-    int xsize,
-    int ysize,
-    int recursive_cost_model,
-    bool use_palette,
-    const uint32 *argb,
-    int palette_bits,
-    std::vector<uint32> *dist_array) {
+void BackwardReferencesHashChainDistanceOnly(int xsize, int ysize,
+                                             int recursive_cost_model,
+                                             bool use_palette,
+                                             const uint32 *argb,
+                                             int palette_bits,
+                                             std::vector<uint32> *dist_array) {
   const int pix_count = xsize * ysize;
   dist_array->resize(pix_count);
   std::vector<double> cost(pix_count, 1e100);
@@ -343,17 +349,15 @@ void BackwardReferencesHashChainDistanceOnly(
   (*dist_array)[0] = 0;
   for (int i = 0; i < pix_count; ++i) {
     double prev_cost = 0.0;
-    if (i != 0) {
+    if (i > 0) {
       prev_cost = cost[i - 1];
     }
     for (int shortmax = 0; shortmax < 2; ++shortmax) {
-      int maxlen = std::min(pix_count - i, shortmax ? 2 : kMaxLength);
       int offset = 0;
       int len = 0;
-      if (i + 1 < pix_count) {  // FindCopy reads pixels at [i] and [i + 1].
-        hash_chain->FindCopy(i, xsize, argb, maxlen,
-                             &(*dist_array)[0],
-                             &offset, &len);
+      if (i < pix_count - 1) {  // FindCopy reads pixels at [i] and [i + 1].
+        const int maxlen = std::min(pix_count - i, shortmax ? 2 : kMaxLength);
+        hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
       }
       if (len >= kMinLength) {
         const int code = DistanceToPlaneCode(xsize, ysize, offset);
@@ -384,7 +388,7 @@ void BackwardReferencesHashChainDistanceOnly(
         }
       }
     }
-    if (i != pix_count - 1) {
+    if (i < pix_count - 1) {
       hash_chain->Insert(&argb[i], i);
     }
     {
@@ -445,8 +449,7 @@ void BackwardReferencesHashChainFollowChosenPath(
     int len = 0;
     int maxlen = chosen_path[ix];
     if (maxlen != 1) {
-      hash_chain->FindCopy(i, xsize, argb, maxlen, NULL,
-                           &offset, &len);
+      hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
       assert(len == maxlen);
       stream->push_back(LiteralOrCopy::CreateCopy(offset, len));
       for (int k = 0; k < len; ++k) {
@@ -477,14 +480,12 @@ void BackwardReferencesHashChainFollowChosenPath(
 }
 
 
-void BackwardReferencesTraceBackwards(
-    int xsize,
-    int ysize,
-    int recursive_cost_model,
-    bool use_palette,
-    const uint32 *argb,
-    int palette_bits,
-    std::vector<LiteralOrCopy> *stream) {
+void BackwardReferencesTraceBackwards(int xsize, int ysize,
+                                      int recursive_cost_model,
+                                      bool use_palette,
+                                      const uint32 *argb,
+                                      int palette_bits,
+                                      std::vector<LiteralOrCopy> *stream) {
   std::vector<uint32> dist_array;
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
@@ -496,9 +497,7 @@ void BackwardReferencesTraceBackwards(
                                               stream);
 }
 
-void BackwardReferences2DLocality(int xsize,
-                                  int ysize,
-                                  int data_size,
+void BackwardReferences2DLocality(int xsize, int ysize, int data_size,
                                   LiteralOrCopy *data) {
   for (int i = 0; i < data_size; ++i) {
     if (data[i].IsCopy()) {
@@ -509,8 +508,7 @@ void BackwardReferences2DLocality(int xsize,
   }
 }
 
-bool VerifyBackwardReferences(const uint32* argb,
-                              int xsize, int ysize,
+bool VerifyBackwardReferences(const uint32* argb, int xsize, int ysize,
                               int palette_bits,
                               const std::vector<LiteralOrCopy>& v) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
@@ -563,12 +561,9 @@ bool VerifyBackwardReferences(const uint32* argb,
   return true;
 }
 
-static void ComputePaletteHistogram(
-    const uint32 *argb,
-    int xsize, int ysize,
-    const std::vector<LiteralOrCopy> &stream,
-    int palette_bits,
-    Histogram *histo) {
+static void ComputePaletteHistogram(const uint32 *argb, int xsize, int ysize,
+                                    const std::vector<LiteralOrCopy> &stream,
+                                    int palette_bits, Histogram *histo) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   int pixel_index = 0;
   for (int i = 0; i < stream.size(); ++i) {
@@ -594,8 +589,7 @@ static void ComputePaletteHistogram(
 }
 
 // Returns how many bits are to be used for a palette.
-int CalculateEstimateForPaletteSize(const uint32 *argb,
-                                    int xsize, int ysize) {
+int CalculateEstimateForPaletteSize(const uint32 *argb, int xsize, int ysize) {
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
   std::vector<LiteralOrCopy> stream;
