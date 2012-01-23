@@ -102,16 +102,6 @@ static void ReadTransform(int* xsize, int* ysize,
         *ysize = MetaSize(*ysize, data->ybits);
       }
       break;
-    case IMPLICIT_ALPHA_TRANSFORM:
-      {
-        transform->data = malloc(sizeof(uint32));
-        uint32* argb = (uint32*)transform->data;
-        *argb = 0;
-        for (int k = 0; k < 4; ++k) {
-          *argb |= READ(stream, 8) << (8 * k);
-        }
-      }
-      break;
   }
 }
 

@@ -144,58 +144,6 @@ void OptimizeHuffmanForRle(int length, int *counts) {
   free(good_for_rle);
 }
 
-void ColorToAlphaMapping(int num_pixels, uint32 *image,
-                         std::vector<uint32> *codes) {
-  std::map<uint32, int> color_histogram;
-  for (int i = 0; i < num_pixels; ++i) {
-    if ((image[i] >> 24) == 255) {
-      continue;
-    }
-    ++color_histogram[image[i]];
-  }
-  std::vector<std::pair<int, uint32> > population_to_color;
-  population_to_color.reserve(color_histogram.size());
-  for (std::map<uint32, int>::const_iterator it = color_histogram.begin();
-       it != color_histogram.end(); ++it) {
-    if (it->second >= 100 || it->second >= num_pixels / 128) {
-      population_to_color.push_back(
-          std::pair<int, uint32>(it->second, it->first));
-    }
-  }
-  std::sort(population_to_color.begin(), population_to_color.end());
-  // Limit the size of the set. (we only keep one now).
-  if (population_to_color.size() >= 2) {
-    population_to_color.erase(
-        population_to_color.begin(),
-        population_to_color.begin() + population_to_color.size() - 1);
-  }
-  // Test the candidates for uniqueness.
-  for (int i = 0; i < num_pixels; ++i) {
-    for (int k = 0; k < population_to_color.size(); ++k) {
-      uint32 val = image[i] ^ population_to_color[k].second;
-      const bool rgb_match((val & 0xffffff) == 0);
-      const bool alpha_and_rgb_match((val == 0));
-      if (rgb_match && !alpha_and_rgb_match) {
-        // r,g,b does not map into a unique alpha. Drop.
-        population_to_color.erase(population_to_color.begin() + k);
-        // Erasing from the iterated container...
-        --k;
-      }
-    }
-  }
-  for (int k = 0; k < population_to_color.size(); ++k) {
-    uint32 pixel = population_to_color[k].second;
-    codes->push_back(pixel);
-    for (int i = 0; i < num_pixels; ++i) {
-      if (image[i] == pixel) {
-        // Store an alpha of 255, the actual alpha will be recovered later
-        // in decompression based on the r,g,b values.
-        image[i] |= 0xff000000;
-      }
-    }
-  }
-}
-
 void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
                                      uint8* lengths,
                                      std::vector<uint16>* symbols) {
@@ -909,17 +857,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     }
     delete before;
     delete after;
-  }
-
-  std::vector<uint32> translucent;
-  ColorToAlphaMapping(xsize * ysize, &argb[0], &translucent);
-  for (int i = 0; i < translucent.size(); ++i) {
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 7, &storage_ix, &storage[0]);
-    for (int k = 0; k < 4; ++k) {
-      WriteBits(8, (translucent[i] >> (8 * k)) & 0xff,
-                &storage_ix, &storage[0]);
-    }
   }
 
   int bits[4];

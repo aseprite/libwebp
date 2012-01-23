@@ -22,7 +22,6 @@ typedef enum ImageTransformType {
   COMPONENT_SUBSAMPLING_TRANSFORM = 3,
   COLOR_INDEXING_TRANSFORM = 5,
   PIXEL_BUNDLE_TRANSFORM = 6,
-  IMPLICIT_ALPHA_TRANSFORM = 7,
 } ImageTransformType;
 
 struct ImageTransform {
@@ -134,15 +133,6 @@ void ColorIndexingInverseTransform(int xsize, int ysize,
   }
 }
 
-void ImplicitAlphaInverseTransform(int xsize, int ysize, uint32 special_pixel,
-                                   uint32* image) {
-  uint32 special_rgb = special_pixel | 0xff000000;
-  for (int i = 0; i < xsize * ysize; ++i) {
-    if (image[i] == special_pixel) image[i] = special_rgb;
-    if (image[i] == special_rgb) image[i] = special_pixel;
-  }
-}
-
 void ApplyInverseImageTransform(ImageTransform transform, uint32** argb_image) {
   switch (transform.type) {
     case PREDICTOR_TRANSFORM:
@@ -188,13 +178,6 @@ void ApplyInverseImageTransform(ImageTransform transform, uint32** argb_image) {
             (PixelBundleTransformData*)transform.data;
         PixelBundleInverseTransform(transform.xsize, transform.ysize,
                                     *data, argb_image);
-      }
-      break;
-      case IMPLICIT_ALPHA_TRANSFORM:
-      {
-        uint32* special_pixel = (uint32*)transform.data;
-        ImplicitAlphaInverseTransform(transform.xsize, transform.ysize,
-                                      *special_pixel, *argb_image);
       }
       break;
     default:
