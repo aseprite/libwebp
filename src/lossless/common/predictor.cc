@@ -17,7 +17,7 @@
 #define ARGB_BLACK 0xff000000
 
 static inline uint32 Average2(uint32 a0, uint32 a1) {
-  return ( ((((a0) ^ (a1)) & 0xfefefefeL) >> 1) + ((a0) & (a1)) );
+  return (((a0 ^ a1) & 0xfefefefeL) >> 1) + (a0 & a1);
 }
 
 static inline uint32 Average3(uint32 a0, uint32 a1, uint32 a2) {
@@ -30,15 +30,17 @@ static inline uint32 Average4(uint32 a0, uint32 a1, uint32 a2, uint32 a3) {
 
 uint32 Add(uint32 a, uint32 b) {
   // This computes the sum of each component with mod 256.
-  uint32 alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
-  uint32 red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
+  const uint32 alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
+  const uint32 red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
   return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
 uint32 Subtract(uint32 a, uint32 b) {
   // This subtracts each component with mod 256.
-  uint32 alpha_and_green = 0x00ff00ff + (a & 0xff00ff00) - (b & 0xff00ff00);
-  uint32 red_and_blue = 0xff00ff00 + (a & 0x00ff00ff) - (b & 0x00ff00ff);
+  const uint32 alpha_and_green =
+      0x00ff00ff + (a & 0xff00ff00) - (b & 0xff00ff00);
+  const uint32 red_and_blue =
+      0xff00ff00 + (a & 0x00ff00ff) - (b & 0x00ff00ff);
   return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
@@ -78,16 +80,16 @@ inline int AddSubtractComponentFull(int a, int b, int c) {
 }
 
 uint32 ClampedAddSubtractFull(uint32 c0, uint32 c1, uint32 c2) {
-  int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
-  int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
-                                   (c1 >> 16) & 0xff,
-                                   (c2 >> 16) & 0xff);
-  int g = AddSubtractComponentFull((c0 >> 8) & 0xff,
-                                   (c1 >> 8) & 0xff,
-                                   (c2 >> 8) & 0xff);
-  int b = AddSubtractComponentFull(c0 & 0xff,
-                                   c1 & 0xff,
-                                   c2 & 0xff);
+  const int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
+  const int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
+                                         (c1 >> 16) & 0xff,
+                                         (c2 >> 16) & 0xff);
+  const int g = AddSubtractComponentFull((c0 >> 8) & 0xff,
+                                         (c1 >> 8) & 0xff,
+                                         (c2 >> 8) & 0xff);
+  const int b = AddSubtractComponentFull(c0 & 0xff,
+                                         c1 & 0xff,
+                                         c2 & 0xff);
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
@@ -96,11 +98,11 @@ inline int AddSubtractComponentHalf(int a, int b) {
 }
 
 uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1, uint32 c2) {
-  uint32 ave = Average2(c0, c1);
-  int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
-  int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
-  int g = AddSubtractComponentHalf((ave >> 8) & 0xff, (c2 >> 8) & 0xff);
-  int b = AddSubtractComponentHalf((ave >> 0) & 0xff, (c2 >> 0) & 0xff);
+  const uint32 ave = Average2(c0, c1);
+  const int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
+  const int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
+  const int g = AddSubtractComponentHalf((ave >> 8) & 0xff, (c2 >> 8) & 0xff);
+  const int b = AddSubtractComponentHalf((ave >> 0) & 0xff, (c2 >> 0) & 0xff);
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
@@ -155,9 +157,9 @@ void CopyTileWithPrediction(int xsize, int ysize,
     xmax = xsize - (tile_x << bits);
   }
   for (int y = 0; y < ymax; ++y) {
-    int all_y = (tile_y << bits) + y;
+    const int all_y = (tile_y << bits) + y;
     for (int x = 0; x < xmax; ++x) {
-      int all_x = (tile_x << bits) + x;
+      const int all_x = (tile_x << bits) + x;
       const int ix = all_y * xsize + all_x;
       uint32 predict;
       if (all_y == 0) {
@@ -190,11 +192,11 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
     }
   }
   for (int image_y = 1; image_y < ysize; ++image_y) {
-    int tile_y = image_y >> bits;
+    const int tile_y = image_y >> bits;
     int ix = image_y * xsize;
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x) {
-      int tile_ix = tile_y * tile_xsize + tile_x;
-      int mode = ((image[tile_ix] >> 8) & 0xff);
+      const int tile_ix = tile_y * tile_xsize + tile_x;
+      const int mode = ((image[tile_ix] >> 8) & 0xff);
       int image_x = (tile_x << bits);
       int xend = image_x + (1 << bits);
       if (xend > xsize) {
@@ -250,7 +252,7 @@ void CopyTileWithColorTransform(int xsize, int ysize,
   if (inverse) {
     for (int y = tile_y; y < yscan; ++y) {
       int ix = y * xsize + tile_x;
-      int end_ix = ix + xscan;
+      const int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.InverseTransform(from_argb[ix]);
       }
@@ -258,7 +260,7 @@ void CopyTileWithColorTransform(int xsize, int ysize,
   } else {
     for (int y = tile_y; y < yscan; ++y) {
       int ix = y * xsize + tile_x;
-      int end_ix = ix + xscan;
+      const int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
         to_argb[ix] = color_transform.Transform(from_argb[ix]);
       }
@@ -270,8 +272,8 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
                                 const uint32* image,
                                 const uint32 *from_argb,
                                 uint32* to_argb) {
-  int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
-  int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
+  const int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
+  const int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
   int tile_ix = 0;
   for (int tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (int tile_x = 0; tile_x < tile_xsize; ++tile_x, ++tile_ix) {
@@ -287,7 +289,7 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
 
 void AddGreenToBlueAndRed(int n, uint32 *argb_array) {
   for (int i = 0; i < n; ++i) {
-    uint32 argb = argb_array[i];
+    const uint32 argb = argb_array[i];
     uint32 green = ((argb >> 8) & 0xff);
     green += green << 16;
     argb_array[i] = (argb & 0xff00ff00) +
