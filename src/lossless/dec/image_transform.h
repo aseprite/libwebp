@@ -19,8 +19,8 @@ typedef enum ImageTransformType {
   PREDICTOR_TRANSFORM = 0,
   CROSS_COLOR_TRANSFORM = 1,
   SUBTRACT_GREEN = 2,
-  COLOR_INDEXING_TRANSFORM = 5,
-  PIXEL_BUNDLE_TRANSFORM = 6,
+  COLOR_INDEXING_TRANSFORM = 3,
+  PIXEL_BUNDLE_TRANSFORM = 4,
 } ImageTransformType;
 
 struct ImageTransform {

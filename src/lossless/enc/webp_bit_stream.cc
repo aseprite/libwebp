@@ -805,7 +805,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
       }
     }
     WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 5, &storage_ix, &storage[0]);
+    WriteBits(3, 3, &storage_ix, &storage[0]);
     WriteBits(8, palette.size() - 1, &storage_ix, &storage[0]);
     for (int i = int(palette.size()) - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
@@ -830,7 +830,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     BundlePixels(&xsize, &ysize, xbits, ybits, bit_depth,
                  from_argb, &argb);
     WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 6, &storage_ix, &storage[0]);
+    WriteBits(3, 4, &storage_ix, &storage[0]);
     WriteBits(3, xbits, &storage_ix, &storage[0]);
     WriteBits(3, ybits, &storage_ix, &storage[0]);
     WriteBits(3, bit_depth - 1, &storage_ix, &storage[0]);
