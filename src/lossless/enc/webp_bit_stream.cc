@@ -427,73 +427,6 @@ int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-static int HasCommonShift(int val, int bits) {
-  int comp = val & (0xff << (8 - bits));
-  comp |= comp >> bits;
-  comp |= comp >> (2 * bits);
-  comp |= comp >> (4 * bits);
-  return val == comp;
-}
-
-// Finds if the histogram of bytes in 'exists' represents values that
-// are of the binary form of 'abcabcab', 'abababab', 'abcdefga', etc.
-//
-// A return value of 1 indicates a form of aaaaaaaa, all values are either
-// 0 or 0xff.
-// A return value of 2 indicates a form of abababab, all values are either
-// 0, 0x55, 0xaa, or 0xff.
-// etc.
-// When there is no such pattern that could be used to compact the values,
-// a value of 8 is returned.
-static int ComputeShiftBits(const uint8 * const exists) {
-  int count = 0;
-  int bits = 0;
-  for (int i = 0; i < 256; ++i) {
-    if (exists[i]) {
-      ++count;
-    }
-  }
-  if (count <= 8) {
-    // Compacting bits is useful for improving the behavior with
-    // spatial predictors. If there are only a few values, the behavior with
-    // spatial predictors is mostly irrelevant: the values are better encoded
-    // without prediction.
-    return 8;
-  }
-  for (int i = 0; i < 256; ++i) {
-    if (exists[i] && !HasCommonShift(i, bits)) {
-      i = -1;  // Restart loop with a higher bits count.
-      ++bits;
-      if (bits == 8) {
-        break;  // Give up when we need 8 bits.
-      }
-    }
-  }
-  return bits;
-}
-
-static int DetectSubsamplability(const int xs, const int ys,
-                                 const uint32* image, int (*bits_out)[4]) {
-  uint8 exists[4][256];
-  memset(exists, 0, sizeof(exists));
-  for (int i = 0; i < xs * ys; ++i) {
-    const uint32 argb = image[i];
-    exists[0][argb & 0xff] = 1;
-    exists[1][((argb >> 8) & 0xff)] = 1;
-    exists[2][((argb >> 16) & 0xff)] = 1;
-    exists[3][((argb >> 24) & 0xff)] = 1;
-  }
-  bool found = false;
-  for (int k = 0; k < 4; ++k) {
-    const int bits = ComputeShiftBits(&exists[k][0]);
-    (*bits_out)[k] = 8 - bits;
-    if (bits != 8) {
-      found = true;
-    }
-  }
-  return found;
-}
-
 bool CreatePalette(int n, const uint32 *argb,
                    int max_palette_size,
                    std::vector<uint32>* palette) {
@@ -857,22 +790,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     }
     delete before;
     delete after;
-  }
-
-  int bits[4];
-  if (DetectSubsamplability(xsize, ysize, &argb[0], &bits)) {
-    for (int i = 0; i < xsize * ysize; ++i) {
-      uint32 pixel = 0;
-      for (int k = 0; k < 4; ++k) {
-        pixel |= (((argb[i] >> (8 * k)) & 0xff) >> bits[k]) << (8 * k);
-      }
-      argb[i] = pixel;
-    }
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 3, &storage_ix, &storage[0]);
-    for (int i = 0; i < 4; ++i) {
-      WriteBits(3, bits[i], &storage_ix, &storage[0]);
-    }
   }
 
   std::vector<uint32> palette;

@@ -70,15 +70,6 @@ static void ReadTransform(int* xsize, int* ysize,
       // There is no associated data for this transform.
       transform->data = NULL;
       break;
-    case COMPONENT_SUBSAMPLING_TRANSFORM:
-      {
-        transform->data = malloc(4 * sizeof(int));
-        int* bits = (int*)transform->data;
-        for (int i = 0; i < 4; ++i) {
-          bits[i] = READ(stream, 3);
-        }
-      }
-      break;
     case COLOR_INDEXING_TRANSFORM:
       {
         int ncolors = READ(stream, 8) + 1;

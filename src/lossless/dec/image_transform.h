@@ -19,7 +19,6 @@ typedef enum ImageTransformType {
   PREDICTOR_TRANSFORM = 0,
   CROSS_COLOR_TRANSFORM = 1,
   SUBTRACT_GREEN = 2,
-  COMPONENT_SUBSAMPLING_TRANSFORM = 3,
   COLOR_INDEXING_TRANSFORM = 5,
   PIXEL_BUNDLE_TRANSFORM = 6,
 } ImageTransformType;
@@ -85,47 +84,6 @@ void PixelBundleInverseTransform(int xsize, int ysize,
   free(tmp_image);
 }
 
-// Compute a lookup table for unpacking packed component dynamics.
-//
-// bits indicates how many bits are used to store the full range [0..255].
-// for the case of bits == 4, the values stored are in the range of [0..15],
-// and 15 is expanded to 255, i.e., 14 to 238, i.e., the highest bits are
-// used to fill a range of lower bits.
-static void ConstructSubsamplingLut(int bits, uint8 *lut) {
-  int sbits = 8 - bits;
-  for (uint32 i = 0; i < 256; ++i) {
-    uint32 c = i << bits;
-    for (int nbits = sbits; nbits < 8; nbits += sbits) {
-      int shift = 8 - nbits - sbits;
-      if (shift >= 0) {
-        c |= i << shift;
-      } else {
-        c |= i >> -shift;
-      }
-    }
-    lut[i] = c;
-  }
-}
-
-void ComponentSubsamplingInverseTransform(int xsize, int ysize,
-                                          const int* bits, uint32* image) {
-  uint8 lut_a[256];
-  uint8 lut_r[256];
-  uint8 lut_g[256];
-  uint8 lut_b[256];
-  ConstructSubsamplingLut(bits[3], lut_a);
-  ConstructSubsamplingLut(bits[2], lut_r);
-  ConstructSubsamplingLut(bits[1], lut_g);
-  ConstructSubsamplingLut(bits[0], lut_b);
-  for (int i = 0; i < xsize * ysize; ++i) {
-    uint32 a = lut_a[(image[i] >> 24)] << 24;
-    uint32 r = lut_r[(image[i] >> 16) & 0xff] << 16;
-    uint32 g = lut_g[(image[i] >> 8) & 0xff] << 8;
-    uint32 b = lut_b[image[i] & 0xff];
-    image[i] = a | r | g | b;
-  }
-}
-
 void ColorIndexingInverseTransform(int xsize, int ysize,
                                    const uint32* palette, uint32* image) {
   for (int i = 0; i < xsize * ysize; ++i) {
@@ -157,13 +115,6 @@ void ApplyInverseImageTransform(ImageTransform transform, uint32** argb_image) {
       break;
     case SUBTRACT_GREEN:
       AddGreenToBlueAndRed(transform.xsize * transform.ysize, *argb_image);
-      break;
-    case COMPONENT_SUBSAMPLING_TRANSFORM:
-      {
-        int* bits = (int*)transform.data;
-        ComponentSubsamplingInverseTransform(transform.xsize, transform.ysize,
-                                             bits, *argb_image);
-      }
       break;
     case COLOR_INDEXING_TRANSFORM:
       {
