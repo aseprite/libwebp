@@ -173,7 +173,7 @@ void PackGreenBitLengths(const std::vector<uint8> bit_lengths,
     }
   }
   for (int i = 0; i < kLengthCodes; ++i) {
-    new_lengths->push_back(bit_lengths[256 + (1<< palette_bits) + i]);
+    new_lengths->push_back(bit_lengths[256 + (1 << palette_bits) + i]);
   }
 }
 
@@ -329,8 +329,6 @@ void StoreImageToBitMask(
   // x and y trace the position in the image.
   int x = 0;
   int y = 0;
-  bool literal_logging = false;
-  bool copy_logging = false;
   for (int i = 0; i < n_literal_and_length; ++i) {
     const LiteralOrCopy &v = literal[i];
     int histogram_ix = histogram_symbol[histobits ?
@@ -339,40 +337,22 @@ void StoreImageToBitMask(
     if (v.IsPaletteIx()) {
       const int code = v.PaletteIx();
       int literal_ix = 256 + code;
-      if (literal_logging) {
-        printf("palette x=%d y=%d code=%d: %d bits\n",
-               x, y, code, bitdepth[5 * histogram_ix][literal_ix]);
-      }
       WriteBits(bitdepth[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix],
                 storage_ix, storage);
     } else if (v.IsLiteral()) {
       int order[] = {1, 2, 0, 3};
-      if (literal_logging) {
-        printf("literal x=%d y=%d", x, y);
-      }
       for (int i = 0; i < 4; ++i) {
         const int code = v.Literal(order[i]);
-        if (literal_logging) {
-          printf(" code=%d: %d bits",
-                 code, bitdepth[5 * histogram_ix + i][code]);
-        }
         WriteBits(bitdepth[5 * histogram_ix + i][code],
                   bit_symbols[5 * histogram_ix + i][code],
                   storage_ix, storage);
-      }
-      if (literal_logging) {
-        printf("\n");
       }
     } else {
       int code;
       int n_bits;
       int bits;
       v.LengthCodeAndBits(&code, &n_bits, &bits);
-      if (copy_logging) {
-        printf("copy x=%d y=%d len=%d code=%d n_bits=%d bits=%d ",
-               x, y, v.len, code, n_bits, bits);
-      }
       int len_ix = 256 + (1 << palette_bits) + code;
       WriteBits(bitdepth[5 * histogram_ix][len_ix],
                 bit_symbols[5 * histogram_ix][len_ix],
@@ -381,10 +361,6 @@ void StoreImageToBitMask(
 
       const int distance = v.Distance();
       BackwardDistance::Encode(distance, &code, &n_bits, &bits);
-      if (copy_logging) {
-        printf("distance=%d code=%d n_bits=%d bits=%d\n",
-               distance, code, n_bits, bits);
-      }
       WriteBits(bitdepth[5 * histogram_ix + 4][code],
                 bit_symbols[5 * histogram_ix + 4][code],
                 storage_ix, storage);
