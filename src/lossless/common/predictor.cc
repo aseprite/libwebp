@@ -44,7 +44,7 @@ uint32 Subtract(uint32 a, uint32 b) {
   return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
-uint32 Paeth32(uint32 a, uint32 b, uint32 c) {
+static uint32 Select(uint32 a, uint32 b, uint32 c) {
   const int p0 = int(a >> 24) + int(b >> 24) - int(c >> 24);
   const int p1 = int((a >> 16) & 0xff) + int((b >> 16) & 0xff) -
       int((c >> 16) & 0xff);
@@ -79,7 +79,7 @@ inline int AddSubtractComponentFull(int a, int b, int c) {
   return Clamp(a + b - c);
 }
 
-uint32 ClampedAddSubtractFull(uint32 c0, uint32 c1, uint32 c2) {
+static uint32 ClampedAddSubtractFull(uint32 c0, uint32 c1, uint32 c2) {
   const int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
   const int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
                                          (c1 >> 16) & 0xff,
@@ -97,7 +97,7 @@ inline int AddSubtractComponentHalf(int a, int b) {
   return Clamp(a + (a - b) / 2);
 }
 
-uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1, uint32 c2) {
+static uint32 ClampedAddSubtractHalf(uint32 c0, uint32 c1, uint32 c2) {
   const uint32 ave = Average2(c0, c1);
   const int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
   const int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
@@ -113,33 +113,18 @@ uint32 PredictValue(int mode, int xsize, const uint32 *argb) {
     case 2: return argb[-xsize];
     case 3: return argb[-xsize + 1];
     case 4: return argb[-xsize - 1];
-
-    case 5: return Average3(argb[-1],
-                            argb[-xsize],
-                            argb[-xsize + 1]);
-    case 6: return Average2(argb[-1],
-                            argb[-xsize - 1]);
-    case 7: return Average2(argb[-1],
-                            argb[-xsize]);
-    case 8: return Average2(argb[-xsize - 1],
-                            argb[-xsize]);
-    case 9: return Average2(argb[-xsize],
-                            argb[-xsize + 1]);
-    case 10: return Average4(argb[-1],
-                             argb[-xsize - 1],
-                             argb[-xsize],
-                             argb[-xsize + 1]);
-    case 11: return Paeth32(argb[-xsize],
-                            argb[-1],
-                            argb[-xsize - 1]);
+    case 5: return Average3(argb[-1], argb[-xsize], argb[-xsize + 1]);
+    case 6: return Average2(argb[-1], argb[-xsize - 1]);
+    case 7: return Average2(argb[-1], argb[-xsize]);
+    case 8: return Average2(argb[-xsize - 1], argb[-xsize]);
+    case 9: return Average2(argb[-xsize], argb[-xsize + 1]);
+    case 10: return Average4(argb[-1], argb[-xsize - 1],
+                             argb[-xsize], argb[-xsize + 1]);
+    case 11: return Select(argb[-xsize], argb[-1], argb[-xsize - 1]);
     case 12:
-      return ClampedAddSubtractFull(argb[-1],
-                                    argb[-xsize],
-                                    argb[-xsize - 1]);
+      return ClampedAddSubtractFull(argb[-1], argb[-xsize], argb[-xsize - 1]);
     case 13:
-      return ClampedAddSubtractHalf(argb[-1],
-                                    argb[-xsize],
-                                    argb[-xsize - 1]);
+      return ClampedAddSubtractHalf(argb[-1], argb[-xsize], argb[-xsize - 1]);
   }
   return 0;
 }
