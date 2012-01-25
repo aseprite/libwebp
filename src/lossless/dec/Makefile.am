@@ -1,6 +1,6 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
-libwebplldecode_la_SOURCES = bit_stream.cc bit_stream.h constants.h \
+libwebplldecode_la_SOURCES = bit_reader.h constants.h \
                              decode.cc huffman.h image_transform.h
 libwebplldecode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE)
 
