@@ -28,10 +28,10 @@ const uint32 kBitMask[MAX_NUM_BIT_READ] = {
 };
 
 typedef struct {
+  uint64       val_;
   const uint8* buf_;
   size_t       len_;
   size_t       pos_;
-  uint64       val_;
   int          bit_pos_;
 } BitReader;
 
@@ -75,10 +75,22 @@ inline uint32 ReadBits(BitReader* const br, int n_bits) {
 
 inline uint32 ReadOneBit(BitReader* const br) {
   const uint32 val = (br->val_ >> br->bit_pos_) & 1;
-  ++br->bit_pos_;
-  if (br->bit_pos_ == 40) {
-    ShiftBytes(br);
+  if (br->bit_pos_ == 39) {
+    if (br->pos_ < br->len_ - 5) {
+      br->val_ >>= 40;
+      br->val_ |=
+          (((uint64)br->buf_[br->pos_ + 0]) << 24) |
+          (((uint64)br->buf_[br->pos_ + 1]) << 32) |
+          (((uint64)br->buf_[br->pos_ + 2]) << 40) |
+          (((uint64)br->buf_[br->pos_ + 3]) << 48) |
+          (((uint64)br->buf_[br->pos_ + 4]) << 56);
+      br->pos_ += 5;
+      br->bit_pos_ -= 40;
+    } else {
+      ShiftBytes(br);
+    }
   }
+  ++br->bit_pos_;
   return val;
 }
 
