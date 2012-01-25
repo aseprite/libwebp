@@ -178,10 +178,15 @@ static std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
   return out;
 }
 
-static inline int ReadSymbol(const HuffmanTreeNode& root,
-                             BitReader* br) {
+// Returns an integer code decoded with the Huffman code.
+//
+// FillBitWindow(br) needs to be called at minimum every second call
+// to ReadSymbol.
+static inline int ReadSymbol(const HuffmanTreeNode& root, BitReader* br) {
   const HuffmanTreeNode* node = &root;
-  while (!node->IsLeaf()) node = node->child(ReadOneBit(br));
+  while (!node->IsLeaf()) {
+    node = node->child(ReadOneBitUnsafe(br));
+  }
   assert(node);
   assert(node->symbol() != -1);
   return node->symbol();
@@ -203,7 +208,7 @@ static void ReadCodeLengthTree(BitReader* br,
 static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
                                    BitReader* br,
                                    std::vector<int>* code_lengths) {
-  bool use_length = ReadOneBit(br);
+  bool use_length = ReadBits(br, 1);
   int max_length = 0;
   if (use_length) {
     int length_nbits = (ReadBits(br, 3) + 1) * 2;
@@ -213,6 +218,7 @@ static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
   int num_symbols = 0;
   for (int i = 0; i < code_lengths->size(); ++i) {
     if (use_length && ++num_symbols > max_length) break;
+    FillBitWindow(br);
     int code_length = ReadSymbol(decoder_root, br);
     VERIFY(code_length < kCodeLengthCodes);
     if (code_length < kCodeLengthLiterals) {
@@ -235,9 +241,9 @@ static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
 static void ReadHuffmanCode(const int alphabet_size,
                             BitReader* br,
                             HuffmanTreeNode* root) {
-  bool simple_code = ReadOneBit(br);
+  bool simple_code = ReadBits(br, 1);
   if (simple_code) {
-    int num_symbols = ReadOneBit(br) + 1;
+    int num_symbols = ReadBits(br, 1) + 1;
     int nbits = ReadBits(br, 3);
     if (nbits == 0) {
       root->AddSymbol(0, 0, 0);
@@ -271,7 +277,7 @@ static void DecodeImageInternal(const int original_xsize,
   ImageTransform* transforms =
       (ImageTransform*)malloc(kMaxImageTransforms * sizeof(ImageTransform));
   int num_transforms = 0;
-  while (ReadOneBit(br)) {
+  while (ReadBits(br, 1)) {
     ReadTransform(&xsize, &ysize, &transforms[num_transforms], br);
     ++num_transforms;
     VERIFY(num_transforms < kMaxImageTransforms);
@@ -279,14 +285,14 @@ static void DecodeImageInternal(const int original_xsize,
 
   static const unsigned char kMagicByteForErrorDetection = 0xa3;
 
-  bool error_detection_bits = ReadOneBit(br);
+  bool error_detection_bits = ReadBits(br, 1);
   if (error_detection_bits) {
     VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
   }
 
   int num_rba = ReadBits(br, 2);
 
-  bool use_meta_codes = ReadOneBit(br);
+  bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
   uint32* huffman_image;
   std::vector<int> meta_codes;
@@ -316,7 +322,7 @@ static void DecodeImageInternal(const int original_xsize,
     }
   }
 
-  const bool use_palette = ReadOneBit(br);
+  const bool use_palette = ReadBits(br, 1);
   const int palette_x_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_size = use_palette ? 1 << palette_code_bits : 0;
@@ -372,11 +378,13 @@ static void DecodeImageInternal(const int original_xsize,
         huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
       }
     }
+    FillBitWindow(br);
     int green = ReadSymbol(*huff_green, br);
     // Literal
     if (green < num_green) {
       if (num_rba > 1) {
         red = ReadSymbol(*huff_red, br) << 16;
+        FillBitWindow(br);
         blue = ReadSymbol(*huff_blue, br);
         if (num_rba > 2) {
           alpha = ReadSymbol(*huff_alpha, br) << 24;

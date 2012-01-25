@@ -73,23 +73,33 @@ inline uint32 ReadBits(BitReader* const br, int n_bits) {
   return val;
 }
 
-inline uint32 ReadOneBit(BitReader* const br) {
-  const uint32 val = (br->val_ >> br->bit_pos_) & 1;
-  if (br->bit_pos_ == 39) {
-    if (br->pos_ < br->len_ - 5) {
-      br->val_ >>= 40;
-      br->val_ |=
-          (((uint64)br->buf_[br->pos_ + 0]) << 24) |
-          (((uint64)br->buf_[br->pos_ + 1]) << 32) |
-          (((uint64)br->buf_[br->pos_ + 2]) << 40) |
-          (((uint64)br->buf_[br->pos_ + 3]) << 48) |
-          (((uint64)br->buf_[br->pos_ + 4]) << 56);
-      br->pos_ += 5;
-      br->bit_pos_ -= 40;
+inline void FillBitWindow(BitReader* const br) {
+  if (br->bit_pos_ >= 32) {
+#if defined(__x86_64__)
+    if (br->pos_ < br->len_ - 8) {
+      br->val_ >>= 32;
+      // The expression below needs a little-endian arch to work correctly.
+      // This gives a large speedup for decoding speed.
+      br->val_ |= *(const uint64 *)(br->buf_ + br->pos_) << 32;
+      br->pos_ += 4;
+      br->bit_pos_ -= 32;
     } else {
+      // Slow path.
       ShiftBytes(br);
     }
+#else
+    // Always the slow path.
+    ShiftBytes(br);
+#endif
   }
+}
+
+// If ReadOneBitUnsafe is much faster than ReadBits(..., 1), but it can be
+// called only 32 times after the last FillBitWindow, and consequent calls
+// may return invalid data.
+inline uint32 ReadOneBitUnsafe(BitReader* const br) {
+  const uint32 val = (br->val_ >> br->bit_pos_) & 1;
+  assert(br->bit_pos_ < 64);
   ++br->bit_pos_;
   return val;
 }
