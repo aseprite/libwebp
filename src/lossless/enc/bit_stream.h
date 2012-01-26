@@ -87,18 +87,4 @@ inline void WriteBitsPrepareStorage(int pos, uint8 *array) {
   UNALIGNED_STORE32(&array[pos >> 3], 0);
 }
 
-void WriteImageSize(int xsize, int ysize,
-                    int * __restrict pos,
-                    uint8 * __restrict array) {
-  int maxsize = xsize;
-  if (ysize > xsize) {
-    maxsize = ysize;
-  }
-  int nbits = BitsLog2Ceiling(maxsize + 1);
-  int nibbles = (nbits + 3) / 4;
-  WriteBits(3, nibbles - 1, pos, array);
-  WriteBits(4 * nibbles, xsize, pos, array);
-  WriteBits(4 * nibbles, ysize, pos, array);
-}
-
 #endif  // WEBP_BIT_STREAM_H_

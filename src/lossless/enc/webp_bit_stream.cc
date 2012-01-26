@@ -722,6 +722,16 @@ void EncodeImageInternal(const int xsize,
   }
 }
 
+inline void WriteImageSize(uint32 xsize, uint32 ysize,
+                           int * __restrict pos,
+                           uint8 * __restrict array) {
+  --xsize;
+  --ysize;
+  VERIFY(xsize < 0x4000 && ysize < 0x4000);
+  WriteBits(14, xsize, pos, array);
+  WriteBits(14, ysize, pos, array);
+}
+
 int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       EncodingStrategy *strategy,
                       size_t *num_bytes, uint8 **bytes) {

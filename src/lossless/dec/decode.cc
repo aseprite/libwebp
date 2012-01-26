@@ -504,9 +504,8 @@ int DecodeWebpLLImage(size_t encoded_image_size,
 
   BitReader br;
   InitBitReader(&br, webpll_data, webpll_size);
-  int size_bits = (ReadBits(&br, 3) + 1) * 4;
-  *xsize = ReadBits(&br, size_bits);
-  *ysize = ReadBits(&br, size_bits);
+  *xsize = ReadBits(&br, 14) + 1;
+  *ysize = ReadBits(&br, 14) + 1;
   DecodeImageInternal(*xsize, *ysize, &br, argb_image);
   return true;
 }
