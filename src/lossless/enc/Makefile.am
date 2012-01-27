@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
 libwebpllencode_la_SOURCES = backward_references.cc \
-                             bit_stream.h entropy_encode.cc entropy_encode.h \
+                             bit_writer.h entropy_encode.cc entropy_encode.h \
                              histogram.cc histogram.h \
                              histogram_image.cc histogram_image.h \
                              predictor.cc predictor.h \

@@ -22,13 +22,13 @@
 
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
-#include "backward_distance.h"
-#include "backward_references.h"
-#include "bit_stream.h"
-#include "encode.h"
-#include "entropy_encode.h"
-#include "histogram_image.h"
-#include "predictor.h"
+#include "./backward_distance.h"
+#include "./backward_references.h"
+#include "./bit_writer.h"
+#include "./encode.h"
+#include "./entropy_encode.h"
+#include "./histogram_image.h"
+#include "./predictor.h"
 
 static const uint8 kMagicByte = 0xa3;
 
@@ -178,9 +178,7 @@ void PackGreenBitLengths(const std::vector<uint8> bit_lengths,
 }
 
 void StoreHuffmanTreeOfHuffmanTreeToBitMask(
-    const uint8 *code_length_bitdepth,
-    int *storage_ix,
-    uint8 *storage) {
+    const uint8 *code_length_bitdepth, BitWriter* bw) {
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
   // and more spiking histograms.
@@ -195,9 +193,9 @@ void StoreHuffmanTreeOfHuffmanTreeToBitMask(
     }
   }
   // How many code length codes we write above the first four (see RFC 1951).
-  WriteBits(4, codes_to_store - 4, storage_ix, storage);
+  WriteBits(4, codes_to_store - 4, bw);
   for (uint32 i = 0; i < codes_to_store; ++i) {
-    WriteBits(3, code_length_bitdepth[kStorageOrder[i]], storage_ix, storage);
+    WriteBits(3, code_length_bitdepth[kStorageOrder[i]], bw);
   }
 }
 
@@ -207,31 +205,25 @@ void StoreHuffmanTreeToBitMask(
     const int num_symbols,
     const uint8 *code_length_bitdepth,
     const std::vector<uint16> &code_length_bitdepth_symbols,
-    int * __restrict storage_ix,
-    uint8 * __restrict storage) {
+    BitWriter* bw) {
   for (uint32 i = 0; i < num_symbols; ++i) {
     int ix = huffman_tree[i];
-    WriteBits(code_length_bitdepth[ix],
-              code_length_bitdepth_symbols[ix],
-              storage_ix,
-              storage);
+    WriteBits(code_length_bitdepth[ix], code_length_bitdepth_symbols[ix], bw);
     switch (ix) {
       case 16:
-        WriteBits(2, huffman_tree_extra_bits[i], storage_ix, storage);
+        WriteBits(2, huffman_tree_extra_bits[i], bw);
         break;
       case 17:
-        WriteBits(3, huffman_tree_extra_bits[i], storage_ix, storage);
+        WriteBits(3, huffman_tree_extra_bits[i], bw);
         break;
       case 18:
-        WriteBits(7, huffman_tree_extra_bits[i], storage_ix, storage);
+        WriteBits(7, huffman_tree_extra_bits[i], bw);
         break;
     }
   }
 }
 
-void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
-                      int* storage_ix,
-                      uint8* storage) {
+void StoreHuffmanCode(const std::vector<uint8> &bit_lengths, BitWriter* bw) {
   int count = 0;
   int symbols[2] = { 0 };
   for (int i = 0; i < bit_lengths.size(); ++i) {
@@ -241,21 +233,21 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
     }
   }
   if (count <= 2 && (count == 0 || symbols[count - 1] < (1 << 12))) {
-    WriteBits(1, 1, storage_ix, storage);
+    WriteBits(1, 1, bw);
     if (count == 0) {
-      WriteBits(4, 0, storage_ix, storage);
+      WriteBits(4, 0, bw);
       return;
     }
-    WriteBits(1, count - 1, storage_ix, storage);
+    WriteBits(1, count - 1, bw);
     int num_bits = 4;
     while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
-    WriteBits(3, (num_bits - 4) / 2 + 1, storage_ix, storage);
+    WriteBits(3, (num_bits - 4) / 2 + 1, bw);
     for (int i = 0; i < count; ++i) {
-      WriteBits(num_bits, symbols[i], storage_ix, storage);
+      WriteBits(num_bits, symbols[i], bw);
     }
     return;
   }
-  WriteBits(1, 0, storage_ix, storage);
+  WriteBits(1, 0, bw);
   std::vector<uint8> huffman_tree(bit_lengths.size());
   std::vector<uint8> huffman_tree_extra_bits(bit_lengths.size());
   int huffman_tree_size = 0;
@@ -278,7 +270,7 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
   ConvertBitDepthsToSymbols(&code_length_bitdepth[0], kCodeLengthCodes,
                             &code_length_bitdepth_symbols[0]);
   StoreHuffmanTreeOfHuffmanTreeToBitMask(code_length_bitdepth,
-                                         storage_ix, storage);
+                                         bw);
   ClearHuffmanTreeIfOnlyOneSymbol(kCodeLengthCodes,
                                   code_length_bitdepth,
                                   &code_length_bitdepth_symbols);
@@ -298,19 +290,19 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
   const int trimmed_length = huffman_tree.size() - num_trailing_zeros;
   const bool write_length = (trimmed_length > 1 && trailing_zero_bits > 12);
   const int length = write_length ? trimmed_length : huffman_tree.size();
-  WriteBits(1, write_length, storage_ix, storage);
+  WriteBits(1, write_length, bw);
   if (write_length) {
     const int nbits = BitsLog2Ceiling(trimmed_length - 1);
     const int nbitpairs = nbits == 0 ? 1 : (nbits + 1) / 2;
-    WriteBits(3, nbitpairs - 1, storage_ix, storage);
-    WriteBits(nbitpairs * 2, trimmed_length - 2, storage_ix, storage);
+    WriteBits(3, nbitpairs - 1, bw);
+    WriteBits(nbitpairs * 2, trimmed_length - 2, bw);
   }
   StoreHuffmanTreeToBitMask(huffman_tree,
                             huffman_tree_extra_bits,
                             length,
                             &code_length_bitdepth[0],
                             code_length_bitdepth_symbols,
-                            storage_ix, storage);
+                            bw);
 }
 
 void StoreImageToBitMask(
@@ -323,8 +315,7 @@ void StoreImageToBitMask(
     const std::vector<uint32> &histogram_symbol,
     const std::vector< std::vector<uint8> > &bitdepth,
     const std::vector< std::vector<uint16> > &bit_symbols,
-    int *storage_ix,
-    uint8 *storage) {
+    BitWriter *bw) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   // x and y trace the position in the image.
   int x = 0;
@@ -338,15 +329,13 @@ void StoreImageToBitMask(
       const int code = v.PaletteIx();
       int literal_ix = 256 + code;
       WriteBits(bitdepth[5 * histogram_ix][literal_ix],
-                bit_symbols[5 * histogram_ix][literal_ix],
-                storage_ix, storage);
+                bit_symbols[5 * histogram_ix][literal_ix], bw);
     } else if (v.IsLiteral()) {
       int order[] = {1, 2, 0, 3};
       for (int i = 0; i < 4; ++i) {
         const int code = v.Literal(order[i]);
         WriteBits(bitdepth[5 * histogram_ix + i][code],
-                  bit_symbols[5 * histogram_ix + i][code],
-                  storage_ix, storage);
+                  bit_symbols[5 * histogram_ix + i][code], bw);
       }
     } else {
       int code;
@@ -355,16 +344,14 @@ void StoreImageToBitMask(
       v.LengthCodeAndBits(&code, &n_bits, &bits);
       int len_ix = 256 + (1 << palette_bits) + code;
       WriteBits(bitdepth[5 * histogram_ix][len_ix],
-                bit_symbols[5 * histogram_ix][len_ix],
-                storage_ix, storage);
-      WriteBits(n_bits, bits, storage_ix, storage);
+                bit_symbols[5 * histogram_ix][len_ix], bw);
+      WriteBits(n_bits, bits, bw);
 
       const int distance = v.Distance();
       BackwardDistance::Encode(distance, &code, &n_bits, &bits);
       WriteBits(bitdepth[5 * histogram_ix + 4][code],
-                bit_symbols[5 * histogram_ix + 4][code],
-                storage_ix, storage);
-      WriteBits(n_bits, bits, storage_ix, storage);
+                bit_symbols[5 * histogram_ix + 4][code], bw);
+      WriteBits(n_bits, bits, bw);
     }
     x += v.Length();
     while (x >= xsize) {
@@ -471,16 +458,15 @@ static void DeleteHistograms(std::vector<Histogram *> &histograms) {
   }
 }
 
-void EncodeImageInternal(const int xsize,
-                         const int ysize,
-                         const std::vector<uint32>& argb,
-                         const int quality,
-                         const int palette_bits,
-                         const int histogram_bits,
-                         const bool use_2d_locality,
-                         const bool write_error_detection_bits,
-                         int *storage_ix,
-                         uint8 *storage) {
+static void EncodeImageInternal(const int xsize,
+                                const int ysize,
+                                const std::vector<uint32>& argb,
+                                const int quality,
+                                const int palette_bits,
+                                const int histogram_bits,
+                                const bool use_2d_locality,
+                                const bool write_error_detection_bits,
+                                BitWriter *bw) {
   const int use_palette = palette_bits ? 1 : 0;
   // First, check if it is at all a good idea to use LZ77
   bool lz77_is_useful = false;
@@ -618,28 +604,28 @@ void EncodeImageInternal(const int xsize,
   }
 
   // No transforms.
-  WriteBits(1, 0, storage_ix, storage);
+  WriteBits(1, 0, bw);
 
-  WriteBits(1, write_error_detection_bits, storage_ix, storage);
+  WriteBits(1, write_error_detection_bits, bw);
   if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, storage_ix, storage);
+    WriteBits(8, kMagicByte, bw);
   }
 
   // This many of the red, blue, alpha components we have in addition to green
   // (in this order).
   const int num_rba = NumberOfUsedRBAComponents(argb);
-  WriteBits(2, num_rba, storage_ix, storage);
+  WriteBits(2, num_rba, bw);
 
   //
   // Huffman image + meta huffman
   //
   const bool write_histogram_image = (histogram_image.size() > 1);
-  WriteBits(1, write_histogram_image, storage_ix, storage);
+  WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
     std::vector<uint32> histogram_argb(histogram_symbols.begin(),
                                   histogram_symbols.end());
     ShiftHistogramImage(&histogram_argb);
-    WriteBits(4, histogram_bits, storage_ix, storage);
+    WriteBits(4, histogram_bits, bw);
     EncodeImageInternal(MetaSize(xsize, histogram_bits),
                         MetaSize(ysize, histogram_bits),
                         histogram_argb,
@@ -648,26 +634,26 @@ void EncodeImageInternal(const int xsize,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         write_error_detection_bits,
-                        storage_ix, storage);
+                        bw);
     const int image_size_bits = BitsLog2Ceiling(histogram_image.size() - 1);
-    WriteBits(4, image_size_bits, storage_ix, storage);
-    WriteBits(image_size_bits, histogram_image.size() - 2, storage_ix, storage);
+    WriteBits(4, image_size_bits, bw);
+    WriteBits(image_size_bits, histogram_image.size() - 2, bw);
     const int num_histograms = (num_rba + 2) * histogram_image.size();
     int nbits = BitsLog2Ceiling(num_histograms);
-    WriteBits(4, nbits, storage_ix, storage);
+    WriteBits(4, nbits, bw);
     for (int i = 0; i < num_histograms; ++i) {
-      WriteBits(nbits, i, storage_ix, storage);
+      WriteBits(nbits, i, bw);
     }
     if (write_error_detection_bits) {
-      WriteBits(8, kMagicByte, storage_ix, storage);
+      WriteBits(8, kMagicByte, bw);
     }
   }
 
   // Palette parameters
-  WriteBits(1, use_palette, storage_ix, storage);
+  WriteBits(1, use_palette, bw);
   if (use_palette) {
-    WriteBits(4, kRowHasherXSubsampling, storage_ix, storage);
-    WriteBits(4, palette_bits, storage_ix, storage);
+    WriteBits(4, kRowHasherXSubsampling, bw);
+    WriteBits(4, palette_bits, bw);
   }
 
   // Green component bit depth, with the property that the green component
@@ -675,7 +661,7 @@ void EncodeImageInternal(const int xsize,
   const int green_bit_depth = GreenBitDepth(argb);
   VERIFY(green_bit_depth >= 1);
   VERIFY(green_bit_depth <= 8);
-  WriteBits(3, green_bit_depth - 1, storage_ix, storage);
+  WriteBits(3, green_bit_depth - 1, bw);
 
   //
   // Huffman codes
@@ -684,16 +670,16 @@ void EncodeImageInternal(const int xsize,
     std::vector<uint8> green_lengths;
     PackGreenBitLengths(bit_length[5 * i], green_bit_depth,
                         palette_bits, use_palette, &green_lengths);
-    StoreHuffmanCode(green_lengths, storage_ix, storage);
+    StoreHuffmanCode(green_lengths, bw);
     for (int k = 1; k <= num_rba; ++k) {
-      StoreHuffmanCode(bit_length[5 * i + k], storage_ix, storage);
+      StoreHuffmanCode(bit_length[5 * i + k], bw);
     }
-    StoreHuffmanCode(bit_length[5 * i + 4], storage_ix, storage);
+    StoreHuffmanCode(bit_length[5 * i + 4], bw);
   }
   DeleteHistograms(histogram_image);  // free combined histograms
 
   if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, storage_ix, storage);
+    WriteBits(8, kMagicByte, bw);
   }
 
   // Emit no bits if there is only one symbol in the histogram.
@@ -714,22 +700,19 @@ void EncodeImageInternal(const int xsize,
       histogram_symbols,
       bit_length,
       bit_codes,
-      storage_ix,
-      storage);
+      bw);
 
   if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, storage_ix, storage);
+    WriteBits(8, kMagicByte, bw);
   }
 }
 
-inline void WriteImageSize(uint32 xsize, uint32 ysize,
-                           int * __restrict pos,
-                           uint8 * __restrict array) {
+inline void WriteImageSize(uint32 xsize, uint32 ysize, BitWriter *bw) {
   --xsize;
   --ysize;
   VERIFY(xsize < 0x4000 && ysize < 0x4000);
-  WriteBits(14, xsize, pos, array);
-  WriteBits(14, ysize, pos, array);
+  WriteBits(14, xsize, bw);
+  WriteBits(14, ysize, bw);
 }
 
 int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
@@ -750,12 +733,11 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
   std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
   // TODO: Come up with a good estimate w.r.t 'storage' size.
   std::vector<uint8> storage(xsize * ysize * 8 + kHeaderSize);
-  int storage_ix = 0;
-
-  WriteBitsPrepareStorage(storage_ix, &storage[0]);
+  BitWriter bw;
+  BitWriterInit(&bw, storage.data(), storage.size());
 
   // Write image size.
-  WriteImageSize(xsize, ysize, &storage_ix, &storage[0]);
+  WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
     Histogram *before = new Histogram(1);
@@ -768,8 +750,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
       after->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[i]));
     }
     if (after->EstimateBits() < before->EstimateBits()) {
-      WriteBits(1, 1, &storage_ix, &storage[0]);
-      WriteBits(3, 2, &storage_ix, &storage[0]);
+      WriteBits(1, 1, &bw);
+      WriteBits(3, 2, &bw);
     } else {
       // Undo subtract green from blue and red -- rewrite with original data.
       argb = std::vector<uint32>(argb_orig, argb_orig + xsize * ysize);
@@ -790,14 +772,14 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
         }
       }
     }
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 3, &storage_ix, &storage[0]);
-    WriteBits(8, palette.size() - 1, &storage_ix, &storage[0]);
+    WriteBits(1, 1, &bw);
+    WriteBits(3, 3, &bw);
+    WriteBits(8, palette.size() - 1, &bw);
     for (int i = int(palette.size()) - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
     }
     EncodeImageInternal(palette.size(), 1, palette, quality, 0, 0, true,
-                        write_error_detection_bits, &storage_ix, &storage[0]);
+                        write_error_detection_bits, &bw);
     use_emerging_palette = false;
     int ybits = 0;
     int bit_depth = 8;
@@ -815,11 +797,11 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     std::vector<uint32> from_argb(argb.begin(), argb.end());
     BundlePixels(&xsize, &ysize, xbits, ybits, bit_depth,
                  from_argb, &argb);
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 4, &storage_ix, &storage[0]);
-    WriteBits(3, xbits, &storage_ix, &storage[0]);
-    WriteBits(3, ybits, &storage_ix, &storage[0]);
-    WriteBits(3, bit_depth - 1, &storage_ix, &storage[0]);
+    WriteBits(1, 1, &bw);
+    WriteBits(3, 4, &bw);
+    WriteBits(3, xbits, &bw);
+    WriteBits(3, ybits, &bw);
+    WriteBits(3, bit_depth - 1, &bw);
   }
 
   if (predict) {
@@ -832,9 +814,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                    &from_argb[0],
                    &argb[0],
                    &predictor_image[0]);
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 0, &storage_ix, &storage[0]);
-    WriteBits(4, predict_bits, &storage_ix, &storage[0]);
+    WriteBits(1, 1, &bw);
+    WriteBits(3, 0, &bw);
+    WriteBits(4, predict_bits, &bw);
     EncodeImageInternal(MetaSize(xsize, predict_bits),
                         MetaSize(ysize, predict_bits),
                         predictor_image,
@@ -843,7 +825,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         write_error_detection_bits,
-                        &storage_ix, &storage[0]);
+                        &bw);
   }
 
   if (cross_color_transform) {
@@ -856,9 +838,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                         quality,
                         &argb[0],
                         &color_space_image[0]);
-    WriteBits(1, 1, &storage_ix, &storage[0]);
-    WriteBits(3, 1, &storage_ix, &storage[0]);
-    WriteBits(4, cross_color_transform_bits, &storage_ix, &storage[0]);
+    WriteBits(1, 1, &bw);
+    WriteBits(3, 1, &bw);
+    WriteBits(4, cross_color_transform_bits, &bw);
     EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
                         MetaSize(ysize, cross_color_transform_bits),
                         color_space_image,
@@ -867,7 +849,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         write_error_detection_bits,
-                        &storage_ix, &storage[0]);
+                        &bw);
   }
 
   palette_bits = 0;
@@ -885,9 +867,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       histogram_bits,
                       true,   // use_2d_locality
                       write_error_detection_bits,
-                      &storage_ix, &storage[0]);
+                      &bw);
 
-  const size_t webpll_size = (storage_ix + 7) >> 3;
+  const size_t webpll_size = BitWriterNumBytes(&bw);
   uint8 *webpll_data = &storage[0];
 
   *num_bytes = HEADER_SIZE + SIGNATURE_SIZE + webpll_size;

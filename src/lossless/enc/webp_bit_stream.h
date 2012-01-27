@@ -10,9 +10,7 @@
 // Functions to convert the related data structures into the
 // actual bit stream.
 //
-// These functions do bit addressing into a byte array. The byte array
-// is called "storage" and the index to the bit is called storage_ix
-// in function arguments.
+// These functions do bit addressing into a byte array.
 
 #ifndef WEBP_WEBP_BIT_STREAM_H_
 #define WEBP_WEBP_BIT_STREAM_H_
@@ -20,18 +18,14 @@
 #include <string>
 #include <vector>
 
-#include "backward_references.h"
+#include "./backward_references.h"
+#include "./bit_writer.h"
 #include "../common/integral_types.h"
-
-// All Store functions here will use a storage_ix, which is always the bit
-// position for the current flate storage.
 
 // The Huffman trees of flate are coded with Huffman trees.
 // Here, we store the Huffman tree to code the real Huffman trees.
 void StoreHuffmanTreeOfHuffmanTreeToBitMask(
-    const uint8 *code_length_bitdepth,
-    int *storage_ix,
-    uint8 *storage);
+    const uint8 *code_length_bitdepth, BitWriter* bw);
 
 // Store a Huffman tree.
 void StoreHuffmanTreeToBitMask(
@@ -40,8 +34,7 @@ void StoreHuffmanTreeToBitMask(
     const int num_symbols,
     const uint8 *code_length_bitdepth,
     const std::vector <uint16> &code_length_bitdepth_symbols,
-    int *storage_ix,
-    uint8 *storage);
+    BitWriter* bw);
 
 // Store the deflated data with appropriate Huffman codes.
 void StoreLiteralsAndBackwardReferencesToBitMask(
@@ -51,14 +44,11 @@ void StoreLiteralsAndBackwardReferencesToBitMask(
     const std::vector <uint16> &combined_bitdepth_symbols,
     const uint8 *backward_bitdepth,
     const std::vector <uint16> &backward_bitdepth_symbols,
-    int *storage_ix,
-    uint8 *storage);
+    BitWriter* bw);
 
 // Store the Huffman code with given bit lengths.
 void StoreHuffmanCode(const std::vector<uint8> bit_lengths,
-                      bool is_color_code,
-                      int* storage_ix,
-                      uint8* storage);
+                      bool is_color_code, BitWriter* bw);
 
 void StoreImageToBitMask(
     const int xsize,
@@ -69,7 +59,6 @@ void StoreImageToBitMask(
     const std::vector<uint32> &histogram_symbol,
     const std::vector< std::vector<uint8> > &bitdepth,
     const std::vector< std::vector<uint16> > &bit_symbols,
-    int *storage_ix,
-    uint8 *storage);
+    BitWriter* bw);
 
 #endif  // WEBP_WEBP_BIT_STREAM_H_
