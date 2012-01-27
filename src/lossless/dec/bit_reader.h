@@ -68,7 +68,20 @@ inline uint32 ReadBits(BitReader* const br, int n_bits) {
   assert(n_bits >= 0);
   br->bit_pos_ += n_bits;
   if (br->bit_pos_ >= 40) {
-    ShiftBytes(br);
+    if (br->pos_ < br->len_ - 5) {
+      br->val_ >>= 40;
+      br->val_ |=
+          (((uint64)br->buf_[br->pos_ + 0]) << 24) |
+          (((uint64)br->buf_[br->pos_ + 1]) << 32) |
+          (((uint64)br->buf_[br->pos_ + 2]) << 40) |
+          (((uint64)br->buf_[br->pos_ + 3]) << 48) |
+          (((uint64)br->buf_[br->pos_ + 4]) << 56);
+      br->pos_ += 5;
+      br->bit_pos_ -= 40;
+    }
+    if (br->bit_pos_ >= 8) {
+      ShiftBytes(br);
+    }
   }
   return val;
 }
