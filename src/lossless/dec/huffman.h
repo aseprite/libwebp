@@ -62,7 +62,7 @@ class HuffmanTreeNode {
     return child_[next_bit]->AddSymbol(symbol, length - 1, code);
   }
 
-  bool BuildTree(const std::vector<int>& code_lengths) {
+  bool BuildTree(const int* const code_lengths, size_t size) {
     if (!IsLeaf()) {
       printf("Attempting to build tree from non-leaf node.\n");
       return false;
@@ -70,7 +70,7 @@ class HuffmanTreeNode {
     int max_code_length = 0;
     int num_symbols = 0;
     int root_symbol = 0;
-    for (int i = 0; i < code_lengths.size(); ++i) {
+    for (int i = 0; i < size; ++i) {
       max_code_length = std::max(max_code_length, code_lengths[i]);
       if (code_lengths[i] != 0) {
         ++num_symbols;
@@ -81,7 +81,7 @@ class HuffmanTreeNode {
       return AddSymbol(root_symbol, 0, 0);
     }
     std::vector<int> bl_count(max_code_length + 1);
-    for (int i = 0; i < code_lengths.size(); ++i) {
+    for (int i = 0; i < size; ++i) {
       ++bl_count[code_lengths[i]];
     }
     unsigned int code = 0;
@@ -91,7 +91,7 @@ class HuffmanTreeNode {
       code = (code + bl_count[l - 1]) << 1;
       next_code[l] = code;
     }
-    for (int i = 0; i < code_lengths.size(); ++i) {
+    for (int i = 0; i < size; ++i) {
       int length = code_lengths[i];
       if (length != 0) {
         if (!AddSymbol(i, length, next_code[length])) return false;

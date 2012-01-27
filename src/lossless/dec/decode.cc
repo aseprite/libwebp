@@ -34,10 +34,8 @@
 
 static const int kMaxImageTransforms = 100;
 
-static void DecodeImageInternal(const int xsize,
-                                const int ysize,
-                                BitReader* br,
-                                uint32** argb_image);
+static int DecodeImageInternal(int xsize, int ysize,
+                               BitReader* const br, uint32** const argb_image);
 
 // -----------------------------------------------------------------------------
 // COMMON FUNCTIONS
@@ -192,26 +190,25 @@ static inline int ReadSymbol(const HuffmanTreeNode& root, BitReader* br) {
   return node->symbol();
 }
 
-static void ReadCodeLengthTree(BitReader* br,
-                               HuffmanTreeNode* root) {
-  std::vector<int> code_lengths(kCodeLengthCodes);
-  int hclen = ReadBits(br, 4);
-  for (int i = 0; i < hclen + 4; ++i) {
+static int ReadCodeLengthTree(BitReader* const br,
+                              HuffmanTreeNode* root) {
+  int code_lengths[kCodeLengthCodes] = { 0 };
+  const int num_codes = 4 + ReadBits(br, 4);
+  int i;
+  if (num_codes > kCodeLengthCodes) return 0;
+  for (i = 0; i < num_codes; ++i) {
     code_lengths[kCodeLengthCodeOrder[i]] = ReadBits(br, 3);
   }
-  if (!root->BuildTree(code_lengths)) {
-    printf("error: %s\n", CodeLengthDebugString(code_lengths).c_str());
-    abort();
-  }
+  return root->BuildTree(code_lengths, kCodeLengthCodes);
 }
 
-static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
-                                   BitReader* br,
-                                   std::vector<int>* code_lengths) {
+static int ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
+                                  BitReader* br,
+                                  std::vector<int>* code_lengths) {
   bool use_length = ReadBits(br, 1);
   int max_length = 0;
   if (use_length) {
-    int length_nbits = (ReadBits(br, 3) + 1) * 2;
+    const int length_nbits = (ReadBits(br, 3) + 1) * 2;
     max_length = ReadBits(br, length_nbits) + 2;
   }
   int previous = 8;
@@ -236,43 +233,49 @@ static void ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
       i += repeat - 1;
     }
   }
+  return 1;
 }
 
-static void ReadHuffmanCode(const int alphabet_size,
-                            BitReader* br,
-                            HuffmanTreeNode* root) {
-  bool simple_code = ReadBits(br, 1);
+static int ReadHuffmanCode(int alphabet_size,
+                           BitReader* const br,
+                           HuffmanTreeNode* const root) {
+  int ok = 1;
+  const int simple_code = ReadBits(br, 1);
   if (simple_code) {
-    int num_symbols = ReadBits(br, 1) + 1;
-    int nbits = ReadBits(br, 3);
+    // Note: num_symbols is unused in case of nbits==0
+    const int num_symbols = ReadBits(br, 1) + 1;
+    const int nbits = ReadBits(br, 3);
     if (nbits == 0) {
-      root->AddSymbol(0, 0, 0);
+      ok = root->AddSymbol(0, 0, 0);
     } else {
-      int num_bits = (nbits - 1) * 2 + 4;
+      int i;
+      const int num_bits = (nbits - 1) * 2 + 4;
       VERIFY(num_bits <= 12);
-      for (int i = 0; i < num_symbols; ++i) {
-        root->AddSymbol(ReadBits(br, num_bits), num_symbols - 1, i);
+      for (i = 0; ok && i < num_symbols; ++i) {
+        ok = root->AddSymbol(ReadBits(br, num_bits), num_symbols - 1, i);
       }
     }
-    VERIFY(root->IsFull());
+    VERIFY(!ok || root->IsFull());
   } else {
     HuffmanTreeNode decoder_root;
-    ReadCodeLengthTree(br, &decoder_root);
     std::vector<int> code_lengths(alphabet_size);
-    ReadHuffmanCodeLengths(decoder_root, br, &code_lengths);
-    if (!root->BuildTree(code_lengths)) {
+    ok = ReadCodeLengthTree(br, &decoder_root) &&
+         ReadHuffmanCodeLengths(decoder_root, br, &code_lengths) &&
+         root->BuildTree(code_lengths.data(), code_lengths.size());
+    if (!ok) {
       printf("error #2: %s\n", CodeLengthDebugString(code_lengths).c_str());
-      abort();
     }
   }
+  return ok;
 }
 
-static void DecodeImageInternal(const int original_xsize,
-                                const int original_ysize,
-                                BitReader* br,
-                                uint32** argb_image) {
+static int DecodeImageInternal(int original_xsize,
+                               int original_ysize,
+                               BitReader* const br,
+                               uint32** const argb_image) {
   int xsize = original_xsize;
   int ysize = original_ysize;
+  int ok = 1;
 
   ImageTransform* transforms =
       (ImageTransform*)malloc(kMaxImageTransforms * sizeof(ImageTransform));
@@ -333,10 +336,10 @@ static void DecodeImageInternal(const int original_xsize,
   const int num_green = 1 << green_bit_depth;
 
   std::vector<HuffmanTreeNode> htrees(num_huffman_trees);
-  for (int i = 0; i < htrees.size(); ++i) {
+  for (int i = 0; ok && i < htrees.size(); ++i) {
     int type = tree_types[i];
     int alphabet_size = AlphabetSize(type, num_green, palette_size);
-    ReadHuffmanCode(alphabet_size, br, &htrees[i]);
+    ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
   }
 
   if (error_detection_bits) {
@@ -489,6 +492,7 @@ static void DecodeImageInternal(const int original_xsize,
     FreeImageTransformData(transforms[i]);
   }
   free(transforms);
+  return ok;
 }
 
 int DecodeWebpLLImage(size_t encoded_image_size,
