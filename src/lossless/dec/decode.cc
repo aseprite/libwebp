@@ -95,17 +95,16 @@ static void ReadTransform(int* xsize, int* ysize,
 // -----------------------------------------------------------------------------
 // HUFFMAN CODING
 
-static int GetCopyDistance(int distance_symbol, BitReader* br) {
+static inline uint32 GetCopyDistance(uint32 distance_symbol, BitReader* br) {
   if (distance_symbol < 4) {
     return distance_symbol + 1;
   }
-  int extra_bits = (distance_symbol - 2) / 2;
-  int offset =
-      (1 << (extra_bits + 1)) + (distance_symbol % 2) * (1 << extra_bits) + 1;
-  return offset + ReadBits(br, extra_bits);
+  uint32 extra_bits = (distance_symbol - 2) >> 1;
+  uint32 offset = (2 + (distance_symbol & 1)) << extra_bits;
+  return offset + ReadBits(br, extra_bits) + 1;
 }
 
-static int GetCopyLength(int length_symbol, BitReader* br) {
+static inline uint32 GetCopyLength(uint32 length_symbol, BitReader* br) {
   return GetCopyDistance(length_symbol, br);
 }
 
@@ -363,6 +362,7 @@ static int DecodeImageInternal(int original_xsize,
   const int huffman_mask = huffman_bits == 0 ? ~0 : (1 << huffman_bits) - 1;
   const int huffman_xsize = (xsize + (1 << huffman_bits) - 1) >> huffman_bits;
   for (int pos = 0; pos < xsize * ysize; ) {
+    FillBitWindow(br);
     if ((x & huffman_mask) == 0) {
       // Only update the huffman code when moving from one block to the
       // next.
@@ -381,7 +381,6 @@ static int DecodeImageInternal(int original_xsize,
         huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
       }
     }
-    FillBitWindow(br);
     int green = ReadSymbol(*huff_green, br);
     // Literal
     if (green < num_green) {
@@ -427,7 +426,7 @@ static int DecodeImageInternal(int original_xsize,
     if (length_symbol < kNumLengthSymbols) {
       const int length = GetCopyLength(length_symbol, br);
       // Here, we have read the length code prefix + extra bits for the length,
-      // so reading the next 15 bits can be exhaust the bit window.
+      // so reading the next 15 bits can exhaust the bit window.
       // We must fill the window before the next read.
       FillBitWindow(br);
       const int dist_symbol = ReadSymbol(*huff_dist, br);
