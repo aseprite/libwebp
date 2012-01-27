@@ -386,13 +386,16 @@ static int DecodeImageInternal(int original_xsize,
     // Literal
     if (green < num_green) {
       if (num_rba > 1) {
+        FillBitWindow(br);
         red = ReadSymbol(*huff_red, br) << 16;
         FillBitWindow(br);
         blue = ReadSymbol(*huff_blue, br);
         if (num_rba > 2) {
+          FillBitWindow(br);
           alpha = ReadSymbol(*huff_alpha, br) << 24;
         }
       } else if (num_rba > 0) {
+        FillBitWindow(br);
         red = ReadSymbol(*huff_red, br) << 16;
       }
 
@@ -426,6 +429,7 @@ static int DecodeImageInternal(int original_xsize,
     const int length_symbol = green - palette_limit;
     if (length_symbol < kNumLengthSymbols) {
       const int length = GetCopyLength(length_symbol, br);
+      FillBitWindow(br);
       const int dist_symbol = ReadSymbol(*huff_dist, br);
       uint32 dist = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, ysize, dist);
