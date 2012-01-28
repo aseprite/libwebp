@@ -316,8 +316,6 @@ VP8StatusCode VP8EnterCritical(VP8Decoder* const dec, VP8Io* const io);
 // Must always be called in pair with VP8EnterCritical().
 // Returns false in case of error.
 int VP8ExitCritical(VP8Decoder* const dec, VP8Io* const io);
-// Filter the decoded macroblock row (if needed)
-int VP8FinishRow(VP8Decoder* const dec, VP8Io* io);   // multi threaded call
 // Process the last decoded row (filtering + output)
 int VP8ProcessRow(VP8Decoder* const dec, VP8Io* const io);
 // Store a block, along with filtering params
