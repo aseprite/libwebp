@@ -326,7 +326,7 @@ void VP8StoreBlock(VP8Decoder* const dec) {
 #define MACROBLOCK_VPOS(mb_y)  ((mb_y) * 16)    // vertical position of a MB
 
 // Finalize and transmit a complete row. Return false in case of user-abort.
-int VP8FinishRow(VP8Decoder* const dec, VP8Io* io) {
+int VP8FinishRow(VP8Decoder* const dec, VP8Io* const io) {
   int ok = 1;
   const VP8ThreadContext* const ctx = &dec->thread_ctx_;
   const int extra_y_rows = kFilterExtraRows[dec->filter_type_];
