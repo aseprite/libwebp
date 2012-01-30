@@ -78,38 +78,12 @@ class PixelHasherLine {
     for (int i = 0; i < hashers_size_; ++i) {
       hashers_[i].Init(hash_bits);
     }
-    InitDefault();
   }
   ~PixelHasherLine() {
-    default_.Delete();
     for (int i = 0; i < hashers_size_; ++i) {
       hashers_[i].Delete();
     }
     free(hashers_);
-  }
-  void InitDefault() {
-    default_.Init(hash_bits_);
-    // 6 bit palette
-    for (int r = 0; r < 256; r += 85) {
-      for (int g = 0; g < 256; g += 85) {
-        for (int b = 0; b < 256; b += 85) {
-          default_.insert(0xff000000 + (r << 16) + (g << 8) + b);
-        }
-      }
-    }
-    // Green is special.
-    default_.insert(0xff001f00);
-    default_.insert(0xff003f00);
-    default_.insert(0xff005f00);
-    default_.insert(0xff007f00);
-    default_.insert(0xff009f00);
-    default_.insert(0xff00bf00);
-    default_.insert(0xff00df00);
-    default_.insert(0xff00ff00);
-    // Fully transparent, black, and, white.
-    default_.insert(0x00000000);
-    default_.insert(0xff000000);
-    default_.insert(0xffffffff);
   }
   void Insert(int x, uint32 argb) {
     hashers_[x >> x_downsample_bits_].insert(argb);
@@ -145,7 +119,7 @@ class PixelHasherLine {
         }
       }
     }
-    return default_.contains(argb);
+    return false;
   }
   uint32 Lookup(int x, uint32 hash) {
     int ix = x >> x_downsample_bits_;
@@ -163,13 +137,9 @@ class PixelHasherLine {
         return argb;
       }
     }
-    if (default_.lookup(hash, &argb)) {
-      return argb;
-    }
     return 0;
   }
   PixelHasher* hashers_;
-  PixelHasher default_;
   int hash_bits_;
   int x_downsample_bits_;
   int hashers_size_;
