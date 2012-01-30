@@ -16,13 +16,13 @@
 
 #include "integral_types.h"
 
-static const int kNotInitialized = 0x00e1c300;
+static const uint32 kNotInitialized = 0x1e35a7bd;
 static const uint32 kHashMul = 0x1e35a7bd;
 
 class PixelHasher {
  public:
   void Init(int hash_bits) {
-    hash_bits_ = hash_bits;
+    hash_shift_ = 32 - hash_bits;
     hash_size_ = 1 << hash_bits;
     data_ = new uint32[hash_size_];
     for (int i = 0; i < hash_size_; ++i) {
@@ -33,11 +33,11 @@ class PixelHasher {
     delete[] data_;
   }
   void insert(uint32 argb) {
-    const uint32 key = (kHashMul * argb) >> (32 - hash_bits_);
+    const uint32 key = (kHashMul * argb) >> hash_shift_;
     data_[key] = argb;
   }
   bool is_initialized(uint32 argb) const {
-    const uint32 key = (kHashMul * argb) >> (32 - hash_bits_);
+    const uint32 key = (kHashMul * argb) >> hash_shift_;
     return data_[key] != kNotInitialized;
   }
   bool contains(uint32 argb) const {
@@ -45,7 +45,7 @@ class PixelHasher {
     if (argb == kNotInitialized) {
       return false;
     }
-    key = (kHashMul * argb) >> (32 - hash_bits_);
+    key = (kHashMul * argb) >> hash_shift_;
     return data_[key] == argb;
   }
   bool lookup(uint32 key, uint32* argb) {
@@ -59,7 +59,7 @@ class PixelHasher {
 
  private:
   uint32 *data_;
-  uint32 hash_bits_;
+  uint32 hash_shift_;
   uint32 hash_size_;
 };
 
