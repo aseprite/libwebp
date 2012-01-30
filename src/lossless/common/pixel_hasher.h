@@ -88,42 +88,12 @@ class PixelHasherLine {
     free(hashers_);
   }
   void InitDefault() {
-    // TODO(jyrki): This is ugly, make this initialization more beautiful.
-
     default_.Init(hash_bits_);
-    // 12 bit palette
-    for (int r = 0; r < 256; r += 17) {
-      for (int g = 0; g < 256; g += 17) {
-        for (int b = 0; b < 256; b += 17) {
-          default_.insert(0xff000000 + (r << 16) + (g << 8) + b);
-        }
-      }
-    }
     // 6 bit palette
     for (int r = 0; r < 256; r += 85) {
       for (int g = 0; g < 256; g += 85) {
         for (int b = 0; b < 256; b += 85) {
           default_.insert(0xff000000 + (r << 16) + (g << 8) + b);
-        }
-      }
-    }
-    // 3 bit palette
-    for (int r = 0; r < 256; r += 255) {
-      for (int g = 0; g < 256; g += 255) {
-        for (int b = 0; b < 256; b += 255) {
-          default_.insert(0xff000000 + (r << 16) + (g << 8) + b);
-        }
-      }
-    }
-    // Around zero for predictor mode
-    // TODO(jyrki): this should only be added if there is a spatial prediction
-    // image.
-    for (int i0 = -3; i0 < 4; ++i0) {
-      for (int i1 = -3; i1 < 4; ++i1) {
-        for (int i2 = -3; i2 < 4; ++i2) {
-          default_.insert(((i0 & 0xff) << 24) +
-                          ((i1 & 0xff) << 16) +
-                          (i2 & 0xff));
         }
       }
     }
