@@ -121,25 +121,23 @@ inline double FastLog(int v) {
 
 }  // namespace
 
-void ConvertPopulationCountTableToBitEstimates(
-    int n, const int *population_counts,
-    double *output) {
+void ConvertPopulationCountTableToBitEstimates(int num_symbols,
+                                               const int *population_counts,
+                                               double *output) {
   int sum = 0;
   int nonzeros = 0;
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < num_symbols; ++i) {
     sum += population_counts[i];
-    if (population_counts[i] != 0) {
+    if (population_counts[i] > 0) {
       ++nonzeros;
     }
   }
   if (nonzeros <= 1) {
-    for (int i = 0; i < n; ++i) {
-      output[i] = 0;
-    }
+    memset(output, 0, num_symbols * sizeof(*output));
     return;
   }
-  double log2sum = log2(sum);
-  for (int i = 0; i < n; ++i) {
+  const double log2sum = log2(sum);
+  for (int i = 0; i < num_symbols; ++i) {
     if (population_counts[i] == 0) {
       output[i] = log2sum;
     } else {
