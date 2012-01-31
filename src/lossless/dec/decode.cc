@@ -34,6 +34,14 @@
 
 static const int kMaxImageTransforms = 100;
 
+// Five Huffman codes are used at each meta code:
+// 1. green + length prefix codes + palette codes,
+// 2. alpha,
+// 3. red,
+// 4. blue, and,
+// 5. distance prefix codes.
+static const int kHuffmanCodesPerMetaCode = 5;
+
 static int DecodeImageInternal(int xsize, int ysize,
                                BitReader* const br, uint32** const argb_image);
 
@@ -135,8 +143,7 @@ int GetMetaIndex(int huffman_xsize, int bits, const uint32* image,
   return image[y * huffman_xsize + x];
 }
 
-static void ReadMetaCodes(const int num_rba,
-                          BitReader* br,
+static void ReadMetaCodes(BitReader* br,
                           std::vector<int>* meta_codes,
                           std::map<int, int>* tree_types,
                           int* num_trees) {
@@ -145,10 +152,11 @@ static void ReadMetaCodes(const int num_rba,
   int nbits = ReadBits(br, 4);
   *num_trees = 0;
   for (int i = 0; i < num_meta_codes; ++i) {
-    for (int k = 0; k < num_rba + 2; ++k) {
+    for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       int tree_index = ReadBits(br, nbits);
       meta_codes->push_back(tree_index);
-      (*tree_types)[tree_index] = (k == 0) ? 0 : (k == num_rba + 1) ? 2 : 1;
+      (*tree_types)[tree_index] =
+          (k == 0) ? 0 : (k == kHuffmanCodesPerMetaCode - 1) ? 2 : 1;
       *num_trees = std::max(tree_index + 1, *num_trees);
     }
   }
@@ -292,14 +300,12 @@ static int DecodeImageInternal(int original_xsize,
     VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
   }
 
-  int num_rba = ReadBits(br, 2);
-
   bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
   uint32* huffman_image;
   std::vector<int> meta_codes;
   std::map<int, int> tree_types;
-  int num_huffman_trees = num_rba + 2;
+  int num_huffman_trees = kHuffmanCodesPerMetaCode;
   if (use_meta_codes) {
     huffman_bits = ReadBits(br, 4);
     const int huffman_xsize = MetaSize(xsize, huffman_bits);
@@ -312,15 +318,15 @@ static int DecodeImageInternal(int original_xsize,
       // Strip alpha (in bits [24..17]).
       huffman_image[i] &= 0xffff;
     }
-    ReadMetaCodes(num_rba, br, &meta_codes, &tree_types,
-                  &num_huffman_trees);
+    ReadMetaCodes(br, &meta_codes, &tree_types, &num_huffman_trees);
     if (error_detection_bits) {
       VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
     }
   } else {
-    for (int k = 0; k < num_rba + 2; ++k) {
+    for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       meta_codes.push_back(k);
-      tree_types[k] = (k == 0) ? 0 : (k == num_rba + 1) ? 2 : 1;
+      tree_types[k] =
+          (k == 0) ? 0 : (k == kHuffmanCodesPerMetaCode - 1) ? 2 : 1;
     }
   }
 
@@ -366,34 +372,24 @@ static int DecodeImageInternal(int original_xsize,
     if ((x & huffman_mask) == 0) {
       // Only update the huffman code when moving from one block to the
       // next.
-      const int meta_index = (num_rba + 2) *
+      const int meta_index = kHuffmanCodesPerMetaCode *
           GetMetaIndex(huffman_xsize, huffman_bits, huffman_image, x, y);
       if (meta_ix != meta_index) {
         meta_ix = meta_index;
         huff_green = &htrees[meta_codes[meta_ix]];
         huff_red = &htrees[meta_codes[meta_ix + 1]];
-        if (num_rba > 1) {
-          huff_blue = &htrees[meta_codes[meta_ix + 2]];
-        }
-        if (num_rba > 2) {
-          huff_alpha = &htrees[meta_codes[meta_ix + 3]];
-        }
-        huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
+        huff_blue = &htrees[meta_codes[meta_ix + 2]];
+        huff_alpha = &htrees[meta_codes[meta_ix + 3]];
+        huff_dist = &htrees[meta_codes[meta_ix + 4]];
       }
     }
     int green = ReadSymbol(*huff_green, br);
     // Literal
     if (green < num_green) {
-      if (num_rba > 1) {
-        red = ReadSymbol(*huff_red, br) << 16;
-        FillBitWindow(br);
-        blue = ReadSymbol(*huff_blue, br);
-        if (num_rba > 2) {
-          alpha = ReadSymbol(*huff_alpha, br) << 24;
-        }
-      } else if (num_rba > 0) {
-        red = ReadSymbol(*huff_red, br) << 16;
-      }
+      red = ReadSymbol(*huff_red, br) << 16;
+      FillBitWindow(br);
+      blue = ReadSymbol(*huff_blue, br);
+      alpha = ReadSymbol(*huff_alpha, br) << 24;
 
       uint32 argb = alpha + red + (green << 8) + blue;
       image[pos] = argb;
@@ -459,19 +455,15 @@ static int DecodeImageInternal(int original_xsize,
       if (pos == xsize * ysize) {
         break;
       }
-      const int meta_index = (num_rba + 2) *
+      const int meta_index = kHuffmanCodesPerMetaCode *
           GetMetaIndex(huffman_xsize, huffman_bits, huffman_image, x, y);
       if (meta_ix != meta_index) {
         meta_ix = meta_index;
         huff_green = &htrees[meta_codes[meta_ix]];
         huff_red = &htrees[meta_codes[meta_ix + 1]];
-        if (num_rba > 1) {
-          huff_blue = &htrees[meta_codes[meta_ix + 2]];
-        }
-        if (num_rba > 2) {
-          huff_alpha = &htrees[meta_codes[meta_ix + 3]];
-        }
-        huff_dist = &htrees[meta_codes[meta_ix + 1 + num_rba]];
+        huff_blue = &htrees[meta_codes[meta_ix + 2]];
+        huff_alpha = &htrees[meta_codes[meta_ix + 3]];
+        huff_dist = &htrees[meta_codes[meta_ix + 4]];
       }
       continue;
     }

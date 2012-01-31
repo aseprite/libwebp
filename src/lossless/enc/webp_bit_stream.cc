@@ -611,11 +611,6 @@ static void EncodeImageInternal(const int xsize,
     WriteBits(8, kMagicByte, bw);
   }
 
-  // This many of the red, blue, alpha components we have in addition to green
-  // (in this order).
-  const int num_rba = NumberOfUsedRBAComponents(argb);
-  WriteBits(2, num_rba, bw);
-
   //
   // Huffman image + meta huffman
   //
@@ -638,7 +633,7 @@ static void EncodeImageInternal(const int xsize,
     const int image_size_bits = BitsLog2Ceiling(histogram_image.size() - 1);
     WriteBits(4, image_size_bits, bw);
     WriteBits(image_size_bits, histogram_image.size() - 2, bw);
-    const int num_histograms = (num_rba + 2) * histogram_image.size();
+    const int num_histograms = 5 * histogram_image.size();
     int nbits = BitsLog2Ceiling(num_histograms);
     WriteBits(4, nbits, bw);
     for (int i = 0; i < num_histograms; ++i) {
@@ -671,10 +666,9 @@ static void EncodeImageInternal(const int xsize,
     PackGreenBitLengths(bit_length[5 * i], green_bit_depth,
                         palette_bits, use_palette, &green_lengths);
     StoreHuffmanCode(green_lengths, bw);
-    for (int k = 1; k <= num_rba; ++k) {
+    for (int k = 1; k < 5; ++k) {
       StoreHuffmanCode(bit_length[5 * i + k], bw);
     }
-    StoreHuffmanCode(bit_length[5 * i + 4], bw);
   }
   DeleteHistograms(histogram_image);  // free combined histograms
 
