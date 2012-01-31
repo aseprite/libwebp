@@ -127,7 +127,8 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
   memcpy(mem->buf_ + mem->end_, data, data_size);
   mem->end_ += data_size;
   assert(mem->end_ <= mem->buf_size_);
-  dec->parts_[last_part].buf_end_ = mem->buf_ + mem->end_;
+  if (last_part >= 0)
+    dec->parts_[last_part].buf_end_ = mem->buf_ + mem->end_;
 
   // note: setting up idec->io_ is only really needed at the beginning
   // of the decoding, till partition #0 is complete.
@@ -155,7 +156,8 @@ static int RemapMemBuffer(WebPIDecoder* const idec,
       REMAP(dec->parts_[p].buf_end_, base, data);
     }
   }
-  dec->parts_[last_part].buf_end_ = data + data_size;
+  if (last_part >= 0)
+    dec->parts_[last_part].buf_end_ = data + data_size;
 
   // Remap partition #0 data pointer to new offset.
   if (dec->br_.buf_) {
