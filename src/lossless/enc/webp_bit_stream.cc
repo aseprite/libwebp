@@ -30,8 +30,6 @@
 #include "./histogram_image.h"
 #include "./predictor.h"
 
-static const uint8 kMagicByte = 0xa3;
-
 static void PutLE32(uint8* const data, uint32 val) {
   data[0] = (val >>  0) & 0xff;
   data[1] = (val >>  8) & 0xff;
@@ -467,7 +465,6 @@ static void EncodeImageInternal(const int xsize,
                                 const int palette_bits,
                                 const int histogram_bits,
                                 const bool use_2d_locality,
-                                const bool write_error_detection_bits,
                                 BitWriter *bw) {
   const int use_palette = palette_bits ? 1 : 0;
   // First, check if it is at all a good idea to use LZ77
@@ -608,11 +605,6 @@ static void EncodeImageInternal(const int xsize,
   // No transforms.
   WriteBits(1, 0, bw);
 
-  WriteBits(1, write_error_detection_bits, bw);
-  if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, bw);
-  }
-
   //
   // Huffman image + meta huffman
   //
@@ -630,7 +622,6 @@ static void EncodeImageInternal(const int xsize,
                         0,
                         0,      // no histogram bits
                         true,   // use_2d_locality
-                        write_error_detection_bits,
                         bw);
     const int image_size_bits = BitsLog2Ceiling(histogram_image.size() - 1);
     WriteBits(4, image_size_bits, bw);
@@ -640,9 +631,6 @@ static void EncodeImageInternal(const int xsize,
     WriteBits(4, nbits, bw);
     for (int i = 0; i < num_histograms; ++i) {
       WriteBits(nbits, i, bw);
-    }
-    if (write_error_detection_bits) {
-      WriteBits(8, kMagicByte, bw);
     }
   }
 
@@ -674,10 +662,6 @@ static void EncodeImageInternal(const int xsize,
   }
   DeleteHistograms(histogram_image);  // free combined histograms
 
-  if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, bw);
-  }
-
   // Emit no bits if there is only one symbol in the histogram.
   // This gives ~5 % for lena.png.
   for (int i = 0; i < bit_length.size(); ++i) {
@@ -697,10 +681,6 @@ static void EncodeImageInternal(const int xsize,
       bit_length,
       bit_codes,
       bw);
-
-  if (write_error_detection_bits) {
-    WriteBits(8, kMagicByte, bw);
-  }
 }
 
 inline void WriteImageSize(uint32 xsize, uint32 ysize, BitWriter *bw) {
@@ -723,7 +703,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
   const int histogram_bits = strategy->histogram_bits;
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
-  const int write_error_detection_bits = false;
   bool use_emerging_palette = true;
   std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
@@ -773,8 +752,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     for (int i = int(palette.size()) - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
     }
-    EncodeImageInternal(palette.size(), 1, palette, quality, 0, 0, true,
-                        write_error_detection_bits, &bw);
+    EncodeImageInternal(palette.size(), 1, palette, quality, 0, 0, true, &bw);
     use_emerging_palette = false;
     int ybits = 0;
     int bit_depth = 8;
@@ -819,7 +797,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                         0,
                         0,      // no histogram bits
                         true,   // use_2d_locality
-                        write_error_detection_bits,
                         &bw);
   }
 
@@ -843,7 +820,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                         0,
                         0,      // no histogram bits
                         true,   // use_2d_locality
-                        write_error_detection_bits,
                         &bw);
   }
 
@@ -861,7 +837,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       palette_bits,
                       histogram_bits,
                       true,   // use_2d_locality
-                      write_error_detection_bits,
                       &bw);
 
   const size_t webpll_size = BitWriterNumBytes(&bw);

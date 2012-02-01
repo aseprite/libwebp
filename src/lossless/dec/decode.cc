@@ -301,13 +301,6 @@ static int DecodeImageInternal(int original_xsize,
     VERIFY(num_transforms < kMaxImageTransforms);
   }
 
-  static const unsigned char kMagicByteForErrorDetection = 0xa3;
-
-  bool error_detection_bits = ReadBits(br, 1);
-  if (error_detection_bits) {
-    VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
-  }
-
   bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
   uint32* huffman_image;
@@ -327,9 +320,6 @@ static int DecodeImageInternal(int original_xsize,
       huffman_image[i] &= 0xffff;
     }
     ReadMetaCodes(br, &meta_codes, &tree_types, &num_huffman_trees);
-    if (error_detection_bits) {
-      VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
-    }
   } else {
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       meta_codes.push_back(k);
@@ -352,10 +342,6 @@ static int DecodeImageInternal(int original_xsize,
     int type = tree_types[i];
     int alphabet_size = AlphabetSize(type, num_green, palette_size);
     ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
-  }
-
-  if (error_detection_bits) {
-    VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
   }
 
   uint32 *image = (uint32*)malloc(xsize * ysize * sizeof(uint32));
@@ -482,10 +468,6 @@ static int DecodeImageInternal(int original_xsize,
   }
   if (palette) {
     delete palette;
-  }
-
-  if (error_detection_bits) {
-    VERIFY(kMagicByteForErrorDetection == ReadBits(br, 8));
   }
 
   *argb_image = image;
