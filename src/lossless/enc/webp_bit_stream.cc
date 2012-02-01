@@ -178,7 +178,7 @@ void PackGreenBitLengths(const std::vector<uint8> bit_lengths,
 }
 
 void StoreHuffmanTreeOfHuffmanTreeToBitMask(
-    const uint8 *code_length_bitdepth, BitWriter* bw) {
+    const uint8 *code_length_bitdepth, BitWriter* const bw) {
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
   // and more spiking histograms.
@@ -205,7 +205,7 @@ void StoreHuffmanTreeToBitMask(
     const int num_symbols,
     const uint8 *code_length_bitdepth,
     const std::vector<uint16> &code_length_bitdepth_symbols,
-    BitWriter* bw) {
+    BitWriter* const bw) {
   for (uint32 i = 0; i < num_symbols; ++i) {
     int ix = huffman_tree[i];
     WriteBits(code_length_bitdepth[ix], code_length_bitdepth_symbols[ix], bw);
@@ -223,7 +223,8 @@ void StoreHuffmanTreeToBitMask(
   }
 }
 
-void StoreHuffmanCode(const std::vector<uint8> &bit_lengths, BitWriter* bw) {
+void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
+                      BitWriter* const bw) {
   int count = 0;
   int symbols[2] = { 0 };
   for (int i = 0; i < bit_lengths.size(); ++i) {
@@ -723,12 +724,11 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   const int write_error_detection_bits = false;
   bool use_emerging_palette = true;
-  const int kHeaderSize = 2048;
   std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
-  // TODO: Come up with a good estimate w.r.t 'storage' size.
-  std::vector<uint8> storage(xsize * ysize * 8 + kHeaderSize);
+  const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
+
   BitWriter bw;
-  BitWriterInit(&bw, storage.data(), storage.size());
+  if (!BitWriterInit(&bw, kEstmatedEncodeSize)) return false;
 
   // Write image size.
   WriteImageSize(xsize, ysize, &bw);
@@ -864,13 +864,17 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       &bw);
 
   const size_t webpll_size = BitWriterNumBytes(&bw);
-  uint8 *webpll_data = &storage[0];
+  uint8 *webpll_data = BitWriterFinish(&bw);
 
   *num_bytes = HEADER_SIZE + SIGNATURE_SIZE + webpll_size;
+  // TODO(vikasa): This memory allocation can be avoided, if RIFF header is
+  // writen to BitWriter in the begining and BitWriter's buffer can be owned
+  // and passed back instead.
   *bytes = (uint8 *)malloc(*num_bytes);
   if (*bytes == NULL) return false;
   PutRiffHeader(*bytes, webpll_size);
   memcpy(*bytes + HEADER_SIZE + SIGNATURE_SIZE, webpll_data, webpll_size);
+  BitWriterDestroy(&bw);
 
   return true;
 }

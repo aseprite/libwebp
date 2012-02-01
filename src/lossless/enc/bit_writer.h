@@ -18,6 +18,7 @@
 #include <machine/endian.h>  // Gross overassumption.
 #endif
 
+#include <string.h>   // for memcpy()
 #include "./backward_distance.h"
 #include "../common/integral_types.h"
 
@@ -34,19 +35,54 @@ extern "C" {
 #define HEADER_SIZE      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE)
 #define SIGNATURE_SIZE   1
 
-typedef struct {
+typedef struct BitWriter BitWriter;
+struct BitWriter {
   uint8* buf_;
   size_t bit_pos_;
-} BitWriter;
+  size_t max_bytes_;
+};
 
-void BitWriterInit(BitWriter* bw, uint8* buf, size_t size) {
-  bw->buf_ = buf;
-  bw->bit_pos_ = 0;
-  UNALIGNED_STORE32(bw->buf_, 0);
+inline size_t BitWriterNumBytes(BitWriter* const bw) {
+  return (bw->bit_pos_ + 7) >> 3;
 }
 
-inline size_t BitWriterNumBytes(BitWriter* bw) {
-  return (bw->bit_pos_ + 7) >> 3;
+static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
+  uint8* allocated_buf;
+  size_t allocated_size;
+  const size_t size_required = BitWriterNumBytes(bw) + extra_size;
+  if (size_required <= bw->max_bytes_) return 1;
+  allocated_size = (3 * bw->max_bytes_) >> 1;
+  if (allocated_size < size_required) {
+    allocated_size = size_required;
+  }
+  // Make Allocated size multiple of KBs
+  allocated_size = (((allocated_size >> 10) + 1) << 10);
+  allocated_buf = (uint8*)malloc(allocated_size);
+  if (allocated_buf == NULL) return 0;
+  memset(allocated_buf, 0, allocated_size);
+  if (bw->bit_pos_ > 0) {
+    memcpy(allocated_buf, bw->buf_, BitWriterNumBytes(bw));
+  }
+  free(bw->buf_);
+  bw->buf_ = allocated_buf;
+  bw->max_bytes_ = allocated_size;
+  return 1;
+}
+
+int BitWriterInit(BitWriter* const bw, size_t expected_size) {
+  memset(bw, 0, sizeof(*bw));
+  return (expected_size > 0) ? BitWriterResize(bw, expected_size) : 1;
+}
+
+uint8* BitWriterFinish(BitWriter* const bw) {
+  return bw->buf_;
+}
+
+void BitWriterDestroy(BitWriter* const bw) {
+  if (bw) {
+    free(bw->buf_);
+    memset(bw, 0, sizeof(*bw));
+  }
 }
 
 // This function writes bits into bytes in increasing addresses, and within
@@ -64,7 +100,8 @@ inline size_t BitWriterNumBytes(BitWriter* bw) {
 //
 // For n bits, we take the last 5 bytes, OR that with high bits in BYTE-0,
 // and locate the rest in BYTE+1 and BYTE+2.
-inline void WriteBits(const int n_bits, const uint32 bits, BitWriter* bw) {
+inline void WriteBits(int n_bits, uint32 bits, BitWriter* const bw) {
+  if (n_bits < 1) return;
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
@@ -72,14 +109,6 @@ inline void WriteBits(const int n_bits, const uint32 bits, BitWriter* bw) {
   uint32 v = UNALIGNED_LOAD32(p);
   v |= bits << (bw->bit_pos_ & 7);
   UNALIGNED_STORE32(p, v);  // Set some bits.
-
-  // This buffer could be memset before, but it would be expensive to know
-  // how much to memset, and would require another passes through the memory.
-  //
-  // So, it is probably better to be cleared here.
-  UNALIGNED_STORE32(p + 4, 0);  // Clear bits that will be or'ed later.
-  // The first 4 bytes need to be cleared by the user of WriteBits.
-
   bw->bit_pos_ += n_bits;
 #else
   // implicit & 0xff is assumed for uint8 arithmetics
@@ -96,6 +125,10 @@ inline void WriteBits(const int n_bits, const uint32 bits, BitWriter* bw) {
   *p = 0;
   bw->bit_pos_ += n_bits;
 #endif
+  if ((bw->bit_pos_ >> 3) > (bw->max_bytes_ - 8)) {
+    const size_t kAdditionalBuffer = 1024;
+    BitWriterResize(bw, kAdditionalBuffer);
+  }
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)
