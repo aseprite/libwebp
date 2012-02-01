@@ -413,42 +413,27 @@ bool CreatePalette(int n, const uint32 *argb,
   return true;
 }
 
-void BundlePixels(int* xsize, int* ysize, int xbits, int ybits, int nbits,
-                  const std::vector<uint32>& from_argb,
-                  std::vector<uint32>* to_argb) {
-  VERIFY((*xsize) * (*ysize) == from_argb.size());
-  int xs = MetaSize(*xsize, xbits);
-  int ys = MetaSize(*ysize, ybits);
-  to_argb->resize(xs * ys);
-  for (int tile_y = 0; tile_y < ys; ++tile_y) {
-    for (int tile_x = 0; tile_x < xs; ++tile_x) {
-      int tile_ix = tile_y * xs + tile_x;
-      uint32 tile_code = 0;
-      for (int y = 0; y < (1 << ybits); ++y) {
-        int all_y = tile_y * (1 << ybits) + y;
-        if (all_y >= (*ysize)) continue;
-        for (int x = 0; x < (1 << xbits); ++x) {
-          int all_x = tile_x * (1 << xbits) + x;
-          if (all_x >= (*xsize)) continue;
-          int all_ix = all_y * (*xsize) + all_x;
-          int bit_position = (y * (1 << xbits) + x) * nbits;
-          uint32 mask = (1 << nbits) - 1;
-          if (bit_position < 16) {
-            bit_position += 8;
-          } else if (bit_position < 24) {
-            bit_position -= 16;
-          }
-          tile_code |= ((from_argb[all_ix] >> 8) & mask) << bit_position;
-        }
+// Bundles multiple (2, 4 or 8) pixels into a single pixel.
+// Returns the new xsize.
+int BundlePixels(int xsize, int ysize, int xbits, int bit_depth,
+                 const std::vector<uint32>& from_argb,
+                 std::vector<uint32>* to_argb) {
+  VERIFY(xsize * ysize == from_argb.size());
+  const int xs = MetaSize(xsize, xbits);
+  to_argb->resize(xs * ysize);
+  for (int y = 0; y < ysize; ++y) {
+    uint32 code;
+    for (int x = 0; x < xsize; ++x) {
+      const int xsub = x & ((1 << xbits) - 1);
+      if (xsub == 0) {
+        code = 0;
       }
-      (*to_argb)[tile_ix] = tile_code;
-      if ((1 << xbits) * (1 << ybits) * nbits <= 24) {
-        (*to_argb)[tile_ix] = (*to_argb)[tile_ix] | 0xff000000;
-      }
+      const uint32 green = from_argb[y * xsize + x] & 0xff00;
+      code |= green << (bit_depth * xsub);
+      (*to_argb)[y * xs + (x >> xbits)] = 0xff000000 | code;
     }
   }
-  *xsize = xs;
-  *ysize = ys;
+  return xs;
 }
 
 static void DeleteHistograms(std::vector<Histogram *> &histograms) {
@@ -754,27 +739,22 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     }
     EncodeImageInternal(palette.size(), 1, palette, quality, 0, 0, true, &bw);
     use_emerging_palette = false;
-    int ybits = 0;
-    int bit_depth = 8;
-    int xbits = 0;
-    if (palette.size() <= 2) {
-      bit_depth = 1;
-      xbits = 3;
-    } else if (palette.size() <= 4) {
-      bit_depth = 2;
-      xbits = 2;
-    } else if (palette.size() <= 16) {
-      bit_depth = 4;
-      xbits = 1;
+    if (palette.size() <= 16) {
+      int xbits = 1;
+      int bit_depth = 4;
+      if (palette.size() <= 2) {
+        xbits = 3;
+        bit_depth = 1;
+      } else if (palette.size() <= 4) {
+        xbits = 2;
+        bit_depth = 2;
+      }
+      std::vector<uint32> from_argb(argb.begin(), argb.end());
+      xsize = BundlePixels(xsize, ysize, xbits, bit_depth, from_argb, &argb);
+      WriteBits(1, 1, &bw);
+      WriteBits(3, 4, &bw);
+      WriteBits(2, xbits, &bw);
     }
-    std::vector<uint32> from_argb(argb.begin(), argb.end());
-    BundlePixels(&xsize, &ysize, xbits, ybits, bit_depth,
-                 from_argb, &argb);
-    WriteBits(1, 1, &bw);
-    WriteBits(3, 4, &bw);
-    WriteBits(3, xbits, &bw);
-    WriteBits(3, ybits, &bw);
-    WriteBits(3, bit_depth - 1, &bw);
   }
 
   if (predict) {

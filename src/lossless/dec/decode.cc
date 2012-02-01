@@ -82,11 +82,8 @@ static void ReadTransform(int* xsize, int* ysize,
         transform->data = malloc(sizeof(PixelBundleTransformData));
         PixelBundleTransformData* data =
             (PixelBundleTransformData*)transform->data;
-        data->xbits = ReadBits(br, 3);
-        data->ybits = ReadBits(br, 3);
-        data->bit_depth = ReadBits(br, 3) + 1;
+        data->xbits = ReadBits(br, 2);
         *xsize = MetaSize(*xsize, data->xbits);
-        *ysize = MetaSize(*ysize, data->ybits);
       }
       break;
   }

@@ -37,8 +37,6 @@ struct PerTileTransformData {
 
 struct PixelBundleTransformData {
   int xbits;
-  int ybits;
-  int bit_depth;
 };
 
 void FreeImageTransformData(ImageTransform transform) {
@@ -54,30 +52,26 @@ void FreeImageTransformData(ImageTransform transform) {
 void PixelBundleInverseTransform(int xsize, int ysize,
                                  PixelBundleTransformData data,
                                  uint32** image) {
-  int xs = (xsize + (1 << data.xbits) - 1) >> data.xbits;
-  int ys = (ysize + (1 << data.ybits) - 1) >> data.ybits;
-  uint32* tmp_image = (uint32*)malloc(xs * ys * sizeof(uint32));
-  memcpy(tmp_image, *image, xs * ys * sizeof(uint32));
+  const int xs = (xsize + (1 << data.xbits) - 1) >> data.xbits;
+  uint32* tmp_image = (uint32*)malloc(xs * ysize * sizeof(uint32));
+  int bit_depth = 1;  // 2 values, xbits == 3.
+  if (data.xbits == 1) {
+    bit_depth = 4;  // 16 values.
+  } else if (data.xbits == 2) {
+    bit_depth = 2;  // 4 values.
+  }
+  memcpy(tmp_image, *image, xs * ysize * sizeof(uint32));
   *image = (uint32*)realloc(*image, xsize * ysize * sizeof(uint32));
-  for (int tile_y = 0; tile_y < ys; ++tile_y) {
+  for (int y = 0; y < ysize; ++y) {
     for (int tile_x = 0; tile_x < xs; ++tile_x) {
-      uint32 tile_code = tmp_image[tile_y * xs + tile_x];
-      for (int y = 0; y < 1 << data.ybits; ++y) {
-        int y_all = tile_y * (1 << data.ybits) + y;
-        if (y_all >= ysize) continue;
-        for (int x = 0; x < 1 << data.xbits; ++x) {
-          int x_all = tile_x * (1 << data.xbits) + x;
-          if (x_all >= xsize) continue;
-          int ix = y_all * xsize + x_all;
-          int bit_position = (y * (1 << data.xbits) + x) * data.bit_depth;
-          if (bit_position < 16) {
-            bit_position += 8;
-          } else if (bit_position < 24) {
-            bit_position -= 16;
-          }
-          uint32 g = (tile_code >> bit_position) & ((1 << data.bit_depth) - 1);
-          (*image)[ix] = 0xff000000 | (g << 8);
-        }
+      uint32 tile_code = (tmp_image[y * xs + tile_x] >> 8) & 0xff;
+      for (int x = 0; x < 1 << data.xbits; ++x) {
+        const int x_all = tile_x * (1 << data.xbits) + x;
+        if (x_all >= xsize) continue;
+        const int ix = y * xsize + x_all;
+        const uint32 g = tile_code & ((1 << bit_depth) - 1);
+        (*image)[ix] = 0xff000000 | (g << 8);
+        tile_code >>= bit_depth;
       }
     }
   }
