@@ -16,8 +16,11 @@
 
 #include "integral_types.h"
 
-static const uint32 kNotInitialized = 0x1e35a7bd;
 static const uint32 kHashMul = 0x1e35a7bd;
+
+// kNotInitialized is a special value which can be inserted into the
+// PixelHasher, but is never recalled as a value.
+static const uint32 kNotInitialized = kHashMul;
 
 class PixelHasher {
  public:
