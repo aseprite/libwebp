@@ -34,14 +34,6 @@
 
 static const int kMaxImageTransforms = 100;
 
-// Five Huffman codes are used at each meta code:
-// 1. green + length prefix codes + palette codes,
-// 2. alpha,
-// 3. red,
-// 4. blue, and,
-// 5. distance prefix codes.
-static const int kHuffmanCodesPerMetaCode = 5;
-
 static int DecodeImageInternal(int xsize, int ysize,
                                BitReader* const br, uint32** const argb_image);
 
@@ -126,11 +118,28 @@ static int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
   return yoffset * xsize + xoffset;
 }
 
-static int AlphabetSize(int type, int num_green, int palette_size) {
-  if (type == 0) return num_green + palette_size + kNumLengthSymbols;
-  if (type == 1) return 256;
-  if (type == 2) return kNumDistanceSymbols;
+static int AlphabetSize(int tree_type, int num_green, int palette_size) {
+  if (tree_type == 0) return num_green + palette_size + kNumLengthSymbols;
+  if (tree_type == 1) return 256;
+  if (tree_type == 2) return kNumDistanceSymbols;
   return 0;
+}
+
+// Five Huffman codes are used at each meta code:
+// 1. green + length prefix codes + palette codes,
+// 2. alpha,
+// 3. red,
+// 4. blue, and,
+// 5. distance prefix codes.
+static const int kHuffmanCodesPerMetaCode = 5;
+
+// For the above 5 indices, there are three tree-types.
+// 0 is for green + length prefix codes + palette codes,
+// 1 is for alpha, red and blue,
+// 2 is for distance prefix codes.
+static inline int HuffmanCodeIndexToTreeType(int v) {
+  static const char ret[5] = { 0, 1, 1, 1, 2 };
+  return ret[v];
 }
 
 int GetMetaIndex(int huffman_xsize, int bits, const uint32* image,
@@ -155,8 +164,7 @@ static void ReadMetaCodes(BitReader* br,
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       int tree_index = ReadBits(br, nbits);
       meta_codes->push_back(tree_index);
-      (*tree_types)[tree_index] =
-          (k == 0) ? 0 : (k == kHuffmanCodesPerMetaCode - 1) ? 2 : 1;
+      (*tree_types)[tree_index] = HuffmanCodeIndexToTreeType(k);
       *num_trees = std::max(tree_index + 1, *num_trees);
     }
   }
@@ -325,8 +333,7 @@ static int DecodeImageInternal(int original_xsize,
   } else {
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       meta_codes.push_back(k);
-      tree_types[k] =
-          (k == 0) ? 0 : (k == kHuffmanCodesPerMetaCode - 1) ? 2 : 1;
+      tree_types[k] = HuffmanCodeIndexToTreeType(k);
     }
   }
 
