@@ -233,7 +233,8 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
       ++count;
     }
   }
-  if (count <= 2 && (count == 0 || symbols[count - 1] < (1 << 12))) {
+  if (count <= 2) {
+    // 0, 1 or 2 symbols to encode.
     WriteBits(1, 1, bw);
     if (count == 0) {
       WriteBits(4, 0, bw);
