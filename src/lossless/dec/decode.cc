@@ -115,8 +115,8 @@ static int PlaneCodeToDistance(int xsize, int ysize, int plane_code) {
   return yoffset * xsize + xoffset;
 }
 
-static int AlphabetSize(int tree_type, int num_green, int palette_size) {
-  if (tree_type == 0) return num_green + palette_size + kNumLengthSymbols;
+static int AlphabetSize(int tree_type, int palette_size) {
+  if (tree_type == 0) return 256 + palette_size + kNumLengthSymbols;
   if (tree_type == 1) return 256;
   if (tree_type == 2) return kNumDistanceSymbols;
   return 0;
@@ -331,13 +331,10 @@ static int DecodeImageInternal(int original_xsize,
   PixelHasherLine* palette = use_palette ?
       new PixelHasherLine(xsize, palette_x_bits, palette_code_bits) : NULL;
 
-  const int green_bit_depth = ReadBits(br, 3) + 1;
-  const int num_green = 1 << green_bit_depth;
-
   std::vector<HuffmanTreeNode> htrees(num_huffman_trees);
   for (int i = 0; ok && i < htrees.size(); ++i) {
     int type = tree_types[i];
-    int alphabet_size = AlphabetSize(type, num_green, palette_size);
+    int alphabet_size = AlphabetSize(type, palette_size);
     ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
   }
 
@@ -348,8 +345,8 @@ static int DecodeImageInternal(int original_xsize,
   int blue = 0;
   int alpha = 0xff000000;
   int meta_ix = -1;
-  // Green values >= num_green but < palette_limit are from the palette.
-  const int palette_limit = num_green + palette_size;
+  // Green values >= 256 but < palette_limit are from the palette.
+  const int palette_limit = 256 + palette_size;
   const HuffmanTreeNode *huff_green = 0;
   const HuffmanTreeNode *huff_red = 0;
   const HuffmanTreeNode *huff_blue = 0;
@@ -375,7 +372,7 @@ static int DecodeImageInternal(int original_xsize,
     }
     int green = ReadSymbol(*huff_green, br);
     // Literal
-    if (green < num_green) {
+    if (green < 256) {
       red = ReadSymbol(*huff_red, br) << 16;
       FillBitWindow(br);
       blue = ReadSymbol(*huff_blue, br);
@@ -394,7 +391,7 @@ static int DecodeImageInternal(int original_xsize,
     }
     // Palette
     if (green < palette_limit) {
-      int palette_symbol = green - num_green;
+      int palette_symbol = green - 256;
       const uint32 argb = palette->Lookup(x, palette_symbol);
       image[pos] = argb;
       palette->Insert(x, argb);

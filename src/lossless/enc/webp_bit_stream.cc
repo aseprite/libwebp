@@ -158,11 +158,10 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
 }
 
 void PackGreenBitLengths(const std::vector<uint8> bit_lengths,
-                         const int green_bits,
                          const int palette_bits,
                          const bool use_palette,
                          std::vector<uint8>* new_lengths) {
-  for (int i = 0; i < (1 << green_bits); ++i) {
+  for (int i = 0; i < 256; ++i) {
     new_lengths->push_back(bit_lengths[i]);
   }
   if (use_palette) {
@@ -376,14 +375,6 @@ int NumberOfUsedRBAComponents(const std::vector<uint32>& argb) {
     if (((argb[i] >> 16) & 0xff) != 0 && num < 1) num = 1;
   }
   return num;
-}
-
-int GreenBitDepth(const std::vector<uint32>& argb) {
-  int bits = 1;
-  for (int i = 0; i < argb.size(); ++i) {
-    while (((argb[i] >> 8) & 0xff) >= (1 << bits)) ++bits;
-  }
-  return bits;
 }
 
 int MetaSize(int size, int bits) {
@@ -627,19 +618,12 @@ static void EncodeImageInternal(const int xsize,
     WriteBits(4, palette_bits, bw);
   }
 
-  // Green component bit depth, with the property that the green component
-  // of all pixels is less than 1 << green_bit_depth.
-  const int green_bit_depth = GreenBitDepth(argb);
-  VERIFY(green_bit_depth >= 1);
-  VERIFY(green_bit_depth <= 8);
-  WriteBits(3, green_bit_depth - 1, bw);
-
   //
   // Huffman codes
   //
   for (int i = 0; i < histogram_image.size(); ++i) {
     std::vector<uint8> green_lengths;
-    PackGreenBitLengths(bit_length[5 * i], green_bit_depth,
+    PackGreenBitLengths(bit_length[5 * i],
                         palette_bits, use_palette, &green_lengths);
     StoreHuffmanCode(green_lengths, bw);
     for (int k = 1; k < 5; ++k) {
