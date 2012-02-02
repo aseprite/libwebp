@@ -73,18 +73,17 @@ void SetDepth(const HuffmanTree &p,
 // we are not planning to use this with extremely long blocks.
 //
 // See http://en.wikipedia.org/wiki/Huffman_coding
-void CreateHuffmanTree(const int *data,
-                       const int length,
-                       const int tree_limit,
-                       uint8 *depth) {
+void CreateHuffmanTree(const int* const histogram, int histogram_size,
+                       int tree_depth_limit,
+                       uint8* const bit_depths) {
   // For block sizes with less than 64k symbols we never need to do a
   // second iteration of this loop.
   // If we actually start running inside this loop a lot, we would perhaps
   // be better off with the Katajainen algorithm.
   for (int count_limit = 1; ; count_limit *= 2) {
     int tree_size = 0;
-    for (int i = 0; i < length; ++i) {
-      if (data[i]) {
+    for (int i = 0; i < histogram_size; ++i) {
+      if (histogram[i]) {
         ++tree_size;
       }
     }
@@ -96,12 +95,10 @@ void CreateHuffmanTree(const int *data,
         (HuffmanTree *)malloc(3 * tree_size * sizeof(HuffmanTree));
     {
       int j = 0;
-      for (int i = 0; i < length; ++i) {
-        if (data[i]) {
-          int count = data[i];
-          if (count < count_limit) {
-            count = count_limit;
-          }
+      for (int i = 0; i < histogram_size; ++i) {
+        if (histogram[i]) {
+          const int count =
+              (histogram[i] < count_limit) ? count_limit : histogram[i];
           tree[j].total_count_ = count;
           tree[j].value_ = i;
           tree[j].pool_index_left_ = -1;
@@ -142,25 +139,25 @@ void CreateHuffmanTree(const int *data,
           tree_size = tree_size + 1;
         }
       }
-      SetDepth(tree[0], tree_pool, depth, 0);
+      SetDepth(tree[0], tree_pool, bit_depths, 0);
     } else {
       if (tree_size == 1) {
         // Only one element.
-        depth[tree[0].value_] = 1;
+        bit_depths[tree[0].value_] = 1;
       }
     }
     free(tree);
-    // We need to pack the Huffman tree in tree_limit bits.
-    // If this was not successfull, add fake entities to the lowest values
+    // We need to pack the Huffman tree in tree_depth_limit bits.
+    // If this was not successful, add fake entities to the lowest values
     // and retry.
     {
-      int max_length = depth[0];
-      for (int j = 1; j < length; ++j) {
-        if (max_length < depth[j]) {
-          max_length = depth[j];
+      int max_depth = bit_depths[0];
+      for (int j = 1; j < histogram_size; ++j) {
+        if (max_depth < bit_depths[j]) {
+          max_depth = bit_depths[j];
         }
       }
-      if (max_length <= tree_limit) {
+      if (max_depth <= tree_depth_limit) {
         break;
       }
     }
