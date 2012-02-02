@@ -415,11 +415,12 @@ bool CreatePalette(int n, const uint32 *argb,
 
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
 // Returns the new xsize.
-int BundlePixels(int xsize, int ysize, int xbits, int bit_depth,
+int BundlePixels(int xsize, int ysize, int xbits,
                  const std::vector<uint32>& from_argb,
                  std::vector<uint32>* to_argb) {
-  VERIFY(xsize * ysize == from_argb.size());
+  const int bit_depth = 1 << (3 - xbits);
   const int xs = MetaSize(xsize, xbits);
+  VERIFY(xsize * ysize == from_argb.size());
   to_argb->resize(xs * ysize);
   for (int y = 0; y < ysize; ++y) {
     uint32 code;
@@ -741,16 +742,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     use_emerging_palette = false;
     if (palette.size() <= 16) {
       int xbits = 1;
-      int bit_depth = 4;
       if (palette.size() <= 2) {
         xbits = 3;
-        bit_depth = 1;
       } else if (palette.size() <= 4) {
         xbits = 2;
-        bit_depth = 2;
       }
       std::vector<uint32> from_argb(argb.begin(), argb.end());
-      xsize = BundlePixels(xsize, ysize, xbits, bit_depth, from_argb, &argb);
+      xsize = BundlePixels(xsize, ysize, xbits, from_argb, &argb);
       WriteBits(1, 1, &bw);
       WriteBits(3, 4, &bw);
       WriteBits(2, xbits, &bw);

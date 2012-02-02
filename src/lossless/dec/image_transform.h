@@ -52,14 +52,9 @@ void FreeImageTransformData(ImageTransform transform) {
 void PixelBundleInverseTransform(int xsize, int ysize,
                                  PixelBundleTransformData data,
                                  uint32** image) {
+  const int bit_depth = 1 << (3 - data.xbits);
   const int xs = (xsize + (1 << data.xbits) - 1) >> data.xbits;
   uint32* tmp_image = (uint32*)malloc(xs * ysize * sizeof(uint32));
-  int bit_depth = 1;  // 2 values, xbits == 3.
-  if (data.xbits == 1) {
-    bit_depth = 4;  // 16 values.
-  } else if (data.xbits == 2) {
-    bit_depth = 2;  // 4 values.
-  }
   memcpy(tmp_image, *image, xs * ysize * sizeof(uint32));
   *image = (uint32*)realloc(*image, xsize * ysize * sizeof(uint32));
   for (int y = 0; y < ysize; ++y) {
