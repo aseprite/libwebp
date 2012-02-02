@@ -50,7 +50,7 @@ static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
   uint8* allocated_buf;
   size_t allocated_size;
   const size_t size_required = BitWriterNumBytes(bw) + extra_size;
-  if (size_required <= bw->max_bytes_) return 1;
+  if ((bw->max_bytes_ > 0) && (size_required <= bw->max_bytes_)) return 1;
   allocated_size = (3 * bw->max_bytes_) >> 1;
   if (allocated_size < size_required) {
     allocated_size = size_required;
@@ -71,7 +71,7 @@ static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
 
 int BitWriterInit(BitWriter* const bw, size_t expected_size) {
   memset(bw, 0, sizeof(*bw));
-  return (expected_size > 0) ? BitWriterResize(bw, expected_size) : 1;
+  return BitWriterResize(bw, expected_size);
 }
 
 uint8* BitWriterFinish(BitWriter* const bw) {
