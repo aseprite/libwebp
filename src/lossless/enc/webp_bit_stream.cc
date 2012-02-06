@@ -157,10 +157,9 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   }
 }
 
-void PackGreenBitLengths(const std::vector<uint8> bit_lengths,
-                         const int palette_bits,
-                         const bool use_palette,
-                         std::vector<uint8>* new_lengths) {
+void PackLiteralBitLengths(const std::vector<uint8> bit_lengths,
+                           int palette_bits, bool use_palette,
+                           std::vector<uint8>* new_lengths) {
   for (int i = 0; i < 256; ++i) {
     new_lengths->push_back(bit_lengths[i]);
   }
@@ -435,62 +434,40 @@ static void DeleteHistograms(std::vector<Histogram *> &histograms) {
   }
 }
 
-static void EncodeImageInternal(const int xsize,
-                                const int ysize,
-                                const std::vector<uint32>& argb,
-                                const int quality,
-                                const int palette_bits,
-                                const int histogram_bits,
-                                const bool use_2d_locality,
-                                BitWriter *bw) {
-  const int use_palette = palette_bits ? 1 : 0;
-  // First, check if it is at all a good idea to use LZ77
-  bool lz77_is_useful = false;
+static void GetBackwardReferences(int xsize, int ysize,
+                                  const std::vector<uint32>& argb,
+                                  int quality, int use_palette,
+                                  int palette_bits, bool use_2d_locality,
+                                  std::vector<LiteralOrCopy>& backward_refs) {
+  // Backward Reference using LZ77.
   std::vector<LiteralOrCopy> backward_refs_lz77;
+  BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
+                              &backward_refs_lz77);
+  Histogram *histo_lz77 = new Histogram(palette_bits);
+  histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77.size());
+
+  // Backward Reference using RLE only.
   std::vector<LiteralOrCopy> backward_refs_rle_only;
-  {
-    BackwardReferencesHashChain(
-        xsize,
-        ysize,
-        use_palette,
-        &argb[0],
-        palette_bits,
-        &backward_refs_lz77);
-    Histogram *histo_lz77 = new Histogram(palette_bits);
-    histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77.size());
+  BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only);
+  Histogram *histo_rle = new Histogram(palette_bits);
+  histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
 
-    BackwardReferencesRle(
-        xsize,
-        ysize,
-        &argb[0],
-        &backward_refs_rle_only);
-    Histogram *histo_rle = new Histogram(palette_bits);
-    histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
-
-    lz77_is_useful = histo_rle->EstimateBits() > histo_lz77->EstimateBits();
-    if (lz77_is_useful) {
-      backward_refs_rle_only.clear();
-    } else {
-      backward_refs_lz77.clear();
-    }
-    delete histo_rle;
-    delete histo_lz77;
+  // Check if LZ77 is useful.
+  const bool lz77_is_useful =
+      (histo_rle->EstimateBits() > histo_lz77->EstimateBits());
+  if (lz77_is_useful) {
+    backward_refs_rle_only.clear();
+  } else {
+    backward_refs_lz77.clear();
   }
+  delete histo_rle;
+  delete histo_lz77;
 
-  std::vector<LiteralOrCopy> backward_refs;
+  // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
-    int recursion_level = 0;
-    if (xsize * ysize < 320 * 200) {
-      recursion_level = 1;
-    }
-    BackwardReferencesTraceBackwards(
-        xsize,
-        ysize,
-        recursion_level,
-        use_palette,
-        &argb[0],
-        palette_bits,
-        &backward_refs);
+    const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
+    BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
+                                     &argb[0], palette_bits, &backward_refs);
   } else {
     if (lz77_is_useful) {
       backward_refs.swap(backward_refs_lz77);
@@ -498,30 +475,34 @@ static void EncodeImageInternal(const int xsize,
       backward_refs.swap(backward_refs_rle_only);
     }
   }
-  VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize,
-                                 palette_bits,
-                                 backward_refs));
+
+  // Verify.
+  VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize, palette_bits,
+                                  backward_refs));
 
   if (use_2d_locality) {
-    BackwardReferences2DLocality(xsize,
-                                 ysize,
-                                 backward_refs.size(),
+    // Use backward reference with 2D locality.
+    BackwardReferences2DLocality(xsize, ysize, backward_refs.size(),
                                  &backward_refs[0]);
   }
+}
 
-  std::vector<Histogram *> histogram_image;
-  std::vector<Histogram *> histogram_image_raw;
-  BuildHistogramImage(xsize,
-                      ysize,
-                      histogram_bits,
-                      palette_bits,
-                      backward_refs,
+static void GetHistImageSymbols(int xsize, int ysize,
+                                const std::vector<LiteralOrCopy>& backward_refs,
+                                int quality, int histogram_bits,
+                                int palette_bits, bool use_2d_locality,
+                                std::vector<Histogram*>& histogram_image,
+                                std::vector<uint32>& histogram_symbols) {
+  // Build histogram image.
+  std::vector<Histogram*> histogram_image_raw;
+  BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits, backward_refs,
                       &histogram_image_raw);
-  std::vector<uint32> histogram_symbols(histogram_image_raw.size(), -1);
-  CombineHistogramImage(histogram_image_raw,
-                        quality,
-                        palette_bits,
+  // Collapse similar histograms.
+  histogram_symbols.clear();
+  histogram_symbols.resize(histogram_image_raw.size(), -1);
+  CombineHistogramImage(histogram_image_raw, quality, palette_bits,
                         &histogram_image);
+  // Refine histogram image.
   const int max_refinement_iters = 1;
   for (int iter = 0; iter < max_refinement_iters; ++iter) {
     RefineHistogramImage(histogram_image_raw, &histogram_symbols,
@@ -530,66 +511,93 @@ static void EncodeImageInternal(const int xsize,
       break;
     }
   }
+  DeleteHistograms(histogram_image_raw);
+}
 
-  DeleteHistograms(histogram_image_raw);  // free raw histograms
-
-  // Create bit lengths for each histogram code.
-  std::vector< std::vector<uint8> > bit_length(5 * histogram_image.size());
+static void GetHuffBitLengthsAndCodes(
+    const std::vector<Histogram*>& histogram_image,
+    int use_palette,
+    std::vector< std::vector<uint8> >& bit_lengths,
+    std::vector< std::vector<uint16> >& bit_codes) {
   for (int i = 0; i < histogram_image.size(); ++i) {
-    bit_length[5 * i].resize(histogram_image[i]->NumLiteralOrCopyCodes());
+    bit_lengths[5 * i].resize(histogram_image[i]->NumLiteralOrCopyCodes());
+
+    // For each component, optimize histogram for Huffman with RLE compression.
     OptimizeHuffmanForRle(histogram_image[i]->NumLiteralOrCopyCodes(),
                           &histogram_image[i]->literal_[0]);
     if (!use_palette) {
-      // Optimization might have smeared population counts to palette entries,
-      // so zero them out afterwards.
-      for (int k = 0; k < (1 << palette_bits); ++k) {
-        histogram_image[i]->literal_[256 + k] = 0;
-      }
+      // Implies that palette_bits == 0,
+      // and so number of palette entries = (1 << 0) = 1.
+      // Optimization might have smeared population count in this single
+      // palette entry, so zero it out.
+      histogram_image[i]->literal_[256] = 0;
     }
     OptimizeHuffmanForRle(256, &histogram_image[i]->red_[0]);
     OptimizeHuffmanForRle(256, &histogram_image[i]->blue_[0]);
     OptimizeHuffmanForRle(256, &histogram_image[i]->alpha_[0]);
     OptimizeHuffmanForRle(kDistanceCodes, &histogram_image[i]->distance_[0]);
 
+    // Create a Huffman tree (in the form of bit lengths) for each component.
     CreateHuffmanTree(histogram_image[i]->literal_,
                       histogram_image[i]->NumLiteralOrCopyCodes(), 15,
-                      &bit_length[5 * i][0]);
-    bit_length[5 * i + 1].resize(256);
+                      &bit_lengths[5 * i][0]);
+    bit_lengths[5 * i + 1].resize(256);
     CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
-                      &bit_length[5 * i + 1][0]);
+                      &bit_lengths[5 * i + 1][0]);
 
-    bit_length[5 * i + 2].resize(256);
+    bit_lengths[5 * i + 2].resize(256);
     CreateHuffmanTree(histogram_image[i]->blue_, 256, 15,
-                      &bit_length[5 * i + 2][0]);
-    bit_length[5 * i + 3].resize(256);
+                      &bit_lengths[5 * i + 2][0]);
+    bit_lengths[5 * i + 3].resize(256);
     CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
-                      &bit_length[5 * i + 3][0]);
-    bit_length[5 * i + 4].resize(kDistanceCodes);
+                      &bit_lengths[5 * i + 3][0]);
+    bit_lengths[5 * i + 4].resize(kDistanceCodes);
     CreateHuffmanTree(histogram_image[i]->distance_, kDistanceCodes, 15,
-                      &bit_length[5 * i + 4][0]);
+                      &bit_lengths[5 * i + 4][0]);
   }
-  // We have all Huffman trees (modeled by their bit lengths).
 
-  // Now create the actual bit codes for the bit lengths.
-  std::vector< std::vector<uint16> > bit_codes(bit_length.size());
+  // Create the actual bit codes for the bit lengths.
+  bit_codes.resize(bit_lengths.size());
   for (int i = 0; i < bit_codes.size(); ++i) {
-    // Create actual bit codes
-    bit_codes[i].resize(bit_length[i].size());
-    ConvertBitDepthsToSymbols(&bit_length[i][0], bit_length[i].size(),
+    bit_codes[i].resize(bit_lengths[i].size());
+    ConvertBitDepthsToSymbols(&bit_lengths[i][0], bit_lengths[i].size(),
                               &bit_codes[i][0]);
   }
+}
+
+static void EncodeImageInternal(int xsize, int ysize,
+                                const std::vector<uint32>& argb, int quality,
+                                int palette_bits, int histogram_bits,
+                                bool use_2d_locality, BitWriter *bw) {
+  const int use_palette = palette_bits ? 1 : 0;
+
+  // Calculate backward references from ARGB image.
+  std::vector<LiteralOrCopy> backward_refs;
+  GetBackwardReferences(xsize, ysize, argb, quality, use_palette, palette_bits,
+                        use_2d_locality, backward_refs);
+
+  // Build histogram image & symbols from backward references.
+  std::vector<Histogram*> histogram_image;
+  std::vector<uint32> histogram_symbols;
+  GetHistImageSymbols(xsize, ysize, backward_refs, quality, histogram_bits,
+                      palette_bits, use_2d_locality, histogram_image,
+                      histogram_symbols);
+
+  // Create Huffman bit lengths & codes for each histogram image.
+  std::vector< std::vector<uint8> > bit_lengths(5 * histogram_image.size());
+  std::vector< std::vector<uint16> > bit_codes;
+  GetHuffBitLengthsAndCodes(histogram_image, use_palette,
+                            bit_lengths, bit_codes);
 
   // No transforms.
   WriteBits(1, 0, bw);
 
-  //
-  // Huffman image + meta huffman
-  //
+  // Huffman image + meta huffman.
   const bool write_histogram_image = (histogram_image.size() > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
     std::vector<uint32> histogram_argb(histogram_symbols.begin(),
-                                  histogram_symbols.end());
+                                       histogram_symbols.end());
     ShiftHistogramImage(&histogram_argb);
     WriteBits(4, histogram_bits, bw);
     EncodeImageInternal(MetaSize(xsize, histogram_bits),
@@ -611,46 +619,36 @@ static void EncodeImageInternal(const int xsize,
     }
   }
 
-  // Palette parameters
+  // Palette parameters.
   WriteBits(1, use_palette, bw);
   if (use_palette) {
     WriteBits(4, kRowHasherXSubsampling, bw);
     WriteBits(4, palette_bits, bw);
   }
 
-  //
-  // Huffman codes
-  //
+  // Store Huffman codes.
   for (int i = 0; i < histogram_image.size(); ++i) {
-    std::vector<uint8> green_lengths;
-    PackGreenBitLengths(bit_length[5 * i],
-                        palette_bits, use_palette, &green_lengths);
-    StoreHuffmanCode(green_lengths, bw);
+    std::vector<uint8> literal_lengths;
+    PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
+                          &literal_lengths);
+    StoreHuffmanCode(literal_lengths, bw);
     for (int k = 1; k < 5; ++k) {
-      StoreHuffmanCode(bit_length[5 * i + k], bw);
+      StoreHuffmanCode(bit_lengths[5 * i + k], bw);
     }
   }
   DeleteHistograms(histogram_image);  // free combined histograms
 
   // Emit no bits if there is only one symbol in the histogram.
-  // This gives ~5 % for lena.png.
-  for (int i = 0; i < bit_length.size(); ++i) {
-    ClearHuffmanTreeIfOnlyOneSymbol(bit_length[i].size(),
-                                    &(bit_length[i])[0],
+  // This gives better compression for some images.
+  for (int i = 0; i < bit_lengths.size(); ++i) {
+    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths[i].size(), &(bit_lengths[i])[0],
                                     &bit_codes[i]);
   }
 
   // Store actual literals
-  StoreImageToBitMask(
-      xsize, ysize,
-      histogram_bits,
-      palette_bits,
-      &backward_refs[0],
-      backward_refs.size(),
-      histogram_symbols,
-      bit_length,
-      bit_codes,
-      bw);
+  StoreImageToBitMask(xsize, ysize, histogram_bits, palette_bits,
+                      &backward_refs[0], backward_refs.size(),
+                      histogram_symbols, bit_lengths, bit_codes, bw);
 }
 
 inline void WriteImageSize(uint32 xsize, uint32 ysize, BitWriter *bw) {
