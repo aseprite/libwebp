@@ -156,17 +156,17 @@ typedef struct {
   int            bit_pos_;
 } BitReader;
 
-void InitSimpleBitReader(BitReader* const br,
-                         const uint8_t* const start,
-                         size_t length);
+void VP8LInitBitReader(BitReader* const br,
+                       const uint8_t* const start,
+                       size_t length);
 
-uint32_t ReadBits(BitReader* const br, int n_bits);
-void FillBitWindow(BitReader* const br);
+uint32_t VP8LReadBits(BitReader* const br, int n_bits);
+void VP8LFillBitWindow(BitReader* const br);
 
 // If ReadOneBitUnsafe is much faster than ReadBits(..., 1), but it can be
 // called only 32 times after the last FillBitWindow, and consequent calls
 // may return invalid data.
-static WEBP_INLINE uint32_t ReadOneBitUnsafe(BitReader* const br) {
+static WEBP_INLINE uint32_t VP8LReadOneBitUnsafe(BitReader* const br) {
   const uint32_t val = (br->val_ >> br->bit_pos_) & 1;
   assert(br->bit_pos_ < 64);
   ++br->bit_pos_;

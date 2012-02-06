@@ -102,9 +102,9 @@ static const uint32_t kBitMask[MAX_NUM_BIT_READ] = {
   65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607, 16777215
 };
 
-void InitSimpleBitReader(BitReader* const br,
-                         const uint8_t* const start,
-                         size_t length) {
+void VP8LInitBitReader(BitReader* const br,
+                       const uint8_t* const start,
+                       size_t length) {
   size_t i;
   assert(br);
   assert(start);
@@ -129,7 +129,7 @@ static void ShiftBytes(BitReader* const br) {
   }
 }
 
-void FillBitWindow(BitReader* const br) {
+void VP8LFillBitWindow(BitReader* const br) {
   if (br->bit_pos_ >= 32) {
 #if defined(__x86_64__)
     if (br->pos_ < br->len_ - 8) {
@@ -150,7 +150,7 @@ void FillBitWindow(BitReader* const br) {
   }
 }
 
-uint32_t ReadBits(BitReader* const br, int n_bits) {
+uint32_t VP8LReadBits(BitReader* const br, int n_bits) {
   const uint32_t val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
   assert(n_bits < MAX_NUM_BIT_READ);
   assert(n_bits >= 0);

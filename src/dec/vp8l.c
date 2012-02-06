@@ -31,11 +31,11 @@ int VP8LGetInfo(const uint8_t* data, uint32_t data_size,
     BitReader br;
     int signature;
 
-    InitSimpleBitReader(&br, data, kHeaderBytes);
-    signature = ReadBits(&br, 8);
+    VP8LInitBitReader(&br, data, kHeaderBytes);
+    signature = VP8LReadBits(&br, 8);
     if (signature != LOSSLESS_MAGIC_BYTE) return 0;
-    *width = ReadBits(&br, kImageSizeBits) + 1;
-    *height = ReadBits(&br, kImageSizeBits) + 1;
+    *width = VP8LReadBits(&br, kImageSizeBits) + 1;
+    *height = VP8LReadBits(&br, kImageSizeBits) + 1;
     return 1;
   } else {
     return 0;         // not enough data
