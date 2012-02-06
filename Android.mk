@@ -11,6 +11,7 @@ LOCAL_SRC_FILES := \
 	src/dec/quant.c \
 	src/dec/tree.c \
 	src/dec/vp8.c \
+	src/dec/vp8l.c \
 	src/dec/webp.c \
 	src/dsp/cpu.c \
 	src/dsp/dec.c \

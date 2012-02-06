@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "./vp8i.h"
+#include "./vp8li.h"
 #include "./webpi.h"
 #include "../webp/mux.h"  // For 'ALPHA_FLAG'.
 

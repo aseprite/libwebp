@@ -83,30 +83,6 @@ int VP8SetError(VP8Decoder* const dec,
 
 //------------------------------------------------------------------------------
 
-int VP8LGetInfo(const uint8_t* data, uint32_t data_size,
-                int* width, int* height) {
-  const uint32_t kHeaderBytes = 10;  // Max value of size_bits is 32 bits.
-  if (data_size >= kHeaderBytes) {
-    VP8BitReader br;
-    int size_bits;
-    int signature;
-    int w,h;
-    VP8InitBitReader(&br, data, data + kHeaderBytes);
-
-    signature = VP8GetValue(&br, 8);
-    if (signature != LOSSLESS_MAGIC_BYTE) return 0;
-    size_bits = (VP8GetValue(&br, 3) + 1) * 4;
-    w = VP8GetValue(&br, size_bits);
-    h = VP8GetValue(&br, size_bits);
-    if (br.eof_) return 0;
-    *width = w;
-    *height = h;
-    return 1;
-  } else {
-    return 0;         // not enough data
-  }
-}
-
 int VP8GetInfo(const uint8_t* data, uint32_t data_size, uint32_t chunk_size,
                int* width, int* height) {
   if (data_size < 10) {

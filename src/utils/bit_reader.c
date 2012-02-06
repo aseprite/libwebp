@@ -95,6 +95,86 @@ int32_t VP8GetSignedValue(VP8BitReader* const br, int bits) {
 }
 
 //------------------------------------------------------------------------------
+// BitReader
+
+static const uint32_t kBitMask[MAX_NUM_BIT_READ] = {
+  0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383, 32767,
+  65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607, 16777215
+};
+
+void InitSimpleBitReader(BitReader* const br,
+                         const uint8_t* const start,
+                         size_t length) {
+  size_t i;
+  assert(br);
+  assert(start);
+
+  br->buf_ = start;
+  br->len_ = length;
+  br->val_ = 0;
+  br->pos_ = 0;
+  br->bit_pos_ = 0;
+  for (i = 0; i < sizeof(br->val_) && i < br->len_; ++i) {
+    br->val_ |= ((uint64_t)br->buf_[br->pos_]) << (8 * i);
+    ++br->pos_;
+  }
+}
+
+static void ShiftBytes(BitReader* const br) {
+  while (br->bit_pos_ >= 8 && br->pos_ < br->len_) {
+    br->val_ >>= 8;
+    br->val_ |= ((uint64_t)br->buf_[br->pos_]) << 56;
+    ++br->pos_;
+    br->bit_pos_ -= 8;
+  }
+}
+
+void FillBitWindow(BitReader* const br) {
+  if (br->bit_pos_ >= 32) {
+#if defined(__x86_64__)
+    if (br->pos_ < br->len_ - 8) {
+      br->val_ >>= 32;
+      // The expression below needs a little-endian arch to work correctly.
+      // This gives a large speedup for decoding speed.
+      br->val_ |= *(const uint64_t *)(br->buf_ + br->pos_) << 32;
+      br->pos_ += 4;
+      br->bit_pos_ -= 32;
+    } else {
+      // Slow path.
+      ShiftBytes(br);
+    }
+#else
+    // Always the slow path.
+    ShiftBytes(br);
+#endif
+  }
+}
+
+uint32_t ReadBits(BitReader* const br, int n_bits) {
+  const uint32_t val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
+  assert(n_bits < MAX_NUM_BIT_READ);
+  assert(n_bits >= 0);
+  br->bit_pos_ += n_bits;
+  if (br->bit_pos_ >= 40) {
+    if (br->pos_ < br->len_ - 5) {
+      br->val_ >>= 40;
+      br->val_ |=
+          (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
+          (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
+          (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
+          (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
+          (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
+      br->pos_ += 5;
+      br->bit_pos_ -= 40;
+    }
+    if (br->bit_pos_ >= 8) {
+      ShiftBytes(br);
+    }
+  }
+  return val;
+}
+
+//------------------------------------------------------------------------------
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"

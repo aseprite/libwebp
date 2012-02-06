@@ -153,6 +153,7 @@ X_OBJS= \
     $(DIROBJ)\dec\quant.obj \
     $(DIROBJ)\dec\tree.obj \
     $(DIROBJ)\dec\vp8.obj \
+    $(DIROBJ)\dec\vp8l.obj \
     $(DIROBJ)\dec\webp.obj \
     $(DIROBJ)\dsp\cpu.obj \
     $(DIROBJ)\dsp\dec.obj \

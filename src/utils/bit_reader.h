@@ -8,11 +8,13 @@
 // Boolean decoder
 //
 // Author: Skal (pascal.massimino@gmail.com)
+//         Vikas Arora (vikaas.arora@gmail.com)
 
 #ifndef WEBP_UTILS_BIT_READER_H_
 #define WEBP_UTILS_BIT_READER_H_
 
 #include <assert.h>
+#include <stddef.h>  // For size_t
 #include "../webp/decode_vp8.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -138,6 +140,37 @@ static WEBP_INLINE int VP8GetSigned(VP8BitReader* const br, int v) {
   const int bit = VP8BitUpdate(br, split);
   VP8Shift(br);
   return bit ? -v : v;
+}
+
+
+// -----------------------------------------------------------------------------
+// Bitreader
+
+#define MAX_NUM_BIT_READ 25
+
+typedef struct {
+  uint64_t       val_;
+  const uint8_t* buf_;
+  size_t         len_;
+  size_t         pos_;
+  int            bit_pos_;
+} BitReader;
+
+void InitSimpleBitReader(BitReader* const br,
+                         const uint8_t* const start,
+                         size_t length);
+
+uint32_t ReadBits(BitReader* const br, int n_bits);
+void FillBitWindow(BitReader* const br);
+
+// If ReadOneBitUnsafe is much faster than ReadBits(..., 1), but it can be
+// called only 32 times after the last FillBitWindow, and consequent calls
+// may return invalid data.
+static WEBP_INLINE uint32_t ReadOneBitUnsafe(BitReader* const br) {
+  const uint32_t val = (br->val_ >> br->bit_pos_) & 1;
+  assert(br->bit_pos_ < 64);
+  ++br->bit_pos_;
+  return val;
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)
