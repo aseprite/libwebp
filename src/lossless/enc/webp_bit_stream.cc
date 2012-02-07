@@ -14,9 +14,6 @@
 
 #include <string.h>
 
-#include <algorithm>
-#include <map>
-#include <utility>
 #include <vector>
 
 #include "../common/integral_types.h"
@@ -106,7 +103,10 @@ void OptimizeHuffmanForRle(int length, int *counts) {
         !ValuesShouldBeCollapsedToStrideAverage(stride, counts[i], limit)) {
       if (stride >= 4 || (stride >= 3 && sum == 0)) {
         // The stride must end, collapse what we have, if we have enough (4).
-        int count = std::max(1, (sum + stride / 2) / stride);
+        int count = (sum + stride / 2) / stride;
+        if (count < 1) {
+          count = 1;
+        }
         if (sum == 0) {
           // Don't make an all zeros stride to be upgraded to ones.
           count = 0;
