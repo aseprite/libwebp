@@ -526,7 +526,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 std::vector<uint32_t>& histogram_symbols) {
   // Build histogram image.
   std::vector<Histogram*> histogram_image_raw;
-  BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits, backward_refs,
+  BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
+                      &backward_refs[0], backward_refs.size(),
                       &histogram_image_raw);
   // Collapse similar histograms.
   histogram_symbols.clear();

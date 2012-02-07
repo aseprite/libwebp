@@ -21,7 +21,8 @@
 void BuildHistogramImage(int xsize, int ysize,
                          int histobits,
                          int palettebits,
-                         const std::vector<LiteralOrCopy> &backward_refs,
+                         const LiteralOrCopy *backward_refs,
+                         int backward_refs_size,
                          std::vector<Histogram *> *image) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
@@ -33,7 +34,7 @@ void BuildHistogramImage(int xsize, int ysize,
   // x and y trace the position in the image.
   int x = 0;
   int y = 0;
-  for (i = 0; i < backward_refs.size(); ++i) {
+  for (i = 0; i < backward_refs_size; ++i) {
     const LiteralOrCopy &v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;

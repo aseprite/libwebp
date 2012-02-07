@@ -19,7 +19,8 @@
 void BuildHistogramImage(int xsize, int ysize,
                          int histobits,
                          int palette_bits,
-                         const std::vector<LiteralOrCopy> &backward_refs,
+                         const LiteralOrCopy *backward_refs,
+                         int backward_refs_size,
                          std::vector<Histogram *> *image);
 
 // Combines several histograms into fewer histograms.
