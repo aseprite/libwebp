@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <map>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -380,26 +379,58 @@ int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-bool CreatePalette(int n, const uint32_t *argb,
-                   int max_palette_size,
-                   std::vector<uint32_t>* palette) {
-  if (max_palette_size == 0 || n == 0) return false;
-  std::set<uint32_t> k;
-  k.insert(argb[0]);
-  for (int i = 1; i < n; ++i) {
-    if (argb[i - 1] == argb[i]) {
+static int Uint32Order(const void *p1, const void *p2) {
+  uint32_t a = *(const uint32_t *)p1;
+  uint32_t b = *(const uint32_t *)p2;
+  if (a < b) {
+    return -1;
+  }
+  if (a == b) {
+    return 0;
+  }
+  return 1;
+}
+
+bool CreatePalette256(int n, const uint32_t *argb,
+                      std::vector<uint32_t>* palette) {
+  int i;
+  const int max_palette_size = 256;
+  int current_size = 0;
+  uint8_t in_use[1024];
+  uint32_t colors[1024];
+  static const uint32_t kHashMul = 0x1e35a7bd;
+  memset(&in_use[0], 0, sizeof(in_use));
+  for (i = 0; i < n; ++i) {
+    if (i != 0 && argb[i - 1] == argb[i]) {
       continue;
     }
-    if (k.find(argb[i]) == k.end()) {
-      k.insert(argb[i]);
-      if (k.size() > max_palette_size) {
-        return false;
+    int addr = (kHashMul * argb[i]) >> 22;
+    for(;;) {
+      if (!in_use[addr]) {
+        colors[addr] = argb[i];
+        in_use[addr] = 1;
+        ++current_size;
+        if (current_size > max_palette_size) {
+          return false;
+        }
+        break;
+      } else if (colors[addr] == argb[i]) {
+        // The color is already there.
+        break;
+      } else {
+        // Some other color sits there.
+        // Do linear conflict resolution.
+        ++addr;
+        addr &= 0x3ff;
       }
     }
   }
-  for (std::set<uint32_t>::const_iterator it = k.begin(); it != k.end(); ++it) {
-    palette->push_back(*it);
+  for (i = 0; i < sizeof(in_use); ++i) {
+    if (in_use[i]) {
+      palette->push_back(colors[i]);
+    }
   }
+  qsort(&(*palette)[0], palette->size(), sizeof((*palette)[0]), Uint32Order);
   return true;
 }
 
@@ -703,9 +734,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   }
 
   std::vector<uint32_t> palette;
-  const int max_palette_size = 256;
   if (use_small_palette &&
-      CreatePalette(xsize * ysize, &argb[0], max_palette_size, &palette)) {
+      CreatePalette256(xsize * ysize, &argb[0], &palette)) {
     for (int i = 0; i < xsize * ysize; ++i) {
       for (int k = 0; k < palette.size(); ++k) {
         if (argb[i] == palette[k]) {
