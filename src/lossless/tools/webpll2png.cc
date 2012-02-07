@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "../common/integral_types.h"
 #include "../dec/decode.h"
 #include "png.h"
 
