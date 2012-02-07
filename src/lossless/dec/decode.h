@@ -11,7 +11,7 @@
 #define WEBP_DEC_DECODE_H_
 
 #include <stdlib.h>
-#include "../common/integral_types.h"
+#include <stdint.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -23,10 +23,10 @@ extern "C" {
 //
 // Return false in case error, otherwise true.
 int DecodeWebpLLImage(size_t encoded_image_size,
-                      const uint8* const encoded_image,
+                      const uint8_t* const encoded_image,
                       int* xsize,
                       int* ysize,
-                      uint32** argb_image);
+                      uint32_t** argb_image);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"

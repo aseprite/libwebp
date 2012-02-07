@@ -11,8 +11,8 @@
 #define WEBP_DEC_IMAGE_TRANSFORM_H_
 
 #include <stdio.h>
+#include <stdint.h>
 
-#include "../common/integral_types.h"
 #include "../common/predictor.h"
 
 typedef enum ImageTransformType {
@@ -32,7 +32,7 @@ struct ImageTransform {
 
 struct PerTileTransformData {
   int bits;
-  uint32* image;
+  uint32_t* image;
 };
 
 struct PixelBundleTransformData {
@@ -51,20 +51,20 @@ void FreeImageTransformData(ImageTransform transform) {
 
 void PixelBundleInverseTransform(int xsize, int ysize,
                                  PixelBundleTransformData data,
-                                 uint32** image) {
+                                 uint32_t** image) {
   const int bit_depth = 1 << (3 - data.xbits);
   const int xs = (xsize + (1 << data.xbits) - 1) >> data.xbits;
-  uint32* tmp_image = (uint32*)malloc(xs * ysize * sizeof(uint32));
-  memcpy(tmp_image, *image, xs * ysize * sizeof(uint32));
-  *image = (uint32*)realloc(*image, xsize * ysize * sizeof(uint32));
+  uint32_t* tmp_image = (uint32_t*)malloc(xs * ysize * sizeof(uint32_t));
+  memcpy(tmp_image, *image, xs * ysize * sizeof(uint32_t));
+  *image = (uint32_t*)realloc(*image, xsize * ysize * sizeof(uint32_t));
   for (int y = 0; y < ysize; ++y) {
     for (int tile_x = 0; tile_x < xs; ++tile_x) {
-      uint32 tile_code = (tmp_image[y * xs + tile_x] >> 8) & 0xff;
+      uint32_t tile_code = (tmp_image[y * xs + tile_x] >> 8) & 0xff;
       for (int x = 0; x < 1 << data.xbits; ++x) {
         const int x_all = tile_x * (1 << data.xbits) + x;
         if (x_all >= xsize) continue;
         const int ix = y * xsize + x_all;
-        const uint32 g = tile_code & ((1 << bit_depth) - 1);
+        const uint32_t g = tile_code & ((1 << bit_depth) - 1);
         (*image)[ix] = 0xff000000 | (g << 8);
         tile_code >>= bit_depth;
       }
@@ -74,20 +74,21 @@ void PixelBundleInverseTransform(int xsize, int ysize,
 }
 
 void ColorIndexingInverseTransform(int xsize, int ysize,
-                                   const uint32* palette, uint32* image) {
+                                   const uint32_t* palette, uint32_t* image) {
   for (int i = 0; i < xsize * ysize; ++i) {
     image[i] = palette[(image[i] >> 8) & 0xff];
   }
 }
 
-void ApplyInverseImageTransform(ImageTransform transform, uint32** argb_image) {
+void ApplyInverseImageTransform(ImageTransform transform,
+                                uint32_t** argb_image) {
   switch (transform.type) {
     case PREDICTOR_TRANSFORM:
       {
         PerTileTransformData* data = (PerTileTransformData*)transform.data;
         int img_size = transform.xsize * transform.ysize;
-        uint32* tmp_image = (uint32*)malloc(img_size * sizeof(uint32));
-        memcpy(tmp_image, *argb_image, img_size * sizeof(uint32));
+        uint32_t* tmp_image = (uint32_t*)malloc(img_size * sizeof(uint32_t));
+        memcpy(tmp_image, *argb_image, img_size * sizeof(uint32_t));
         PredictorInverseTransform(transform.xsize, transform.ysize,
                                   data->bits, data->image,
                                   tmp_image, *argb_image);

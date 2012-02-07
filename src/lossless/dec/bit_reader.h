@@ -6,6 +6,7 @@
 // -----------------------------------------------------------------------------
 //
 // Author: vikasa@google.com (Vikas Arora)
+//         jyrki@google.com (Jyrki Alakuijala)
 //
 // Bit Reader for WebP Lossless
 
@@ -13,6 +14,7 @@
 #define WEBP_LOSSLESS_DEC_BIT_READER_H_
 
 #include <assert.h>
+#include <stdint.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -22,21 +24,21 @@ extern "C" {
 // Bitreader
 
 #define MAX_NUM_BIT_READ 25
-const uint32 kBitMask[MAX_NUM_BIT_READ] = {
+const uint32_t kBitMask[MAX_NUM_BIT_READ] = {
   0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383, 32767,
   65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607, 16777215
 };
 
 typedef struct {
-  uint64       val_;
-  const uint8* buf_;
-  size_t       len_;
-  size_t       pos_;
-  int          bit_pos_;
+  uint64_t       val_;
+  const uint8_t* buf_;
+  size_t         len_;
+  size_t         pos_;
+  int            bit_pos_;
 } BitReader;
 
 void InitBitReader(BitReader* const br,
-                   const uint8* const start,
+                   const uint8_t* const start,
                    size_t length) {
   int i;
   assert(br);
@@ -48,7 +50,7 @@ void InitBitReader(BitReader* const br,
   br->pos_ = 0;
   br->bit_pos_ = 0;
   for (i = 0; i < sizeof(br->val_) && i < br->len_; ++i) {
-    br->val_ |= ((uint64)br->buf_[br->pos_]) << (8 * i);
+    br->val_ |= ((uint64_t)br->buf_[br->pos_]) << (8 * i);
     ++br->pos_;
   }
 }
@@ -56,14 +58,14 @@ void InitBitReader(BitReader* const br,
 static void ShiftBytes(BitReader* const br) {
   while (br->bit_pos_ >= 8 && br->pos_ < br->len_) {
     br->val_ >>= 8;
-    br->val_ |= ((uint64)br->buf_[br->pos_]) << 56;
+    br->val_ |= ((uint64_t)br->buf_[br->pos_]) << 56;
     ++br->pos_;
     br->bit_pos_ -= 8;
   }
 }
 
-inline uint32 ReadBits(BitReader* const br, int n_bits) {
-  const uint32 val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
+inline uint32_t ReadBits(BitReader* const br, int n_bits) {
+  const uint32_t val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
   assert(n_bits < MAX_NUM_BIT_READ);
   assert(n_bits >= 0);
   br->bit_pos_ += n_bits;
@@ -71,11 +73,11 @@ inline uint32 ReadBits(BitReader* const br, int n_bits) {
     if (br->pos_ < br->len_ - 5) {
       br->val_ >>= 40;
       br->val_ |=
-          (((uint64)br->buf_[br->pos_ + 0]) << 24) |
-          (((uint64)br->buf_[br->pos_ + 1]) << 32) |
-          (((uint64)br->buf_[br->pos_ + 2]) << 40) |
-          (((uint64)br->buf_[br->pos_ + 3]) << 48) |
-          (((uint64)br->buf_[br->pos_ + 4]) << 56);
+          (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
+          (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
+          (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
+          (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
+          (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
       br->pos_ += 5;
       br->bit_pos_ -= 40;
     }
@@ -93,7 +95,7 @@ inline void FillBitWindow(BitReader* const br) {
       br->val_ >>= 32;
       // The expression below needs a little-endian arch to work correctly.
       // This gives a large speedup for decoding speed.
-      br->val_ |= *(const uint64 *)(br->buf_ + br->pos_) << 32;
+      br->val_ |= *(const uint64_t *)(br->buf_ + br->pos_) << 32;
       br->pos_ += 4;
       br->bit_pos_ -= 32;
     } else {
@@ -110,8 +112,8 @@ inline void FillBitWindow(BitReader* const br) {
 // If ReadOneBitUnsafe is much faster than ReadBits(..., 1), but it can be
 // called only 32 times after the last FillBitWindow, and consequent calls
 // may return invalid data.
-inline uint32 ReadOneBitUnsafe(BitReader* const br) {
-  const uint32 val = (br->val_ >> br->bit_pos_) & 1;
+inline uint32_t ReadOneBitUnsafe(BitReader* const br) {
+  const uint32_t val = (br->val_ >> br->bit_pos_) & 1;
   assert(br->bit_pos_ < 64);
   ++br->bit_pos_;
   return val;

@@ -35,7 +35,8 @@
 static const int kMaxImageTransforms = 100;
 
 static int DecodeImageInternal(int xsize, int ysize,
-                               BitReader* const br, uint32** const argb_image);
+                               BitReader* const br,
+                               uint32_t** const argb_image);
 
 // -----------------------------------------------------------------------------
 // COMMON FUNCTIONS
@@ -92,16 +93,19 @@ static void ReadTransform(int* xsize, int* ysize,
 // -----------------------------------------------------------------------------
 // HUFFMAN CODING
 
-static inline uint32 GetCopyDistance(uint32 distance_symbol, BitReader* br) {
+static inline uint32_t GetCopyDistance(uint32_t distance_symbol,
+                                       BitReader* br) {
   if (distance_symbol < 4) {
     return distance_symbol + 1;
   }
-  uint32 extra_bits = (distance_symbol - 2) >> 1;
-  uint32 offset = (2 + (distance_symbol & 1)) << extra_bits;
+  uint32_t extra_bits = (distance_symbol - 2) >> 1;
+  uint32_t offset = (2 + (distance_symbol & 1)) << extra_bits;
   return offset + ReadBits(br, extra_bits) + 1;
 }
 
-static inline uint32 GetCopyLength(uint32 length_symbol, BitReader* br) {
+static inline uint32_t GetCopyLength(uint32_t length_symbol,
+                                     BitReader* br) {
+  // Length and distance prefixes are encoded the same way.
   return GetCopyDistance(length_symbol, br);
 }
 
@@ -139,7 +143,7 @@ static inline int HuffmanCodeIndexToTreeType(int v) {
   return ret[v];
 }
 
-int GetMetaIndex(int huffman_xsize, int bits, const uint32* image,
+int GetMetaIndex(int huffman_xsize, int bits, const uint32_t* image,
                  int x, int y) {
   y >>= bits;
   x >>= bits;
@@ -284,7 +288,7 @@ static int ReadHuffmanCode(int alphabet_size,
 static int DecodeImageInternal(int original_xsize,
                                int original_ysize,
                                BitReader* const br,
-                               uint32** const argb_image) {
+                               uint32_t** const argb_image) {
   int xsize = original_xsize;
   int ysize = original_ysize;
   int ok = 1;
@@ -300,7 +304,7 @@ static int DecodeImageInternal(int original_xsize,
 
   bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
-  uint32* huffman_image;
+  uint32_t* huffman_image;
   std::vector<int> meta_codes;
   std::map<int, int> tree_types;
   int num_huffman_trees = kHuffmanCodesPerMetaCode;
@@ -338,7 +342,7 @@ static int DecodeImageInternal(int original_xsize,
     ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
   }
 
-  uint32 *image = (uint32*)malloc(xsize * ysize * sizeof(uint32));
+  uint32_t *image = (uint32_t*)malloc(xsize * ysize * sizeof(uint32_t));
   int x = 0;
   int y = 0;
   int red = 0;
@@ -378,7 +382,7 @@ static int DecodeImageInternal(int original_xsize,
       blue = ReadSymbol(*huff_blue, br);
       alpha = ReadSymbol(*huff_alpha, br) << 24;
 
-      uint32 argb = alpha + red + (green << 8) + blue;
+      uint32_t argb = alpha + red + (green << 8) + blue;
       image[pos] = argb;
       if (palette) palette->Insert(x, argb);
       ++x;
@@ -392,7 +396,7 @@ static int DecodeImageInternal(int original_xsize,
     // Palette
     if (green < palette_limit) {
       int palette_symbol = green - 256;
-      const uint32 argb = palette->Lookup(x, palette_symbol);
+      const uint32_t argb = palette->Lookup(x, palette_symbol);
       image[pos] = argb;
       palette->Insert(x, argb);
       ++x;
@@ -413,7 +417,7 @@ static int DecodeImageInternal(int original_xsize,
       // We must fill the window before the next read.
       FillBitWindow(br);
       const int dist_symbol = ReadSymbol(*huff_dist, br);
-      uint32 dist = GetCopyDistance(dist_symbol, br);
+      uint32_t dist = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, ysize, dist);
       VERIFY(dist <= pos);
       VERIFY(pos + length <= xsize * ysize);
@@ -477,7 +481,7 @@ int DecodeWebpLLImage(size_t encoded_image_size,
                       const uint8* const encoded_image,
                       int* xsize,
                       int* ysize,
-                      uint32** argb_image) {
+                      uint32_t** argb_image) {
   if (encoded_image_size < HEADER_SIZE + SIGNATURE_SIZE) return false;
   const uint8* sig = encoded_image + HEADER_SIZE;
   if (sig[0] != 0x64) return false;
