@@ -163,7 +163,8 @@ int DistanceToPlaneCode(int xsize, int ysize, int distance);
 bool VerifyBackwardReferences(const uint32_t* argb,
                               int xsize, int ysize,
                               int palette_bits,
-                              const std::vector<LiteralOrCopy>& v);
+                              const LiteralOrCopy *lit,
+                              int lit_size);
 
 // Produce an estimate for a good emerging palette size for the image.
 int CalculateEstimateForPaletteSize(const uint32_t *argb, int xsize, int ysize);

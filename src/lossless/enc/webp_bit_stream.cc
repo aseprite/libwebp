@@ -509,7 +509,7 @@ static void GetBackwardReferences(int xsize, int ysize,
 
   // Verify.
   VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize, palette_bits,
-                                  backward_refs));
+                                  &backward_refs[0], backward_refs.size()));
 
   if (use_2d_locality) {
     // Use backward reference with 2D locality.

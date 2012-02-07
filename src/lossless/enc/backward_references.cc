@@ -530,40 +530,41 @@ void BackwardReferences2DLocality(int xsize, int ysize, int data_size,
 
 bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                               int palette_bits,
-                              const std::vector<LiteralOrCopy>& v) {
+                              const LiteralOrCopy *lit,
+                              int lit_size) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   int num_pixels = 0;
-  for (int i = 0; i < v.size(); ++i) {
-    if (v[i].IsLiteral()) {
-      if (argb[num_pixels] != v[i].Argb()) {
+  for (int i = 0; i < lit_size; ++i) {
+    if (lit[i].IsLiteral()) {
+      if (argb[num_pixels] != lit[i].Argb()) {
         printf("i %d, pixel %d, original: 0x%08x, literal: 0x%08x\n",
-               i, num_pixels, argb[num_pixels], v[i].Argb());
+               i, num_pixels, argb[num_pixels], lit[i].Argb());
         return false;
       }
       hashers.Insert(num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
-    } else if (v[i].IsPaletteIx()) {
+    } else if (lit[i].IsPaletteIx()) {
       uint32_t palette_entry =
-          hashers.Lookup(num_pixels % xsize, v[i].PaletteIx());
+          hashers.Lookup(num_pixels % xsize, lit[i].PaletteIx());
       if (argb[num_pixels] != palette_entry) {
         printf("i %d, pixel %d, original: 0x%08x, palette_ix: %d, "
                "palette_entry: 0x%08x\n",
-               i, num_pixels, argb[num_pixels], v[i].PaletteIx(),
+               i, num_pixels, argb[num_pixels], lit[i].PaletteIx(),
                palette_entry);
         return false;
       }
       hashers.Insert(num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
-    } else if (v[i].IsCopy()) {
-      if (v[i].Distance() == 0) {
+    } else if (lit[i].IsCopy()) {
+      if (lit[i].Distance() == 0) {
         printf("Bw reference with zero distance.\n");
         return false;
       }
-      for (int k = 0; k < v[i].len; ++k) {
-        if (argb[num_pixels] != argb[num_pixels - v[i].Distance()]) {
+      for (int k = 0; k < lit[i].len; ++k) {
+        if (argb[num_pixels] != argb[num_pixels - lit[i].Distance()]) {
           printf("i %d, pixel %d, original: 0x%08x, copied: 0x%08x, dist: %d\n",
                  i, num_pixels, argb[num_pixels],
-                 argb[num_pixels - v[i].Distance()], v[i].Distance());
+                 argb[num_pixels - lit[i].Distance()], lit[i].Distance());
           return false;
         }
         hashers.Insert(num_pixels % xsize, argb[num_pixels]);
@@ -574,7 +575,7 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
   {
     const int pix_count = xsize * ysize;
     if (num_pixels != pix_count) {
-      printf("upsala: %d != %d\n", num_pixels, pix_count);
+      printf("verify failure: %d != %d\n", num_pixels, pix_count);
       return false;
     }
   }
