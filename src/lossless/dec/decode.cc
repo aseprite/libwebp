@@ -172,7 +172,7 @@ static void ReadMetaCodes(BitReader* br,
 }
 
 static const int kCodeLengthCodes = 19;
-static const uint8 kCodeLengthCodeOrder[kCodeLengthCodes] = {
+static const uint8_t kCodeLengthCodeOrder[kCodeLengthCodes] = {
   17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
 static const int kCodeLengthLiterals = 16;
@@ -478,14 +478,14 @@ static int DecodeImageInternal(int original_xsize,
 }
 
 int DecodeWebpLLImage(size_t encoded_image_size,
-                      const uint8* const encoded_image,
+                      const uint8_t* const encoded_image,
                       int* xsize,
                       int* ysize,
                       uint32_t** argb_image) {
   if (encoded_image_size < HEADER_SIZE + SIGNATURE_SIZE) return false;
-  const uint8* sig = encoded_image + HEADER_SIZE;
+  const uint8_t* sig = encoded_image + HEADER_SIZE;
   if (sig[0] != 0x64) return false;
-  const uint8* webpll_data = encoded_image + HEADER_SIZE + SIGNATURE_SIZE;
+  const uint8_t* webpll_data = encoded_image + HEADER_SIZE + SIGNATURE_SIZE;
   const size_t webpll_size = encoded_image_size - HEADER_SIZE - SIGNATURE_SIZE;
 
   BitReader br;

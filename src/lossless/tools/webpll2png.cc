@@ -33,10 +33,10 @@ static void PNGAPI error_function(png_structp png, png_const_charp dummy) {
   longjmp(png_jmpbuf(png), 1);
 }
 
-static int WritePng(const char *path, int xsize, int ysize, uint32 *argb) {
+static int WritePng(const char *path, int xsize, int ysize, uint32_t *argb) {
   // Convert 32-bit ARGB to 8-bit RGBA for png encoding.
-  std::vector<uint8> rgba_image(xsize * ysize * 4);
-  uint8* rgba = &rgba_image[0];
+  std::vector<uint8_t> rgba_image(xsize * ysize * 4);
+  uint8_t* rgba = &rgba_image[0];
   for (int i = 0; i < xsize * ysize; ++i) {
     *rgba++ = (argb[i] >> 16) & 0xff;
     *rgba++ = (argb[i] >> 8) & 0xff;
@@ -137,13 +137,13 @@ int main(int argc, char **argv) {
   std::string input_data = ReadFileToString(in_path);
   int xsize = 0;
   int ysize = 0;
-  uint32* argb_image;
+  uint32_t* argb_image;
   for (int i = 0; i < timing_iters; ++i) {
     if (i != 0) {
       free(argb_image);
     }
     if (!DecodeWebpLLImage(input_data.size(),
-                           (uint8*)input_data.data(),
+                           (uint8_t*)input_data.data(),
                            &xsize,
                            &ysize,
                            &argb_image)) {

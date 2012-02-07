@@ -8,6 +8,7 @@
 // Author: jyrki@google.com (Jyrki Alakuijala)
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <set>
@@ -48,10 +49,10 @@ class PngDecoder {
   bool error() const;
 
   // This returns the pixel at the given location.
-  uint32 GetPixelArgb(int x, int y) const;
+  uint32_t GetPixelArgb(int x, int y) const;
 
   // Returns all pixels starting in an array, indexed by y * x_size + x.
-  const uint32 *GetPixelsInArgbArray() const;
+  const uint32_t *GetPixelsInArgbArray() const;
 
  private:
   // Convert the png into the internal argb buffer.
@@ -81,7 +82,7 @@ struct PngDecoder::Impl {
   png_infop info_ptr;
   png_infop end_info;
   png_bytep *row_pointers;
-  std::vector<uint32> pixels_;
+  std::vector<uint32_t> pixels_;
 };
 
 int PngDecoder::width() const {
@@ -101,7 +102,7 @@ void PngDecoder::InvertAlphaChannel() {
   // bits so that it aligns with the alpha byte of the pixel. Note that
   // subtracting the alpha value from 255 is equivalent to XOR'ing with 255
   // since 255 is 11111111 in binary.
-  uint32 *pixels = &pimpl_->pixels_[0];
+  uint32_t *pixels = &pimpl_->pixels_[0];
   const int size = pimpl_->pixels_.size();
 
   for (int i = 0; i < size; ++i) {
@@ -115,27 +116,27 @@ inline int PngDecoder::GetPixelComponent(const int x,
   return pimpl_->row_pointers[y][x * components() + component];
 }
 
-uint32 PngDecoder::GetPixelArgb(const int x, const int y) const {
+uint32_t PngDecoder::GetPixelArgb(const int x, const int y) const {
   return pimpl_->pixels_[y * width() + x];
 }
 
-const uint32 *PngDecoder::GetPixelsInArgbArray() const {
+const uint32_t *PngDecoder::GetPixelsInArgbArray() const {
   return &pimpl_->pixels_[0];
 }
 
-static inline uint8 MultiplyAlpha(const uint8 a, const uint8 color) {
-  const uint32 rounded_mul = (a * color) + 128;
-  return static_cast<uint8>((rounded_mul + (rounded_mul >> 8)) >> 8);
+static inline uint8_t MultiplyAlpha(const uint8_t a, const uint8_t color) {
+  const uint32_t rounded_mul = (a * color) + 128;
+  return static_cast<uint8_t>((rounded_mul + (rounded_mul >> 8)) >> 8);
 }
 
 void PngDecoder::ConvertToPremultipliedAlpha() {
-  uint32 *p = &pimpl_->pixels_[0];
+  uint32_t *p = &pimpl_->pixels_[0];
   for (int i = 0; i < pimpl_->pixels_.size(); ++i) {
-    const uint32 v = p[i];
-    const uint8 a = static_cast<uint8>(v >> 24);
-    const uint8 r = MultiplyAlpha(a, (v >> 16) & 0xff);
-    const uint8 g = MultiplyAlpha(a, (v >> 8) & 0xff);
-    const uint8 b = MultiplyAlpha(a, (v >> 0) & 0xff);
+    const uint32_t v = p[i];
+    const uint8_t a = static_cast<uint8_t>(v >> 24);
+    const uint8_t r = MultiplyAlpha(a, (v >> 16) & 0xff);
+    const uint8_t g = MultiplyAlpha(a, (v >> 8) & 0xff);
+    const uint8_t b = MultiplyAlpha(a, (v >> 0) & 0xff);
     p[i] = (a << 24) | (r << 16) | (g << 8) | b;
   }
 }
@@ -181,12 +182,12 @@ void PngDecoder::ConvertToArgb() {
       }
       for (int y = 0; y < ysize; ++y) {
         for (int x = 0; x < xsize; ++x) {
-          const uint8 i = GetPixelComponent(x, y, 0);
-          const uint8 r = palette_with_alpha[i].red;
-          const uint8 g = palette_with_alpha[i].green;
-          const uint8 b = palette_with_alpha[i].blue;
-          const uint8 a = palette_with_alpha[i].alpha;
-          const uint32 pixel = (a << 24) | (r << 16) | (g << 8) | b;
+          const uint8_t i = GetPixelComponent(x, y, 0);
+          const uint8_t r = palette_with_alpha[i].red;
+          const uint8_t g = palette_with_alpha[i].green;
+          const uint8_t b = palette_with_alpha[i].blue;
+          const uint8_t a = palette_with_alpha[i].alpha;
+          const uint32_t pixel = (a << 24) | (r << 16) | (g << 8) | b;
           pimpl_->pixels_[y * xsize + x] = pixel;
         }
       }
@@ -196,9 +197,9 @@ void PngDecoder::ConvertToArgb() {
       // Grayscale with alpha.
       for (int y = 0; y < ysize; ++y) {
         for (int x = 0; x < xsize; ++x) {
-          const uint8 gray = GetPixelComponent(x, y, 0);
-          const uint8 a = GetPixelComponent(x, y, 1);
-          const uint32 pixel = (a << 24) | (gray * 0x10101);
+          const uint8_t gray = GetPixelComponent(x, y, 0);
+          const uint8_t a = GetPixelComponent(x, y, 1);
+          const uint32_t pixel = (a << 24) | (gray * 0x10101);
           pimpl_->pixels_[y * xsize + x] = pixel;
         }
       }
@@ -207,11 +208,11 @@ void PngDecoder::ConvertToArgb() {
       // RGB
       for (int y = 0; y < ysize; ++y) {
         for (int x = 0; x < xsize; ++x) {
-          const uint8 r = GetPixelComponent(x, y, 0);
-          const uint8 g = GetPixelComponent(x, y, 1);
-          const uint8 b = GetPixelComponent(x, y, 2);
-          const uint8 a = 255;
-          const uint32 pixel = (a << 24) | (r << 16) | (g << 8) | b;
+          const uint8_t r = GetPixelComponent(x, y, 0);
+          const uint8_t g = GetPixelComponent(x, y, 1);
+          const uint8_t b = GetPixelComponent(x, y, 2);
+          const uint8_t a = 255;
+          const uint32_t pixel = (a << 24) | (r << 16) | (g << 8) | b;
           pimpl_->pixels_[y * xsize + x] = pixel;
         }
       }
@@ -221,11 +222,11 @@ void PngDecoder::ConvertToArgb() {
       // RGBA
       for (int y = 0; y < ysize; ++y) {
         for (int x = 0; x < xsize; ++x) {
-          const uint8 r = GetPixelComponent(x, y, 0);
-          const uint8 g = GetPixelComponent(x, y, 1);
-          const uint8 b = GetPixelComponent(x, y, 2);
-          const uint8 a = GetPixelComponent(x, y, 3);
-          const uint32 pixel = (a << 24) | (r << 16) | (g << 8) | b;
+          const uint8_t r = GetPixelComponent(x, y, 0);
+          const uint8_t g = GetPixelComponent(x, y, 1);
+          const uint8_t b = GetPixelComponent(x, y, 2);
+          const uint8_t a = GetPixelComponent(x, y, 3);
+          const uint32_t pixel = (a << 24) | (r << 16) | (g << 8) | b;
           pimpl_->pixels_[y * xsize + x] = pixel;
         }
       }
@@ -299,8 +300,8 @@ PngDecoder::~PngDecoder() {
   delete pimpl_;
 }
 
-static int UniquePixels(int n, const uint32 *argb) {
-  std::set<uint32> k;
+static int UniquePixels(int n, const uint32_t *argb) {
+  std::set<uint32_t> k;
   k.insert(argb[0]);
   for (int i = 1; i < n; ++i) {
     if (argb[i - 1] == argb[i]) {
@@ -360,14 +361,14 @@ static int FindClosestDiscretized(int a, int bits) {
   return best_val;
 }
 
-static uint32 ClosestDiscretizedArgb(uint32 a, int bits) {
+static uint32_t ClosestDiscretizedArgb(uint32_t a, int bits) {
   return (FindClosestDiscretized(a >> 24, bits) << 24) |
       (FindClosestDiscretized((a >> 16) & 0xff, bits) << 16) |
       (FindClosestDiscretized((a >> 8) & 0xff, bits) << 8) |
       (FindClosestDiscretized(a & 0xff, bits));
 }
 
-static bool IsFar(uint32 a, uint32 b, int limit) {
+static bool IsFar(uint32_t a, uint32_t b, int limit) {
   for(int k = 0; k < 4; ++k) {
     int delta = int((a >> (k * 8)) & 0xff) - int((b >> (k * 8)) & 0xff);
     if (delta >= limit || delta <= -limit) {
@@ -378,7 +379,7 @@ static bool IsFar(uint32 a, uint32 b, int limit) {
 }
 
 // TODO(jyrki): Move to library for strategy selection code.
-static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
+static void IsPhotographic(int xsize, int ysize, const uint32_t *argb,
                            double *nonpredicted_bits,
                            double *predicted_bits) {
   Histogram *predicted = new Histogram(0);
@@ -389,7 +390,7 @@ static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
       continue;
     }
     nonpredicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[k]));
-    const uint32 diff = Subtract(argb[k], argb[k - 1]);
+    const uint32_t diff = Subtract(argb[k], argb[k - 1]);
     predicted->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(diff));
   }
   *predicted_bits = predicted->EstimateBitsBulk();
@@ -398,8 +399,8 @@ static void IsPhotographic(int xsize, int ysize, const uint32 *argb,
   delete nonpredicted;
 }
 
-static void NearLossless(int xsize, int ysize, uint32 *argb, int limit_bits) {
-  std::vector<uint32> copy(argb, argb + xsize * ysize);
+static void NearLossless(int xsize, int ysize, uint32_t *argb, int limit_bits) {
+  std::vector<uint32_t> copy(argb, argb + xsize * ysize);
   int limit = 1 << limit_bits;
   for (int y = 0; y < ysize; ++y) {
     for (int x = 0; x < xsize; ++x) {
@@ -499,11 +500,12 @@ int main(int argc, char **argv) {
   assert(!png_decoder.error());
   const int xsize = png_decoder.width();
   const int ysize = png_decoder.height();
-  const uint32 *argb_orig = png_decoder.GetPixelsInArgbArray();
+  const uint32_t *argb_orig = png_decoder.GetPixelsInArgbArray();
 
   VERIFY(near_lossless >= 0);
   VERIFY(near_lossless < 5);
-  std::vector<uint32> near_lossless_argb(argb_orig, argb_orig + xsize * ysize);
+  std::vector<uint32_t> near_lossless_argb(argb_orig,
+                                           argb_orig + xsize * ysize);
   if (near_lossless) {
     for (int k = near_lossless; k != 0; --k) {
       NearLossless(xsize, ysize, &near_lossless_argb[0], k);
@@ -552,14 +554,14 @@ int main(int argc, char **argv) {
     if (mode >= 2 && !try_with_small_palette) {
       continue;
     }
-    uint8 *bytes;
+    uint8_t *bytes;
     size_t n_bytes;
     const bool use_small_palette = mode == 2;
     const bool use_spatial_predict = mode == 0;
     const bool use_cross_color_transform = mode == 0;
     // If the colors fit in the palette, there is rarely a benefit for doing
     // a near lossless using the method implemented here.
-    const uint32 *argb_to_compress =
+    const uint32_t *argb_to_compress =
         use_small_palette ?
         png_decoder.GetPixelsInArgbArray() :
         &near_lossless_argb[0];
@@ -591,9 +593,9 @@ int main(int argc, char **argv) {
     if (verify) {
       int xsize_verify;
       int ysize_verify;
-      uint32* argb_image_verify;
+      uint32_t* argb_image_verify;
       if (!DecodeWebpLLImage(to_file_candidate.size(),
-                             (uint8*)to_file_candidate.data(),
+                             (uint8_t*)to_file_candidate.data(),
                              &xsize_verify,
                              &ysize_verify,
                              &argb_image_verify)) {

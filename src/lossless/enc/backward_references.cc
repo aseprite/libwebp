@@ -69,25 +69,25 @@ class HashChain {
     free(chain_);
   }
 
-  void Insert(const uint32_t* argb, int32 ix) {
+  void Insert(const uint32_t* argb, int32_t ix) {
     // Insertion of two pixels at a time.
-    const uint64 key = GetPixPair(argb);
-    const uint64 hash_code = GetHash64(key);
+    const uint64_t key = GetPixPair(argb);
+    const uint64_t hash_code = GetHash64(key);
     chain_[ix] = hash_to_first_index[hash_code];
     hash_to_first_index[hash_code] = ix;
   }
 
   bool FindCopy(int index, int xsize, const uint32_t * __restrict argb,
                 int maxlen, int * __restrict offset, int * __restrict len) {
-    const uint64 next_two_pixels = GetPixPair(&argb[index]);
-    const uint64 hash_code = GetHash64(next_two_pixels);
+    const uint64_t next_two_pixels = GetPixPair(&argb[index]);
+    const uint64_t hash_code = GetHash64(next_two_pixels);
     *len = 0;
     *offset = 0;
     int prev_length = 0;
-    int64 best_val = 0;
+    int64_t best_val = 0;
     int give_up = 0;
     const int min_pos = (index > kWindowSize) ? index - kWindowSize : 0;
-    for (int32 pos = hash_to_first_index[hash_code];
+    for (int32_t pos = hash_to_first_index[hash_code];
          pos >= min_pos;
          pos = chain_[pos]) {
       ++give_up;
@@ -100,8 +100,8 @@ class HashChain {
       if (*len != 0 && argb[pos + *len - 1] != argb[index + *len - 1]) {
         continue;
       }
-      int64 length = FindMatchLength(argb + pos, argb + index, maxlen);
-      int64 val = 65536 * length;
+      int64_t length = FindMatchLength(argb + pos, argb + index, maxlen);
+      int64_t val = 65536 * length;
       int y = (index - pos) / xsize;
       int x = (index - pos) % xsize;
       // Favoring 2d locality here gives savings for certain images.
@@ -134,28 +134,28 @@ class HashChain {
   }
 
  private:
-  static inline uint64 GetHash64(uint64 num) {
+  static inline uint64_t GetHash64(uint64_t num) {
     num *= kHashMultiplier;
     num >>= 64 - kHashBits;
     return num;
   }
 
-  static inline uint64 GetPixPair(const uint32_t *argb) {
-    return (static_cast<uint64>(argb[1]) << 32) | argb[0];
+  static inline uint64_t GetPixPair(const uint32_t *argb) {
+    return ((uint64_t)(argb[1]) << 32) | argb[0];
   }
 
   static const int kHashBits = 20;
   static const int kHashSize = (1 << kHashBits);
-  static const uint64 kHashMultiplier = 0xc6a4a7935bd1e995ULL;
+  static const uint64_t kHashMultiplier = 0xc6a4a7935bd1e995ULL;
   static const int kWindowSize = (1 << 20) - 120;  // A window with 1M pixels
                                                    // (4 megabytes) - 120
                                                    // special codes for short
                                                    // distances.
 
-  int32 hash_to_first_index[kHashSize];  // Stores the most recently added
+  int32_t hash_to_first_index[kHashSize];  // Stores the most recently added
                                          // position with the given hash value.
-  int32 *chain_;  // chain_[pos] stores the previous position with the same
-                  // hash value.
+  int32_t *chain_;  // chain_[pos] stores the previous position with the same
+                    // hash value.
 };
 
 static inline void PushBackCopy(int distance, int length,
