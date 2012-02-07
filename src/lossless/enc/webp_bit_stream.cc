@@ -30,15 +30,15 @@
 #include "./histogram_image.h"
 #include "./predictor.h"
 
-static void PutLE32(uint8* const data, uint32 val) {
+static void PutLE32(uint8_t* const data, uint32_t val) {
   data[0] = (val >>  0) & 0xff;
   data[1] = (val >>  8) & 0xff;
   data[2] = (val >> 16) & 0xff;
   data[3] = (val >> 24) & 0xff;
 }
 
-static void PutRiffHeader(uint8 *bytes, size_t webpll_size) {
-  uint8 riff[HEADER_SIZE + SIGNATURE_SIZE] = {
+static void PutRiffHeader(uint8_t *bytes, size_t webpll_size) {
+  uint8_t riff[HEADER_SIZE + SIGNATURE_SIZE] = {
     'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P',
     'V', 'P', '8', 'L', 0, 0, 0, 0, 0x64
   };
@@ -143,8 +143,8 @@ void OptimizeHuffmanForRle(int length, int *counts) {
 }
 
 void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
-                                     uint8* lengths,
-                                     std::vector<uint16>* symbols) {
+                                     uint8_t* lengths,
+                                     std::vector<uint16_t>* symbols) {
   int count = 0;
   for (int k = 0; k < num_symbols; ++k) {
     if (lengths[k] != 0) ++count;
@@ -157,9 +157,9 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   }
 }
 
-void PackLiteralBitLengths(const std::vector<uint8> bit_lengths,
+void PackLiteralBitLengths(const std::vector<uint8_t> bit_lengths,
                            int palette_bits, bool use_palette,
-                           std::vector<uint8>* new_lengths) {
+                           std::vector<uint8_t>* new_lengths) {
   for (int i = 0; i < 256; ++i) {
     new_lengths->push_back(bit_lengths[i]);
   }
@@ -174,11 +174,11 @@ void PackLiteralBitLengths(const std::vector<uint8> bit_lengths,
 }
 
 void StoreHuffmanTreeOfHuffmanTreeToBitMask(
-    const uint8 *code_length_bitdepth, BitWriter* const bw) {
+    const uint8_t *code_length_bitdepth, BitWriter* const bw) {
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
   // and more spiking histograms.
-  static const uint8 kStorageOrder[kCodeLengthCodes] = {
+  static const uint8_t kStorageOrder[kCodeLengthCodes] = {
     17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
   };
   // Throw away trailing zeros:
@@ -190,19 +190,19 @@ void StoreHuffmanTreeOfHuffmanTreeToBitMask(
   }
   // How many code length codes we write above the first four (see RFC 1951).
   WriteBits(4, codes_to_store - 4, bw);
-  for (uint32 i = 0; i < codes_to_store; ++i) {
+  for (uint32_t i = 0; i < codes_to_store; ++i) {
     WriteBits(3, code_length_bitdepth[kStorageOrder[i]], bw);
   }
 }
 
 void StoreHuffmanTreeToBitMask(
-    const std::vector<uint8> &huffman_tree,
-    const std::vector<uint8> &huffman_tree_extra_bits,
+    const std::vector<uint8_t> &huffman_tree,
+    const std::vector<uint8_t> &huffman_tree_extra_bits,
     const int num_symbols,
-    const uint8 *code_length_bitdepth,
-    const std::vector<uint16> &code_length_bitdepth_symbols,
+    const uint8_t *code_length_bitdepth,
+    const std::vector<uint16_t> &code_length_bitdepth_symbols,
     BitWriter* const bw) {
-  for (uint32 i = 0; i < num_symbols; ++i) {
+  for (uint32_t i = 0; i < num_symbols; ++i) {
     int ix = huffman_tree[i];
     WriteBits(code_length_bitdepth[ix], code_length_bitdepth_symbols[ix], bw);
     switch (ix) {
@@ -219,7 +219,7 @@ void StoreHuffmanTreeToBitMask(
   }
 }
 
-void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
+void StoreHuffmanCode(const std::vector<uint8_t> &bit_lengths,
                       BitWriter* const bw) {
   int count = 0;
   int symbols[2] = { 0 };
@@ -246,8 +246,8 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
     return;
   }
   WriteBits(1, 0, bw);
-  std::vector<uint8> huffman_tree(bit_lengths.size());
-  std::vector<uint8> huffman_tree_extra_bits(bit_lengths.size());
+  std::vector<uint8_t> huffman_tree(bit_lengths.size());
+  std::vector<uint8_t> huffman_tree_extra_bits(bit_lengths.size());
   int huffman_tree_size = 0;
   CreateCompressedHuffmanTree(&bit_lengths[0],
                               bit_lengths.size(),
@@ -261,8 +261,8 @@ void StoreHuffmanCode(const std::vector<uint8> &bit_lengths,
   for (int i = 0; i < huffman_tree.size(); ++i) {
     ++huffman_tree_histogram[huffman_tree[i]];
   }
-  uint8 code_length_bitdepth[kCodeLengthCodes] = { 0 };
-  std::vector<uint16> code_length_bitdepth_symbols(kCodeLengthCodes);
+  uint8_t code_length_bitdepth[kCodeLengthCodes] = { 0 };
+  std::vector<uint16_t> code_length_bitdepth_symbols(kCodeLengthCodes);
   CreateHuffmanTree(&huffman_tree_histogram[0], kCodeLengthCodes,
                     7, &code_length_bitdepth[0]);
   ConvertBitDepthsToSymbols(&code_length_bitdepth[0], kCodeLengthCodes,
@@ -310,9 +310,9 @@ void StoreImageToBitMask(
     const int palette_bits,
     const LiteralOrCopy *literal,
     const int n_literal_and_length,
-    const std::vector<uint32> &histogram_symbol,
-    const std::vector< std::vector<uint8> > &bitdepth,
-    const std::vector< std::vector<uint16> > &bit_symbols,
+    const std::vector<uint32_t> &histogram_symbol,
+    const std::vector< std::vector<uint8_t> > &bitdepth,
+    const std::vector< std::vector<uint16_t> > &bit_symbols,
     BitWriter *bw) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   // x and y trace the position in the image.
@@ -359,14 +359,14 @@ void StoreImageToBitMask(
   }
 }
 
-void ShiftHistogramImage(std::vector<uint32>* image) {
+void ShiftHistogramImage(std::vector<uint32_t>* image) {
   for (int i = 0; i < image->size(); ++i) {
     (*image)[i] <<= 8;
     (*image)[i] |= 0xff000000;
   }
 }
 
-int NumberOfUsedRBAComponents(const std::vector<uint32>& argb) {
+int NumberOfUsedRBAComponents(const std::vector<uint32_t>& argb) {
   int num = 0;
   for (int i = 0; i < argb.size() && num < 3; ++i) {
     if (((argb[i] >> 24) & 0xff) != 0xff) return 3;
@@ -380,11 +380,11 @@ int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-bool CreatePalette(int n, const uint32 *argb,
+bool CreatePalette(int n, const uint32_t *argb,
                    int max_palette_size,
-                   std::vector<uint32>* palette) {
+                   std::vector<uint32_t>* palette) {
   if (max_palette_size == 0 || n == 0) return false;
-  std::set<uint32> k;
+  std::set<uint32_t> k;
   k.insert(argb[0]);
   for (int i = 1; i < n; ++i) {
     if (argb[i - 1] == argb[i]) {
@@ -397,7 +397,7 @@ bool CreatePalette(int n, const uint32 *argb,
       }
     }
   }
-  for (std::set<uint32>::const_iterator it = k.begin(); it != k.end(); ++it) {
+  for (std::set<uint32_t>::const_iterator it = k.begin(); it != k.end(); ++it) {
     palette->push_back(*it);
   }
   return true;
@@ -406,20 +406,20 @@ bool CreatePalette(int n, const uint32 *argb,
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
 // Returns the new xsize.
 int BundlePixels(int xsize, int ysize, int xbits,
-                 const std::vector<uint32>& from_argb,
-                 std::vector<uint32>* to_argb) {
+                 const std::vector<uint32_t>& from_argb,
+                 std::vector<uint32_t>* to_argb) {
   const int bit_depth = 1 << (3 - xbits);
   const int xs = MetaSize(xsize, xbits);
   VERIFY(xsize * ysize == from_argb.size());
   to_argb->resize(xs * ysize);
   for (int y = 0; y < ysize; ++y) {
-    uint32 code;
+    uint32_t code;
     for (int x = 0; x < xsize; ++x) {
       const int xsub = x & ((1 << xbits) - 1);
       if (xsub == 0) {
         code = 0;
       }
-      const uint32 green = from_argb[y * xsize + x] & 0xff00;
+      const uint32_t green = from_argb[y * xsize + x] & 0xff00;
       code |= green << (bit_depth * xsub);
       (*to_argb)[y * xs + (x >> xbits)] = 0xff000000 | code;
     }
@@ -435,7 +435,7 @@ static void DeleteHistograms(std::vector<Histogram *> &histograms) {
 }
 
 static void GetBackwardReferences(int xsize, int ysize,
-                                  const std::vector<uint32>& argb,
+                                  const std::vector<uint32_t>& argb,
                                   int quality, int use_palette,
                                   int palette_bits, bool use_2d_locality,
                                   std::vector<LiteralOrCopy>& backward_refs) {
@@ -492,7 +492,7 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 int quality, int histogram_bits,
                                 int palette_bits, bool use_2d_locality,
                                 std::vector<Histogram*>& histogram_image,
-                                std::vector<uint32>& histogram_symbols) {
+                                std::vector<uint32_t>& histogram_symbols) {
   // Build histogram image.
   std::vector<Histogram*> histogram_image_raw;
   BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits, backward_refs,
@@ -517,8 +517,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
 static void GetHuffBitLengthsAndCodes(
     const std::vector<Histogram*>& histogram_image,
     int use_palette,
-    std::vector< std::vector<uint8> >& bit_lengths,
-    std::vector< std::vector<uint16> >& bit_codes) {
+    std::vector< std::vector<uint8_t> >& bit_lengths,
+    std::vector< std::vector<uint16_t> >& bit_codes) {
   for (int i = 0; i < histogram_image.size(); ++i) {
     bit_lengths[5 * i].resize(histogram_image[i]->NumLiteralOrCopyCodes());
 
@@ -566,7 +566,7 @@ static void GetHuffBitLengthsAndCodes(
 }
 
 static void EncodeImageInternal(int xsize, int ysize,
-                                const std::vector<uint32>& argb, int quality,
+                                const std::vector<uint32_t>& argb, int quality,
                                 int palette_bits, int histogram_bits,
                                 bool use_2d_locality, BitWriter *bw) {
   const int use_palette = palette_bits ? 1 : 0;
@@ -578,14 +578,14 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Build histogram image & symbols from backward references.
   std::vector<Histogram*> histogram_image;
-  std::vector<uint32> histogram_symbols;
+  std::vector<uint32_t> histogram_symbols;
   GetHistImageSymbols(xsize, ysize, backward_refs, quality, histogram_bits,
                       palette_bits, use_2d_locality, histogram_image,
                       histogram_symbols);
 
   // Create Huffman bit lengths & codes for each histogram image.
-  std::vector< std::vector<uint8> > bit_lengths(5 * histogram_image.size());
-  std::vector< std::vector<uint16> > bit_codes;
+  std::vector< std::vector<uint8_t> > bit_lengths(5 * histogram_image.size());
+  std::vector< std::vector<uint16_t> > bit_codes;
   GetHuffBitLengthsAndCodes(histogram_image, use_palette,
                             bit_lengths, bit_codes);
 
@@ -596,7 +596,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   const bool write_histogram_image = (histogram_image.size() > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
-    std::vector<uint32> histogram_argb(histogram_symbols.begin(),
+    std::vector<uint32_t> histogram_argb(histogram_symbols.begin(),
                                        histogram_symbols.end());
     ShiftHistogramImage(&histogram_argb);
     WriteBits(4, histogram_bits, bw);
@@ -628,7 +628,7 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Store Huffman codes.
   for (int i = 0; i < histogram_image.size(); ++i) {
-    std::vector<uint8> literal_lengths;
+    std::vector<uint8_t> literal_lengths;
     PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
                           &literal_lengths);
     StoreHuffmanCode(literal_lengths, bw);
@@ -651,7 +651,7 @@ static void EncodeImageInternal(int xsize, int ysize,
                       histogram_symbols, bit_lengths, bit_codes, bw);
 }
 
-inline void WriteImageSize(uint32 xsize, uint32 ysize, BitWriter *bw) {
+inline void WriteImageSize(uint32_t xsize, uint32_t ysize, BitWriter *bw) {
   --xsize;
   --ysize;
   VERIFY(xsize < 0x4000 && ysize < 0x4000);
@@ -659,9 +659,9 @@ inline void WriteImageSize(uint32 xsize, uint32 ysize, BitWriter *bw) {
   WriteBits(14, ysize, bw);
 }
 
-int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
+int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                       EncodingStrategy *strategy,
-                      size_t *num_bytes, uint8 **bytes) {
+                      size_t *num_bytes, uint8_t **bytes) {
   const int quality = strategy->quality;
   //  const int use_lz77 = strategy->use_lz77;
   int palette_bits = strategy->palette_bits;
@@ -672,7 +672,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   bool use_emerging_palette = true;
-  std::vector<uint32> argb(argb_orig, argb_orig + xsize * ysize);
+  std::vector<uint32_t> argb(argb_orig, argb_orig + xsize * ysize);
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
 
   BitWriter bw;
@@ -696,13 +696,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
       WriteBits(3, 2, &bw);
     } else {
       // Undo subtract green from blue and red -- rewrite with original data.
-      argb = std::vector<uint32>(argb_orig, argb_orig + xsize * ysize);
+      argb = std::vector<uint32_t>(argb_orig, argb_orig + xsize * ysize);
     }
     delete before;
     delete after;
   }
 
-  std::vector<uint32> palette;
+  std::vector<uint32_t> palette;
   const int max_palette_size = 256;
   if (use_small_palette &&
       CreatePalette(xsize * ysize, &argb[0], max_palette_size, &palette)) {
@@ -729,7 +729,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
       } else if (palette.size() <= 4) {
         xbits = 2;
       }
-      std::vector<uint32> from_argb(argb.begin(), argb.end());
+      std::vector<uint32_t> from_argb(argb.begin(), argb.end());
       xsize = BundlePixels(xsize, ysize, xbits, from_argb, &argb);
       WriteBits(1, 1, &bw);
       WriteBits(3, 4, &bw);
@@ -741,8 +741,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     const int predictor_image_size =
         MetaSize(xsize, predict_bits) *
         MetaSize(ysize, predict_bits);
-    std::vector<uint32> predictor_image(predictor_image_size);
-    std::vector<uint32> from_argb(argb.begin(), argb.end());
+    std::vector<uint32_t> predictor_image(predictor_image_size);
+    std::vector<uint32_t> from_argb(argb.begin(), argb.end());
     PredictorImage(xsize, ysize, predict_bits,
                    &from_argb[0],
                    &argb[0],
@@ -764,7 +764,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
     const int color_space_image_size =
         MetaSize(xsize, cross_color_transform_bits) *
         MetaSize(ysize, cross_color_transform_bits);
-    std::vector<uint32> color_space_image(color_space_image_size);
+    std::vector<uint32_t> color_space_image(color_space_image_size);
     ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
                         &argb[0],
                         quality,
@@ -800,13 +800,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32 *argb_orig,
                       &bw);
 
   const size_t webpll_size = BitWriterNumBytes(&bw);
-  uint8 *webpll_data = BitWriterFinish(&bw);
+  uint8_t *webpll_data = BitWriterFinish(&bw);
 
   *num_bytes = HEADER_SIZE + SIGNATURE_SIZE + webpll_size;
   // TODO(vikasa): This memory allocation can be avoided, if RIFF header is
   // writen to BitWriter in the begining and BitWriter's buffer can be owned
   // and passed back instead.
-  *bytes = (uint8 *)malloc(*num_bytes);
+  *bytes = (uint8_t *)malloc(*num_bytes);
   if (*bytes == NULL) return false;
   PutRiffHeader(*bytes, webpll_size);
   memcpy(*bytes + HEADER_SIZE + SIGNATURE_SIZE, webpll_data, webpll_size);

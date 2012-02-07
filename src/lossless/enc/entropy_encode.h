@@ -12,7 +12,7 @@
 #ifndef WEBP_ENTROPY_ENCODE_H_
 #define WEBP_ENTROPY_ENCODE_H_
 
-#include "../common/integral_types.h"
+#include <stdint.h>
 
 // This function will create a Huffman tree.
 //
@@ -26,17 +26,17 @@
 void CreateHuffmanTree(const int *data,
                        const int length,
                        const int tree_limit,
-                       uint8 *depth);
+                       uint8_t *depth);
 
 // Write a huffman tree from bit depths into the deflate representation
 // of a Huffman tree. In deflate, the generated Huffman tree is to be
 // compressed once more using a Huffman tree.
-void CreateCompressedHuffmanTree(const uint8 *depth, int len,
+void CreateCompressedHuffmanTree(const uint8_t *depth, int len,
                                  int *num_symbols,
-                                 uint8 *tree,
-                                 uint8 *extra_bits_data);
+                                 uint8_t *tree,
+                                 uint8_t *extra_bits_data);
 
 // Get the actual bit values for a tree of bit depths.
-void ConvertBitDepthsToSymbols(const uint8 *depth, int len, uint16 *bits);
+void ConvertBitDepthsToSymbols(const uint8_t *depth, int len, uint16_t *bits);
 
 #endif  // WEBP_ENTROPY_ENCODE_H_

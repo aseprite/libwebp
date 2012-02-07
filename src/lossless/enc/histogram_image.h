@@ -29,7 +29,7 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
                            std::vector<Histogram *> *out);
 
 void RefineHistogramImage(const std::vector<Histogram *> &raw,
-                          std::vector<uint32> *symbols,
+                          std::vector<uint32_t> *symbols,
                           std::vector<Histogram *> *out);
 
 

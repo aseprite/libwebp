@@ -50,7 +50,7 @@ static double PredictionCostSpatialHistogram(Histogram *accumulated,
 static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
                                    int xsize, int ysize,
                                    Histogram *accumulated,
-                                   const uint32 *argb) {
+                                   const uint32_t *argb) {
   const int num_pred_modes = 14;
   const int tile_y_offset = tile_y * max_tile_size;
   const int tile_x_offset = tile_x * max_tile_size;
@@ -68,7 +68,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
     Histogram histo(0);  // 0 is for only 1 (unused) palette value.
     for (int all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       for (int all_x = tile_x_offset; all_x < all_x_max; ++all_x) {
-        uint32 predict;
+        uint32_t predict;
         if (all_y == 0) {
           if (all_x == 0) {
             predict = 0xff000000;
@@ -80,7 +80,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
         } else {
           predict = PredictValue(mode, xsize, argb + all_y * xsize + all_x);
         }
-        const uint32 predict_diff =
+        const uint32_t predict_diff =
             Subtract(argb[all_y * xsize + all_x], predict);
         histo.AddSingleLiteralOrCopy(
             LiteralOrCopy::CreateLiteral(predict_diff));
@@ -96,8 +96,8 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
 }
 
 void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32 *from_argb, uint32 *to_argb, uint32 *image) {
-  uint32 *argb_orig = reinterpret_cast<uint32 *>(
+                    const uint32_t *from_argb, uint32_t *to_argb, uint32_t *image) {
+  uint32_t *argb_orig = reinterpret_cast<uint32_t *>(
       malloc(sizeof(from_argb[0]) * xsize * ysize));
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
   const int max_tile_size = 1 << bits;
@@ -132,7 +132,7 @@ void PredictorImage(int xsize, int ysize, int bits,
     }
   }
 #ifndef NDEBUG
-  uint32 *argb = reinterpret_cast<uint32 *>(
+  uint32_t *argb = reinterpret_cast<uint32_t *>(
       malloc(sizeof(to_argb[0]) * xsize * ysize));
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   PredictorInverseTransform(xsize, ysize, bits, image,
@@ -158,8 +158,8 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
   return bits;
 }
 
-inline bool SkipRepeatedPixels(const uint32 *argb, int ix, int xsize) {
-  const uint32 v = argb[ix];
+inline bool SkipRepeatedPixels(const uint32_t *argb, int ix, int xsize) {
+  const uint32_t v = argb[ix];
   if (ix >= xsize + 3) {
     if (v == argb[ix - xsize] &&
         argb[ix - 1] == argb[ix - xsize - 1] &&
@@ -185,7 +185,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
     int quality, int xsize, int ysize,
     int *accumulated_red_histo,
     int *accumulated_blue_histo,
-    const uint32 *argb) {
+    const uint32_t *argb) {
   double best_diff = 1e99;
   ColorSpaceTransformElement best_tx;
   best_tx.Clear();
@@ -214,7 +214,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
         if (SkipRepeatedPixels(argb, ix, xsize)) {
           continue;
         }
-        const uint32 predict = tx.Transform(argb[ix]);
+        const uint32_t predict = tx.Transform(argb[ix]);
         ++histo[(predict >> 16) & 0xff];  // red.
       }
     }
@@ -250,7 +250,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
           if (SkipRepeatedPixels(argb, ix, xsize)) {
             continue;
           }
-          const uint32 predict = tx.Transform(argb[ix]);
+          const uint32_t predict = tx.Transform(argb[ix]);
           ++histo[predict & 0xff];  // blue.
         }
       }
@@ -284,9 +284,9 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
 }
 
 void ColorSpaceTransform(int xsize, int ysize, int bits,
-                         const uint32 *from_argb, int quality,
-                         uint32 *to_argb, uint32 *image) {
-  uint32 *argb_orig = reinterpret_cast<uint32 *>(
+                         const uint32_t *from_argb, int quality,
+                         uint32_t *to_argb, uint32_t *image) {
+  uint32_t *argb_orig = reinterpret_cast<uint32_t *>(
       malloc(sizeof(from_argb[0]) * xsize * ysize));
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
   const int max_tile_size = 1 << bits;
@@ -351,7 +351,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
     }
   }
 #ifndef NDEBUG
-  uint32 *argb = reinterpret_cast<uint32 *>(
+  uint32_t *argb = reinterpret_cast<uint32_t *>(
       malloc(sizeof(to_argb[0]) * xsize * ysize));
   memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
   ColorSpaceInverseTransform(xsize, ysize, bits, image, &argb[0], &argb[0]);
@@ -363,12 +363,13 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
   free(argb_orig);
 }
 
-void SubtractGreenFromBlueAndRed(int n, uint32 *argb_array) {
-  for (int i = 0; i < n; ++i) {
-    uint32 argb = argb_array[i];
-    uint32 green = (argb >> 8) & 0xff;
-    uint32 new_r = (((argb >> 16) & 0xff) - green) & 0xff;
-    uint32 new_b = ((argb & 0xff) - green) & 0xff;
+void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array) {
+  int i;
+  for (i = 0; i < n; ++i) {
+    uint32_t argb = argb_array[i];
+    uint32_t green = (argb >> 8) & 0xff;
+    uint32_t new_r = (((argb >> 16) & 0xff) - green) & 0xff;
+    uint32_t new_b = ((argb & 0xff) - green) & 0xff;
     argb_array[i] = (argb & 0xff00ff00) | (new_r << 16) | new_b;
   }
 }

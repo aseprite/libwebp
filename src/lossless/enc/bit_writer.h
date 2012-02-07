@@ -26,8 +26,8 @@
 extern "C" {
 #endif
 
-#define UNALIGNED_LOAD32(_p) (*reinterpret_cast<const uint32 *>(_p))
-#define UNALIGNED_STORE32(_p, _val) (*reinterpret_cast<uint32 *>(_p) = (_val))
+#define UNALIGNED_LOAD32(_p) (*reinterpret_cast<const uint32_t *>(_p))
+#define UNALIGNED_STORE32(_p, _val) (*reinterpret_cast<uint32_t *>(_p) = (_val))
 
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8
@@ -37,7 +37,7 @@ extern "C" {
 
 typedef struct BitWriter BitWriter;
 struct BitWriter {
-  uint8* buf_;
+  uint8_t* buf_;
   size_t bit_pos_;
   size_t max_bytes_;
 };
@@ -47,7 +47,7 @@ inline size_t BitWriterNumBytes(BitWriter* const bw) {
 }
 
 static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
-  uint8* allocated_buf;
+  uint8_t* allocated_buf;
   size_t allocated_size;
   const size_t size_required = BitWriterNumBytes(bw) + extra_size;
   if ((bw->max_bytes_ > 0) && (size_required <= bw->max_bytes_)) return 1;
@@ -57,7 +57,7 @@ static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
   }
   // Make Allocated size multiple of KBs
   allocated_size = (((allocated_size >> 10) + 1) << 10);
-  allocated_buf = (uint8*)malloc(allocated_size);
+  allocated_buf = (uint8_t*)malloc(allocated_size);
   if (allocated_buf == NULL) return 0;
   memset(allocated_buf, 0, allocated_size);
   if (bw->bit_pos_ > 0) {
@@ -74,7 +74,7 @@ int BitWriterInit(BitWriter* const bw, size_t expected_size) {
   return BitWriterResize(bw, expected_size);
 }
 
-uint8* BitWriterFinish(BitWriter* const bw) {
+uint8_t* BitWriterFinish(BitWriter* const bw) {
   return bw->buf_;
 }
 
@@ -100,19 +100,19 @@ void BitWriterDestroy(BitWriter* const bw) {
 //
 // For n bits, we take the last 5 bytes, OR that with high bits in BYTE-0,
 // and locate the rest in BYTE+1 and BYTE+2.
-inline void WriteBits(int n_bits, uint32 bits, BitWriter* const bw) {
+inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
   if (n_bits < 1) return;
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
-  uint8 *p = &bw->buf_[bw->bit_pos_ >> 3];
-  uint32 v = UNALIGNED_LOAD32(p);
+  uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
+  uint32_t v = UNALIGNED_LOAD32(p);
   v |= bits << (bw->bit_pos_ & 7);
   UNALIGNED_STORE32(p, v);  // Set some bits.
   bw->bit_pos_ += n_bits;
 #else
-  // implicit & 0xff is assumed for uint8 arithmetics
-  uint8 *p = &bw->buf_[bw->bit_pos_ >> 3];
+  // implicit & 0xff is assumed for uint8_t arithmetics
+  uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
   const int bits_reserved_in_first_byte = (bw->bit_pos_ & 7);
   *p++ |= (bits << bits_reserved_in_first_byte);
   const int bits_left_to_write = n_bits - 8 + bits_reserved_in_first_byte;

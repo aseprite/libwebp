@@ -14,23 +14,26 @@
 #ifndef WEBP_BACKWARD_DISTANCE_H_
 #define WEBP_BACKWARD_DISTANCE_H_
 
-#include "../common/integral_types.h"
+#include <stdint.h>
 
 // use GNU builtins where available
 #if defined(__GNUC__) && \
     ((__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || __GNUC__ >= 4)
-inline int BitsLog2Floor(uint32 n) {
+inline int BitsLog2Floor(uint32_t n) {
   return n == 0 ? -1 : 31 ^ __builtin_clz(n);
 }
 #else
-inline int BitsLog2Floor(uint32 n) {
+inline int BitsLog2Floor(uint32_t n) {
+  int log;
+  uint32_t value;
+  int i;
   if (n == 0)
     return -1;
-  int log = 0;
-  uint32 value = n;
-  for (int i = 4; i >= 0; --i) {
+  log = 0;
+  value = n;
+  for (i = 4; i >= 0; --i) {
     int shift = (1 << i);
-    uint32 x = value >> shift;
+    uint32_t x = value >> shift;
     if (x != 0) {
       value = x;
       log += shift;
@@ -40,7 +43,7 @@ inline int BitsLog2Floor(uint32 n) {
 }
 #endif
 
-inline int BitsLog2Ceiling(uint32 n) {
+inline int BitsLog2Ceiling(uint32_t n) {
   int floor = BitsLog2Floor(n);
   if (n == (n &~ (n - 1)))  // zero or a power of two.
     return floor;
@@ -62,8 +65,7 @@ class BackwardDistance {
       int * __restrict code,
       int * __restrict extra_bits_count,
       int * __restrict extra_bits_value) {
-    --distance;
-    const int highest_bit = BitsLog2Floor(distance);
+    const int highest_bit = BitsLog2Floor(--distance);
     // & 0x3f is to make behavior well defined when highest_bit is -1 or 0.
     const int second_highest_bit =
         (distance >> ((highest_bit - 1) & 0x3f)) & 1;

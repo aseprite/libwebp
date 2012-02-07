@@ -11,7 +11,7 @@
 #define WEBP_ENC_ENCODE_H_
 
 #include <stdlib.h>
-#include "../common/integral_types.h"
+#include <stdint.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -36,10 +36,10 @@ typedef struct {
 // Returns false in case of error, otherwise true.
 int EncodeWebpLLImage(const int xsize,
                       const int ysize,
-                      const uint32 *argb,
+                      const uint32_t *argb,
                       EncodingStrategy *encoding_strategy,
                       size_t *num_bytes,
-                      uint8 **bytes);
+                      uint8_t **bytes);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"

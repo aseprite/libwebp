@@ -11,10 +11,10 @@
 #define WEBP_BACKWARD_REFERENCES_H_
 
 #include <assert.h>
+#include <stdint.h>
 #include <vector>
 
 #include "backward_distance.h"
-#include "../common/integral_types.h"
 
 // Backward reference distance codes, for all 32-bit values.
 static const int kDistanceCodes = 40;
@@ -45,7 +45,7 @@ struct LiteralOrCopy {
     return *this;
   }
 
-  static LiteralOrCopy CreateCopy(uint32 offset_arg, uint16 len_arg) {
+  static LiteralOrCopy CreateCopy(uint32_t offset_arg, uint16_t len_arg) {
     LiteralOrCopy retval;
     retval.mode = kCopy;
     retval.argb_or_offset = offset_arg;
@@ -61,7 +61,7 @@ struct LiteralOrCopy {
     retval.len = 1;
     return retval;
   }
-  static LiteralOrCopy CreateLiteral(uint32 argb_arg) {
+  static LiteralOrCopy CreateLiteral(uint32_t argb_arg) {
     LiteralOrCopy retval;
     retval.mode = kLiteral;
     retval.argb_or_offset = argb_arg;
@@ -83,24 +83,24 @@ struct LiteralOrCopy {
   bool IsCopy() const {
     return mode == kCopy;
   }
-  uint32 Literal(int component) const {
+  uint32_t Literal(int component) const {
     assert(mode == kLiteral);
     return (argb_or_offset >> (component * 8)) & 0xff;
   }
-  uint32 Length() const {
+  uint32_t Length() const {
     return len;
   }
-  uint32 Argb() const {
+  uint32_t Argb() const {
     assert(mode == kLiteral);
     return argb_or_offset;
   }
-  uint32 PaletteIx() const {
+  uint32_t PaletteIx() const {
     assert(mode == kPaletteIx);
     assert(argb_or_offset >= 0);
     assert(argb_or_offset < (1 << kPaletteCodeBitsMax));
     return argb_or_offset;
   }
-  uint32 Distance() const {
+  uint32_t Distance() const {
     assert(mode == kCopy);
     return argb_or_offset;
   }
@@ -112,9 +112,9 @@ struct LiteralOrCopy {
 
   // mode as uint 8, and not as type Mode, to make the memory layout
   // of this class as 8 bytes.
-  uint8 mode;
-  uint16 len;
-  uint32 argb_or_offset;
+  uint8_t mode;
+  uint16_t len;
+  uint32_t argb_or_offset;
 };
 
 // Ridiculously simple backward references for images where it is unlikely
@@ -122,7 +122,7 @@ struct LiteralOrCopy {
 void BackwardReferencesRle(
     int xsize,
     int ysize,
-    const uint32 *argb,
+    const uint32_t *argb,
     std::vector<LiteralOrCopy> *stream);
 
 // This is a simple fast function for obtaining backward references
@@ -131,7 +131,7 @@ void BackwardReferencesHashChain(
     int xsize,
     int ysize,
     bool use_palette,
-    const uint32 *argb,
+    const uint32_t *argb,
     int palette_bits,
     std::vector<LiteralOrCopy> *stream);
 
@@ -142,7 +142,7 @@ void BackwardReferencesTraceBackwards(
     int ysize,
     int recursive_cost_model,
     bool use_palette,
-    const uint32 *argb,
+    const uint32_t *argb,
     int palette_bits,
     std::vector<LiteralOrCopy> *stream);
 
@@ -160,12 +160,12 @@ int DistanceToPlaneCode(int xsize, int ysize, int distance);
 
 // Returns true if the given backward references actually produce
 // the image given in tuple (argb, xsize, ysize).
-bool VerifyBackwardReferences(const uint32* argb,
+bool VerifyBackwardReferences(const uint32_t* argb,
                               int xsize, int ysize,
                               int palette_bits,
                               const std::vector<LiteralOrCopy>& v);
 
 // Produce an estimate for a good emerging palette size for the image.
-int CalculateEstimateForPaletteSize(const uint32 *argb, int xsize, int ysize);
+int CalculateEstimateForPaletteSize(const uint32_t *argb, int xsize, int ysize);
 
 #endif  // WEBP_BACKWARD_REFERENCES_H_

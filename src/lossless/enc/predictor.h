@@ -12,22 +12,22 @@
 #ifndef WEBP_PREDICTOR_H_
 #define WEBP_PREDICTOR_H_
 
-#include "../common/integral_types.h"
+#include <stdint.h>
 
 void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32 *original_argb,
-                    uint32 *to_argb,
-                    uint32 *image);
+                    const uint32_t *original_argb,
+                    uint32_t *to_argb,
+                    uint32_t *image);
 
 // Get in the image, produces a subresolution transform image.
 // The transform minimize locally the entropy of red and blue by
 // finding cross-component correlation to green.
 void ColorSpaceTransform(int xsize, int ysize, int bits,
-                         const uint32 *original_argb,
+                         const uint32_t *original_argb,
                          int quality,
-                         uint32 *to_argb,
-                         uint32 *image);
+                         uint32_t *to_argb,
+                         uint32_t *image);
 
-void SubtractGreenFromBlueAndRed(int n, uint32 *argb_array);
+void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array);
 
 #endif  // WEBP_PREDICTOR_H_

@@ -43,8 +43,8 @@ int DistanceToPlaneCode(int xsize, int ysize, int dist) {
   return dist + 120;
 }
 
-static inline int FindMatchLength(const uint32* array1,
-                                  const uint32* array2,
+static inline int FindMatchLength(const uint32_t* array1,
+                                  const uint32_t* array2,
                                   const int max_limit) {
   int matched = 0;
   while (matched < max_limit && array1[matched] == array2[matched]) {
@@ -69,7 +69,7 @@ class HashChain {
     free(chain_);
   }
 
-  void Insert(const uint32* argb, int32 ix) {
+  void Insert(const uint32_t* argb, int32 ix) {
     // Insertion of two pixels at a time.
     const uint64 key = GetPixPair(argb);
     const uint64 hash_code = GetHash64(key);
@@ -77,7 +77,7 @@ class HashChain {
     hash_to_first_index[hash_code] = ix;
   }
 
-  bool FindCopy(int index, int xsize, const uint32 * __restrict argb,
+  bool FindCopy(int index, int xsize, const uint32_t * __restrict argb,
                 int maxlen, int * __restrict offset, int * __restrict len) {
     const uint64 next_two_pixels = GetPixPair(&argb[index]);
     const uint64 hash_code = GetHash64(next_two_pixels);
@@ -140,7 +140,7 @@ class HashChain {
     return num;
   }
 
-  static inline uint64 GetPixPair(const uint32 *argb) {
+  static inline uint64 GetPixPair(const uint32_t *argb) {
     return (static_cast<uint64>(argb[1]) << 32) | argb[0];
   }
 
@@ -169,7 +169,7 @@ static inline void PushBackCopy(int distance, int length,
   }
 }
 
-void BackwardReferencesRle(int xsize, int ysize, const uint32 *argb,
+void BackwardReferencesRle(int xsize, int ysize, const uint32_t *argb,
                            std::vector<LiteralOrCopy> *stream) {
   const int pix_count = xsize * ysize;
   stream->reserve(pix_count);
@@ -187,7 +187,7 @@ void BackwardReferencesRle(int xsize, int ysize, const uint32 *argb,
 }
 
 void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
-                                 const uint32 *argb, int palette_bits,
+                                 const uint32_t *argb, int palette_bits,
                                  std::vector<LiteralOrCopy> *stream) {
   const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
@@ -258,7 +258,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
 class CostModel {
  public:
   void Build(int xsize, int ysize, int recursion_level, int use_palette,
-             const uint32 *argb, int palette_bits) {
+             const uint32_t *argb, int palette_bits) {
     palette_bits_ = palette_bits;
 
     std::vector<LiteralOrCopy> stream;
@@ -287,19 +287,19 @@ class CostModel {
         kDistanceCodes, &histo.distance_[0], &distance_[0]);
   }
 
-  double LiteralCost(uint32 v) const {
+  double LiteralCost(uint32_t v) const {
     return alpha_[v >> 24] +
         red_[(v >> 16) & 0xff] +
         literal_[(v >> 8) & 0xff] +
         blue_[v & 0xff];
   }
 
-  double PaletteCost(uint32 ix) const {
+  double PaletteCost(uint32_t ix) const {
     int literal_ix = kNumSymbols + ix;
     return literal_[literal_ix];
   }
 
-  double LengthCost(uint32 len) const {
+  double LengthCost(uint32_t len) const {
     int code, extra_bits_count, extra_bits_value;
     BackwardLength::Encode(len,
                            &code,
@@ -310,7 +310,7 @@ class CostModel {
            extra_bits_count;
   }
 
-  double DistanceCost(uint32 distance) const {
+  double DistanceCost(uint32_t distance) const {
     int code, extra_bits_count, extra_bits_value;
     BackwardDistance::Encode(distance,
                              &code,
@@ -329,12 +329,13 @@ class CostModel {
   int palette_bits_;
 };
 
-void BackwardReferencesHashChainDistanceOnly(int xsize, int ysize,
-                                             int recursive_cost_model,
-                                             bool use_palette,
-                                             const uint32 *argb,
-                                             int palette_bits,
-                                             std::vector<uint32> *dist_array) {
+void BackwardReferencesHashChainDistanceOnly(
+    int xsize, int ysize,
+    int recursive_cost_model,
+    bool use_palette,
+    const uint32_t *argb,
+    int palette_bits,
+    std::vector<uint32_t> *dist_array) {
   const int pix_count = xsize * ysize;
   dist_array->resize(pix_count);
   std::vector<double> cost(pix_count, 1e100);
@@ -421,8 +422,8 @@ void BackwardReferencesHashChainDistanceOnly(int xsize, int ysize,
   delete cost_model;
 }
 
-void TraceBackwards(const std::vector<uint32> &dist_array,
-                    std::vector<uint32> *chosen_path) {
+void TraceBackwards(const std::vector<uint32_t> &dist_array,
+                    std::vector<uint32_t> *chosen_path) {
   for (int i = dist_array.size() - 1; i >= 0; ) {
     int k = dist_array[i];
     assert(k >= 1);
@@ -436,9 +437,9 @@ void BackwardReferencesHashChainFollowChosenPath(
     int xsize,
     int ysize,
     bool use_palette,
-    const uint32 *argb,
+    const uint32_t *argb,
     int palette_bits,
-    const std::vector<uint32> &chosen_path,
+    const std::vector<uint32_t> &chosen_path,
     std::vector<LiteralOrCopy> *stream) {
   const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
@@ -483,14 +484,14 @@ void BackwardReferencesHashChainFollowChosenPath(
 void BackwardReferencesTraceBackwards(int xsize, int ysize,
                                       int recursive_cost_model,
                                       bool use_palette,
-                                      const uint32 *argb,
+                                      const uint32_t *argb,
                                       int palette_bits,
                                       std::vector<LiteralOrCopy> *stream) {
-  std::vector<uint32> dist_array;
+  std::vector<uint32_t> dist_array;
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
                                           &dist_array);
-  std::vector<uint32> chosen_path;
+  std::vector<uint32_t> chosen_path;
   TraceBackwards(dist_array, &chosen_path);
   BackwardReferencesHashChainFollowChosenPath(xsize, ysize, use_palette,
                                               argb, palette_bits, chosen_path,
@@ -508,7 +509,7 @@ void BackwardReferences2DLocality(int xsize, int ysize, int data_size,
   }
 }
 
-bool VerifyBackwardReferences(const uint32* argb, int xsize, int ysize,
+bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                               int palette_bits,
                               const std::vector<LiteralOrCopy>& v) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
@@ -523,7 +524,7 @@ bool VerifyBackwardReferences(const uint32* argb, int xsize, int ysize,
       hashers.Insert(num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
     } else if (v[i].IsPaletteIx()) {
-      uint32 palette_entry =
+      uint32_t palette_entry =
           hashers.Lookup(num_pixels % xsize, v[i].PaletteIx());
       if (argb[num_pixels] != palette_entry) {
         printf("i %d, pixel %d, original: 0x%08x, palette_ix: %d, "
@@ -561,7 +562,7 @@ bool VerifyBackwardReferences(const uint32* argb, int xsize, int ysize,
   return true;
 }
 
-static void ComputePaletteHistogram(const uint32 *argb, int xsize, int ysize,
+static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
                                     const std::vector<LiteralOrCopy> &stream,
                                     int palette_bits, Histogram *histo) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
@@ -589,12 +590,14 @@ static void ComputePaletteHistogram(const uint32 *argb, int xsize, int ysize,
 }
 
 // Returns how many bits are to be used for a palette.
-int CalculateEstimateForPaletteSize(const uint32 *argb, int xsize, int ysize) {
+int CalculateEstimateForPaletteSize(const uint32_t *argb,
+                                    int xsize, int ysize) {
+  int palette_bits;
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
   std::vector<LiteralOrCopy> stream;
   BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, &stream);
-  for (int palette_bits = 0; palette_bits < 12; ++palette_bits) {
+  for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     Histogram histo(palette_bits);
     ComputePaletteHistogram(argb, xsize, ysize, stream, palette_bits, &histo);
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;

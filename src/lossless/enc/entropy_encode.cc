@@ -11,10 +11,9 @@
 
 #include "entropy_encode.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../common/integral_types.h"
 
 namespace {
 
@@ -46,7 +45,7 @@ int CompHuffmanTree(const void *vp0, const void *vp1) {
 
 void SetDepth(const HuffmanTree &p,
               HuffmanTree *pool,
-              uint8 *depth,
+              uint8_t *depth,
               const int level) {
   if (p.pool_index_left_ >= 0) {
     SetDepth(pool[p.pool_index_left_], pool, depth, level + 1);
@@ -75,7 +74,7 @@ void SetDepth(const HuffmanTree &p,
 // See http://en.wikipedia.org/wiki/Huffman_coding
 void CreateHuffmanTree(const int* const histogram, int histogram_size,
                        int tree_depth_limit,
-                       uint8* const bit_depths) {
+                       uint8_t* const bit_depths) {
   // For block sizes with less than 64k symbols we never need to do a
   // second iteration of this loop.
   // If we actually start running inside this loop a lot, we would perhaps
@@ -169,8 +168,8 @@ void WriteHuffmanTreeRepetitions(
     const int prev_value,
     int repetitions,
     int *num_symbols,
-    uint8 *tree,
-    uint8 *extra_bits_data) {
+    uint8_t *tree,
+    uint8_t *extra_bits_data) {
   if (value != prev_value) {
     tree[*num_symbols] = value;
     extra_bits_data[*num_symbols] = 0;
@@ -204,8 +203,8 @@ void WriteHuffmanTreeRepetitionsZeros(
     const int value,
     int repetitions,
     int *num_symbols,
-    uint8 *tree,
-    uint8 *extra_bits_data) {
+    uint8_t *tree,
+    uint8_t *extra_bits_data) {
   while (repetitions >= 1) {
     if (repetitions < 3) {
       for (int i = 0; i < repetitions; ++i) {
@@ -233,16 +232,18 @@ void WriteHuffmanTreeRepetitionsZeros(
   }
 }
 
-void CreateCompressedHuffmanTree(const uint8 *depth,
+void CreateCompressedHuffmanTree(const uint8_t *depth,
                                  int depth_size,
                                  int *num_symbols,
-                                 uint8 *tree,
-                                 uint8 *extra_bits_data) {
+                                 uint8_t *tree,
+                                 uint8_t *extra_bits_data) {
   int prev_value = 8;  // 8 is the initial value for rle.
-  for (uint32 i = 0; i < depth_size;) {
+  uint32_t i;
+  for (i = 0; i < depth_size;) {
     const int value = depth[i];
     int reps = 1;
-    for (uint32 k = i + 1; k < depth_size && depth[k] == value; ++k) {
+    uint32_t k;
+    for (k = i + 1; k < depth_size && depth[k] == value; ++k) {
       ++reps;
     }
     if (value == 0) {
@@ -261,8 +262,8 @@ void CreateCompressedHuffmanTree(const uint8 *depth,
 
 namespace {
 
-uint32 ReverseBits(int num_bits, uint32 bits) {
-  uint32 retval = 0;
+uint32_t ReverseBits(int num_bits, uint32_t bits) {
+  uint32_t retval = 0;
   for (int i = 0; i < num_bits; ++i) {
     retval <<= 1;
     retval |= bits & 1;
@@ -273,31 +274,33 @@ uint32 ReverseBits(int num_bits, uint32 bits) {
 
 }  // namespace
 
-void ConvertBitDepthsToSymbols(const uint8 *depth, int len,
-                               uint16 *bits) {
+void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
+                               uint16_t *bits) {
   // This function is based on RFC 1951.
   //
   // In deflate, all bit depths are [1..15]
   // 0 bit depth means that the symbol does not exist.
 
   const int kMaxBits = 16;  // 0..15 are values for bits
-  uint32 bl_count[kMaxBits] = { 0 };
+  uint32_t next_code[kMaxBits];
+  uint32_t bl_count[kMaxBits] = { 0 };
+  uint32_t i;
   {
-    for (uint32 i = 0; i < len; ++i) {
+    for (uint32_t i = 0; i < len; ++i) {
       ++bl_count[depth[i]];
     }
     bl_count[0] = 0;
   }
-  uint32 next_code[kMaxBits];
   next_code[0] = 0;
   {
     int code = 0;
-    for (int bits = 1; bits < kMaxBits; ++bits) {
+    int bits;
+    for (bits = 1; bits < kMaxBits; ++bits) {
       code = (code + bl_count[bits - 1]) << 1;
       next_code[bits] = code;
     }
   }
-  for (uint32 i = 0; i < len; ++i) {
+  for (i = 0; i < len; ++i) {
     if (depth[i]) {
       bits[i] = ReverseBits(depth[i], next_code[depth[i]]++);
     }

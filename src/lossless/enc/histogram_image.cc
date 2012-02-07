@@ -25,14 +25,15 @@ void BuildHistogramImage(int xsize, int ysize,
                          std::vector<Histogram *> *image) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
+  int i;
   image->resize(histo_xsize * histo_ysize);
-  for (int i = 0; i < image->size(); ++i) {
+  for (i = 0; i < image->size(); ++i) {
     (*image)[i] = new Histogram(palettebits);
   }
   // x and y trace the position in the image.
   int x = 0;
   int y = 0;
-  for (int i = 0; i < backward_refs.size(); ++i) {
+  for (i = 0; i < backward_refs.size(); ++i) {
     const LiteralOrCopy &v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;
@@ -49,25 +50,28 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
                            int quality,
                            int palettebits,
                            std::vector<Histogram *> *out) {
+  int i;
+  unsigned int seed = 0;
+  int tries_with_no_success = 0;
+  int inner_iters = 10 + quality / 2;
+  int iter;
   // Copy
   out->resize(in.size());
   std::vector<double> bit_costs(in.size());
-  for (int i = 0; i < in.size(); ++i) {
+  for (i = 0; i < in.size(); ++i) {
     Histogram *new_histo = new Histogram(palettebits);
     *new_histo = *(in[i]);
     (*out)[i] = new_histo;
     bit_costs[i] = (*out)[i]->EstimateBits();
   }
   // Collapse similar histograms.
-  unsigned int seed = 0;
-  int tries_with_no_success = 0;
-  int inner_iters = 10 + quality / 2;
-  for (int iter = 0; iter < in.size() * 3 && out->size() >= 2; ++iter) {
+  for (iter = 0; iter < in.size() * 3 && out->size() >= 2; ++iter) {
     double best_val = 0;
     int best_ix0 = 0;
     int best_ix1 = 0;
     // Try a few times.
-    for (int k = 0; k < inner_iters; ++k) {
+    int k;
+    for (k = 0; k < inner_iters; ++k) {
       // Choose two.
       int ix0 = rand_r(&seed) % out->size();
       int diff = ((k & 7) + 1) % (out->size() - 1);
@@ -111,10 +115,12 @@ double HistogramDistance(const Histogram &square_histogram,
                          int cur_symbol,
                          int candidate_symbol,
                          std::vector<Histogram *> *candidate_histograms) {
+  double new_bit_cost;
+  double previous_bit_cost;
   if (cur_symbol == candidate_symbol) {
     return 0;  // going nowhere. no savings.
   }
-  double previous_bit_cost =
+  previous_bit_cost =
       (*candidate_histograms)[candidate_symbol]->EstimateBits();
   if (cur_symbol != -1) {
     previous_bit_cost += (*candidate_histograms)[cur_symbol]->EstimateBits();
@@ -124,7 +130,7 @@ double HistogramDistance(const Histogram &square_histogram,
   // Compute the bit cost of the histogram where the data moves to.
   *tmp = *(*candidate_histograms)[candidate_symbol];
   tmp->Add(square_histogram);
-  double new_bit_cost = tmp->EstimateBits();
+  new_bit_cost = tmp->EstimateBits();
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
@@ -137,15 +143,17 @@ double HistogramDistance(const Histogram &square_histogram,
 }
 
 void RefineHistogramImage(const std::vector<Histogram *> &raw,
-                          std::vector<uint32> *symbols,
+                          std::vector<uint32_t> *symbols,
                           std::vector<Histogram *> *out) {
+  int i;
   symbols->resize(raw.size());
 
   // Find the best 'out' histogram for each of the raw histograms
-  for (int i = 0; i < raw.size(); ++i) {
+  for (i = 0; i < raw.size(); ++i) {
     int best_out = 0;
     double best_bits = HistogramDistance(*raw[i], (*symbols)[i], 0, out);
-    for (int k = 1; k < out->size(); ++k) {
+    int k;
+    for (k = 1; k < out->size(); ++k) {
       double cur_bits = HistogramDistance(*raw[i], (*symbols)[i], k, out);
       if (cur_bits < best_bits) {
         best_bits = cur_bits;
@@ -156,10 +164,10 @@ void RefineHistogramImage(const std::vector<Histogram *> &raw,
   }
 
   // Recompute each out based on raw and symbols.
-  for (int i = 0; i < out->size(); ++i) {
+  for (i = 0; i < out->size(); ++i) {
     (*out)[i]->Clear();
   }
-  for (int i = 0; i < raw.size(); ++i) {
+  for (i = 0; i < raw.size(); ++i) {
     (*out)[(*symbols)[i]]->Add(*raw[i]);
   }
 }
