@@ -144,14 +144,15 @@ double HistogramDistance(const Histogram &square_histogram,
   return new_bit_cost - previous_bit_cost;
 }
 
-void RefineHistogramImage(const std::vector<Histogram *> &raw,
+void RefineHistogramImage(Histogram **raw,
+                          int raw_size,
                           std::vector<uint32_t> *symbols,
                           std::vector<Histogram *> *out) {
   int i;
-  symbols->resize(raw.size());
+  symbols->resize(raw_size);
 
   // Find the best 'out' histogram for each of the raw histograms
-  for (i = 0; i < raw.size(); ++i) {
+  for (i = 0; i < raw_size; ++i) {
     int best_out = 0;
     double best_bits = HistogramDistance(*raw[i], (*symbols)[i], 0, out);
     int k;
@@ -169,7 +170,7 @@ void RefineHistogramImage(const std::vector<Histogram *> &raw,
   for (i = 0; i < out->size(); ++i) {
     (*out)[i]->Clear();
   }
-  for (i = 0; i < raw.size(); ++i) {
+  for (i = 0; i < raw_size; ++i) {
     (*out)[(*symbols)[i]]->Add(*raw[i]);
   }
 }

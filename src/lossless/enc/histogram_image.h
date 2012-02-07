@@ -30,7 +30,8 @@ void CombineHistogramImage(Histogram **in,
                            int palette_bits,
                            std::vector<Histogram *> *out);
 
-void RefineHistogramImage(const std::vector<Histogram *> &raw,
+void RefineHistogramImage(Histogram **raw,
+                          int raw_size,
                           std::vector<uint32_t> *symbols,
                           std::vector<Histogram *> *out);
 

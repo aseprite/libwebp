@@ -538,7 +538,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
   // Refine histogram image.
   const int max_refinement_iters = 1;
   for (int iter = 0; iter < max_refinement_iters; ++iter) {
-    RefineHistogramImage(histogram_image_raw, &histogram_symbols,
+    RefineHistogramImage(&histogram_image_raw[0], histogram_image_raw.size(),
+                         &histogram_symbols,
                          &histogram_image);
     if (quality < 30) {
       break;
