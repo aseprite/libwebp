@@ -104,18 +104,17 @@ static int EncodeZlib(const uint8_t* data, int width, int height,
 }
 
 // -----------------------------------------------------------------------------
-
 // Encode using webp lossless encoding.
 
-static int EncodeWebpLL(const uint8 *data, int width, int height,
-                        uint8 **output, size_t *output_size) {
+static int EncodeWebpLL(const uint8_t *data, int width, int height,
+                        uint8_t **output, size_t *output_size) {
   int i;
   int ok = 0;
   EncodingStrategy strategy;
 
   // Convert the alpha values to an argb array. Green channel is used to store
   // the alpha values. Other channels are set as follows; a = 0xFF, r = b = 0.
-  uint32 *argb = (uint32 *)malloc(width * height * sizeof(uint32));
+  uint32_t *argb = (uint32_t *)malloc(width * height * sizeof(uint32_t));
   if (argb == NULL) {
     return 0;
   }
@@ -283,11 +282,11 @@ static int DecodeZlib(const uint8_t* data, size_t data_size,
 // -----------------------------------------------------------------------------
 // Decode webp lossless compressed alpha
 
-static int DecodeWebpLL(const uint8 *data, size_t data_size,
-                        uint8 *output, size_t output_size) {
+static int DecodeWebpLL(const uint8_t *data, size_t data_size,
+                        uint8_t *output, size_t output_size) {
   size_t i;
   int width, height;
-  uint32 *argb;
+  uint32_t *argb;
   const int ok = DecodeWebpLLImage(data_size, data, &width, &height, &argb);
   if (!ok) {
     return 0;
