@@ -11,8 +11,6 @@
 #include <stdio.h>
 
 #include <algorithm>
-#include <map>
-#include <set>
 
 #include "backward_references.h"
 #include "histogram.h"
@@ -338,7 +336,11 @@ void BackwardReferencesHashChainDistanceOnly(
     std::vector<uint32_t> *dist_array) {
   const int pix_count = xsize * ysize;
   dist_array->resize(pix_count);
-  std::vector<double> cost(pix_count, 1e100);
+  double *cost = (double *)malloc(pix_count * sizeof(double));
+  int i;
+  for (i = 0; i < pix_count; ++i) {
+    cost[i] = 1e100;
+  }
   CostModel *cost_model = new CostModel;
   cost_model->Build(xsize, ysize, recursive_cost_model, use_palette, argb,
                     palette_bits);
@@ -348,12 +350,13 @@ void BackwardReferencesHashChainDistanceOnly(
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
   (*dist_array)[0] = 0;
-  for (int i = 0; i < pix_count; ++i) {
+  for (i = 0; i < pix_count; ++i) {
     double prev_cost = 0.0;
+    int shortmax;
     if (i > 0) {
       prev_cost = cost[i - 1];
     }
-    for (int shortmax = 0; shortmax < 2; ++shortmax) {
+    for (shortmax = 0; shortmax < 2; ++shortmax) {
       int offset = 0;
       int len = 0;
       if (i < pix_count - 1) {  // FindCopy reads pixels at [i] and [i + 1].
@@ -363,7 +366,8 @@ void BackwardReferencesHashChainDistanceOnly(
       if (len >= kMinLength) {
         const int code = DistanceToPlaneCode(xsize, ysize, offset);
         const double distance_cost = prev_cost + cost_model->DistanceCost(code);
-        for (int k = 1; k < len; ++k) {
+        int k;
+        for (k = 1; k < len; ++k) {
           const double cost_val = distance_cost + cost_model->LengthCost(k);
           if (cost[i + k] > cost_val) {
             cost[i + k] = cost_val;
@@ -376,7 +380,7 @@ void BackwardReferencesHashChainDistanceOnly(
           // Long copy for short distances, let's skip the middle
           // lookups for better copies.
           // 1) insert the hashes.
-          for (int k = 0; k < len; ++k) {
+          for (k = 0; k < len; ++k) {
             hashers.Insert((i + k) % xsize, argb[i + k]);
             if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
@@ -420,17 +424,25 @@ void BackwardReferencesHashChainDistanceOnly(
   // through cheaper means already.
   delete hash_chain;
   delete cost_model;
+  free(cost);
 }
 
 void TraceBackwards(const std::vector<uint32_t> &dist_array,
                     std::vector<uint32_t> *chosen_path) {
-  for (int i = dist_array.size() - 1; i >= 0; ) {
+  int i;
+  for (i = dist_array.size() - 1; i >= 0; ) {
     int k = dist_array[i];
     assert(k >= 1);
     chosen_path->push_back(k);
     i -= k;
   }
-  std::reverse(chosen_path->begin(), chosen_path->end());
+  // Reverse it.
+  int n = chosen_path->size() / 2;
+  for (i = 0; i < n; ++i) {
+    uint32_t t = (*chosen_path)[i];
+    (*chosen_path)[i] = (*chosen_path)[chosen_path->size() - i - 1];
+    (*chosen_path)[chosen_path->size() - i - 1] = t;
+  }
 }
 
 void BackwardReferencesHashChainFollowChosenPath(
