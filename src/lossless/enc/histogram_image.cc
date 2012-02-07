@@ -46,7 +46,8 @@ void BuildHistogramImage(int xsize, int ysize,
   }
 }
 
-void CombineHistogramImage(const std::vector<Histogram *> &in,
+void CombineHistogramImage(Histogram **in,
+                           int in_size,
                            int quality,
                            int palettebits,
                            std::vector<Histogram *> *out) {
@@ -56,16 +57,16 @@ void CombineHistogramImage(const std::vector<Histogram *> &in,
   int inner_iters = 10 + quality / 2;
   int iter;
   // Copy
-  out->resize(in.size());
-  std::vector<double> bit_costs(in.size());
-  for (i = 0; i < in.size(); ++i) {
+  out->resize(in_size);
+  std::vector<double> bit_costs(in_size);
+  for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = new Histogram(palettebits);
     *new_histo = *(in[i]);
     (*out)[i] = new_histo;
     bit_costs[i] = (*out)[i]->EstimateBits();
   }
   // Collapse similar histograms.
-  for (iter = 0; iter < in.size() * 3 && out->size() >= 2; ++iter) {
+  for (iter = 0; iter < in_size * 3 && out->size() >= 2; ++iter) {
     double best_val = 0;
     int best_ix0 = 0;
     int best_ix1 = 0;

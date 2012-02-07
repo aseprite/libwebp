@@ -531,7 +531,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
   // Collapse similar histograms.
   histogram_symbols.clear();
   histogram_symbols.resize(histogram_image_raw.size(), -1);
-  CombineHistogramImage(histogram_image_raw, quality, palette_bits,
+  CombineHistogramImage(&histogram_image_raw[0], histogram_image_raw.size(),
+                        quality, palette_bits,
                         &histogram_image);
   // Refine histogram image.
   const int max_refinement_iters = 1;

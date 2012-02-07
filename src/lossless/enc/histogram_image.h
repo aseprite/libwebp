@@ -23,7 +23,8 @@ void BuildHistogramImage(int xsize, int ysize,
                          std::vector<Histogram *> *image);
 
 // Combines several histograms into fewer histograms.
-void CombineHistogramImage(const std::vector<Histogram *> &in,
+void CombineHistogramImage(Histogram **in,
+                           int in_size,
                            int quality,
                            int palette_bits,
                            std::vector<Histogram *> *out);
