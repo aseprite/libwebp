@@ -13,8 +13,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include <algorithm>
-
 #include "./backward_references.h"
 #include "./histogram.h"
 #include "../common/integral_types.h"
