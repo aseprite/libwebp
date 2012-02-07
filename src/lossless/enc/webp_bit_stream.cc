@@ -525,27 +525,36 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 std::vector<Histogram*>& histogram_image,
                                 std::vector<uint32_t>& histogram_symbols) {
   // Build histogram image.
-  std::vector<Histogram*> histogram_image_raw;
+  Histogram** histogram_image_raw;
+  int histogram_image_raw_size;
   BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
                       &backward_refs[0], backward_refs.size(),
-                      &histogram_image_raw);
+                      &histogram_image_raw,
+                      &histogram_image_raw_size);
   // Collapse similar histograms.
   histogram_symbols.clear();
-  histogram_symbols.resize(histogram_image_raw.size(), -1);
-  CombineHistogramImage(&histogram_image_raw[0], histogram_image_raw.size(),
+  histogram_symbols.resize(histogram_image_raw_size, -1);
+  CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
                         quality, palette_bits,
                         &histogram_image);
   // Refine histogram image.
   const int max_refinement_iters = 1;
   for (int iter = 0; iter < max_refinement_iters; ++iter) {
-    RefineHistogramImage(&histogram_image_raw[0], histogram_image_raw.size(),
+    RefineHistogramImage(histogram_image_raw, histogram_image_raw_size,
                          &histogram_symbols,
                          &histogram_image);
     if (quality < 30) {
       break;
     }
   }
-  DeleteHistograms(histogram_image_raw);
+  // TODO(jyrki): Restore the use of DeleteHistograms(histogram_image_raw);
+  {
+    int i;
+    for (i = 0; i < histogram_image_raw_size; ++i) {
+      delete histogram_image_raw[i];
+    }
+    free(histogram_image_raw);
+  }
 }
 
 static void GetHuffBitLengthsAndCodes(

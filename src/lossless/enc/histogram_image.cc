@@ -23,12 +23,14 @@ void BuildHistogramImage(int xsize, int ysize,
                          int palettebits,
                          const LiteralOrCopy *backward_refs,
                          int backward_refs_size,
-                         std::vector<Histogram *> *image) {
+                         Histogram ***image,
+                         int *image_size) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
   int i;
-  image->resize(histo_xsize * histo_ysize);
-  for (i = 0; i < image->size(); ++i) {
+  *image_size = histo_xsize * histo_ysize;
+  *image = (Histogram **)malloc(*image_size * sizeof(Histogram *));
+  for (i = 0; i < *image_size; ++i) {
     (*image)[i] = new Histogram(palettebits);
   }
   // x and y trace the position in the image.
