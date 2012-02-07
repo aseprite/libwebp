@@ -10,8 +10,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#include <algorithm>
-
 #include "backward_references.h"
 #include "histogram.h"
 #include "../common/integral_types.h"
@@ -196,7 +194,10 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
     int len = 0;
     const int x = i % xsize;
     if (i < pix_count - 1) {  // FindCopy(i,..) reads pixels at [i] and [i + 1].
-      const int maxlen = std::min(pix_count - i, kMaxLength);
+      int maxlen = pix_count - i;
+      if (maxlen > kMaxLength) {
+        maxlen = kMaxLength;
+      }
       hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
     }
     if (len >= kMinLength) {
@@ -206,7 +207,10 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       int offset2 = 0;
       int len2 = 0;
       if (i < pix_count - 2) {  // FindCopy(i+1,..) reads [i + 1] and [i + 2].
-        const int maxlen = std::min(pix_count - (i + 1), kMaxLength);
+        int maxlen = pix_count - (i + 1);
+        if (maxlen > kMaxLength) {
+          maxlen = kMaxLength;
+        }
         hash_chain->FindCopy(i + 1, xsize, argb, maxlen, &offset2,
                              &len2);
         if (len2 > len + 1) {
@@ -360,7 +364,10 @@ void BackwardReferencesHashChainDistanceOnly(
       int offset = 0;
       int len = 0;
       if (i < pix_count - 1) {  // FindCopy reads pixels at [i] and [i + 1].
-        const int maxlen = std::min(pix_count - i, shortmax ? 2 : kMaxLength);
+        int maxlen = shortmax ? 2 : kMaxLength;
+        if (maxlen > pix_count - i) {
+          maxlen = pix_count - i;
+        }
         hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
       }
       if (len >= kMinLength) {
