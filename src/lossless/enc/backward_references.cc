@@ -443,22 +443,26 @@ void BackwardReferencesHashChainDistanceOnly(
   free(cost);
 }
 
-void TraceBackwards(const uint32_t *dist_array,
-                    int dist_array_size,
-                    std::vector<uint32_t> *chosen_path) {
+void TraceBackwards(const uint32_t *dist_array, int dist_array_size,
+                    uint32_t **chosen_path, int *chosen_path_size) {
   int i;
+  // Count how many.
+  int count = 0;
   for (i = dist_array_size - 1; i >= 0; ) {
     int k = dist_array[i];
     assert(k >= 1);
-    chosen_path->push_back(k);
+    ++count;
     i -= k;
   }
-  // Reverse it.
-  int n = chosen_path->size() / 2;
-  for (i = 0; i < n; ++i) {
-    uint32_t t = (*chosen_path)[i];
-    (*chosen_path)[i] = (*chosen_path)[chosen_path->size() - i - 1];
-    (*chosen_path)[chosen_path->size() - i - 1] = t;
+  // Allocate.
+  *chosen_path_size = count;
+  *chosen_path = (uint32_t *)malloc(count * sizeof(uint32_t));
+  // Write in reverse order.
+  for (i = dist_array_size - 1; i >= 0; ) {
+    int k = dist_array[i];
+    assert(k >= 1);
+    (*chosen_path)[--count] = k;
+    i -= k;
   }
 }
 
@@ -468,7 +472,8 @@ void BackwardReferencesHashChainFollowChosenPath(
     bool use_palette,
     const uint32_t *argb,
     int palette_bits,
-    const std::vector<uint32_t> &chosen_path,
+    uint32_t *chosen_path,
+    int chosen_path_size,
     LiteralOrCopy *stream,
     int *stream_size) {
   const int pix_count = xsize * ysize;
@@ -476,7 +481,7 @@ void BackwardReferencesHashChainFollowChosenPath(
   HashChain *hash_chain = new HashChain(pix_count);
   int i = 0;
   *stream_size = 0;
-  for (int ix = 0; ix < chosen_path.size(); ++ix) {
+  for (int ix = 0; ix < chosen_path_size; ++ix) {
     int offset = 0;
     int len = 0;
     int maxlen = chosen_path[ix];
@@ -529,12 +534,15 @@ void BackwardReferencesTraceBackwards(int xsize, int ysize,
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
                                           dist_array);
-  std::vector<uint32_t> chosen_path;
-  TraceBackwards(dist_array, dist_array_size, &chosen_path);
+  uint32_t *chosen_path;
+  int chosen_path_size;
+  TraceBackwards(dist_array, dist_array_size, &chosen_path, &chosen_path_size);
   free(dist_array);
-  BackwardReferencesHashChainFollowChosenPath(xsize, ysize, use_palette,
-                                              argb, palette_bits, chosen_path,
-                                              stream, stream_size);
+  BackwardReferencesHashChainFollowChosenPath(
+      xsize, ysize, use_palette, argb, palette_bits,
+      chosen_path, chosen_path_size,
+      stream, stream_size);
+  free(chosen_path);
 }
 
 void BackwardReferences2DLocality(int xsize, int ysize, int data_size,
