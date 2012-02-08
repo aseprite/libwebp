@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <algorithm>
-#include <string>
 #include <vector>
 
 #include "./bit_reader.h"
@@ -167,7 +165,9 @@ static void ReadMetaCodes(BitReader* br,
       int tree_index = ReadBits(br, nbits);
       meta_codes->push_back(tree_index);
       (*tree_types)[tree_index] = HuffmanCodeIndexToTreeType(k);
-      *num_trees = std::max(tree_index + 1, *num_trees);
+      if (*num_trees < tree_index + 1) {
+        *num_trees = tree_index + 1;
+      }
     }
   }
 }
@@ -180,18 +180,6 @@ static const int kCodeLengthLiterals = 16;
 static const int kCodeLengthRepeatCode = 16;
 static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
 static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
-
-static std::string CodeLengthDebugString(const std::vector<int>& code_lengths) {
-  std::string out = "Code Lengths: ";
-  for (int i = 0; i < code_lengths.size(); ++i) {
-    if (code_lengths[i] > 0) {
-      char str[32];
-      snprintf(str, sizeof(str), " %d:%d", i, code_lengths[i]);
-      out.append(std::string(&str[0]));
-    }
-  }
-  return out;
-}
 
 // Returns an integer code decoded with the Huffman code.
 //
@@ -280,7 +268,7 @@ static int ReadHuffmanCode(int alphabet_size,
          ReadHuffmanCodeLengths(decoder_root, br, &code_lengths) &&
          root->BuildTree(code_lengths.data(), code_lengths.size());
     if (!ok) {
-      printf("error #2: %s\n", CodeLengthDebugString(code_lengths).c_str());
+      printf("error #2\n");
     }
   }
   return ok;
