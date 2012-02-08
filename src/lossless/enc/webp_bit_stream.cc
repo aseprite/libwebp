@@ -244,19 +244,17 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     return;
   }
   WriteBits(1, 0, bw);
-  std::vector<uint8_t> huffman_tree(bit_lengths_size);
-  std::vector<uint8_t> huffman_tree_extra_bits(bit_lengths_size);
+  uint8_t* huffman_tree = (uint8_t*)malloc(bit_lengths_size);
+  uint8_t* huffman_tree_extra_bits = (uint8_t*)malloc(bit_lengths_size);
   int huffman_tree_size = 0;
   CreateCompressedHuffmanTree(bit_lengths,
                               bit_lengths_size,
                               &huffman_tree_size,
                               &huffman_tree[0],
                               &huffman_tree_extra_bits[0]);
-  huffman_tree.resize(huffman_tree_size);
-  huffman_tree_extra_bits.resize(huffman_tree_size);
 
   int huffman_tree_histogram[kCodeLengthCodes] = { 0 };
-  for (int i = 0; i < huffman_tree.size(); ++i) {
+  for (int i = 0; i < huffman_tree_size; ++i) {
     ++huffman_tree_histogram[huffman_tree[i]];
   }
   uint8_t code_length_bitdepth[kCodeLengthCodes] = { 0 };
@@ -272,7 +270,7 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                                   &code_length_bitdepth_symbols[0]);
   int num_trailing_zeros = 0;
   int trailing_zero_bits = 0;
-  for (int i = huffman_tree.size(); i > 0; --i) {
+  for (int i = huffman_tree_size; i > 0; --i) {
     int ix = huffman_tree[i - 1];
     if (ix == 0 || ix == 17 || ix == 18) {
       ++num_trailing_zeros;
@@ -283,9 +281,9 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
       break;
     }
   }
-  const int trimmed_length = huffman_tree.size() - num_trailing_zeros;
+  const int trimmed_length = huffman_tree_size - num_trailing_zeros;
   const bool write_length = (trimmed_length > 1 && trailing_zero_bits > 12);
-  const int length = write_length ? trimmed_length : huffman_tree.size();
+  const int length = write_length ? trimmed_length : huffman_tree_size;
   WriteBits(1, write_length, bw);
   if (write_length) {
     const int nbits = BitsLog2Ceiling(trimmed_length - 1);
@@ -299,6 +297,8 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                             &code_length_bitdepth[0],
                             &code_length_bitdepth_symbols[0],
                             bw);
+  free(huffman_tree);
+  free(huffman_tree_extra_bits);
 }
 
 void StoreImageToBitMask(
