@@ -143,7 +143,7 @@ void OptimizeHuffmanForRle(int length, int *counts) {
 
 void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
                                      uint8_t* lengths,
-                                     std::vector<uint16_t>* symbols) {
+                                     uint16_t* symbols) {
   int count = 0;
   for (int k = 0; k < num_symbols; ++k) {
     if (lengths[k] != 0) ++count;
@@ -151,7 +151,7 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   if (count == 1) {
     for (int k = 0; k < num_symbols; ++k) {
       lengths[k] = 0;
-      (*symbols)[k] = 0;
+      symbols[k] = 0;
     }
   }
 }
@@ -218,11 +218,11 @@ void StoreHuffmanTreeToBitMask(
   }
 }
 
-void StoreHuffmanCode(const std::vector<uint8_t> &bit_lengths,
+void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                       BitWriter* const bw) {
   int count = 0;
   int symbols[2] = { 0 };
-  for (int i = 0; i < bit_lengths.size(); ++i) {
+  for (int i = 0; i < bit_lengths_size; ++i) {
     if (bit_lengths[i] != 0) {
       if (count < 2) symbols[count] = i;
       ++count;
@@ -245,11 +245,11 @@ void StoreHuffmanCode(const std::vector<uint8_t> &bit_lengths,
     return;
   }
   WriteBits(1, 0, bw);
-  std::vector<uint8_t> huffman_tree(bit_lengths.size());
-  std::vector<uint8_t> huffman_tree_extra_bits(bit_lengths.size());
+  std::vector<uint8_t> huffman_tree(bit_lengths_size);
+  std::vector<uint8_t> huffman_tree_extra_bits(bit_lengths_size);
   int huffman_tree_size = 0;
-  CreateCompressedHuffmanTree(&bit_lengths[0],
-                              bit_lengths.size(),
+  CreateCompressedHuffmanTree(bit_lengths,
+                              bit_lengths_size,
                               &huffman_tree_size,
                               &huffman_tree[0],
                               &huffman_tree_extra_bits[0]);
@@ -269,8 +269,8 @@ void StoreHuffmanCode(const std::vector<uint8_t> &bit_lengths,
   StoreHuffmanTreeOfHuffmanTreeToBitMask(code_length_bitdepth,
                                          bw);
   ClearHuffmanTreeIfOnlyOneSymbol(kCodeLengthCodes,
-                                  code_length_bitdepth,
-                                  &code_length_bitdepth_symbols);
+                                  &code_length_bitdepth[0],
+                                  &code_length_bitdepth_symbols[0]);
   int num_trailing_zeros = 0;
   int trailing_zero_bits = 0;
   for (int i = huffman_tree.size(); i > 0; --i) {
@@ -698,9 +698,10 @@ static void EncodeImageInternal(int xsize, int ysize,
     std::vector<uint8_t> literal_lengths;
     PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
                           &literal_lengths);
-    StoreHuffmanCode(literal_lengths, bw);
+    StoreHuffmanCode(&literal_lengths[0], literal_lengths.size(), bw);
     for (int k = 1; k < 5; ++k) {
-      StoreHuffmanCode(bit_lengths[5 * i + k], bw);
+      StoreHuffmanCode(&bit_lengths[5 * i + k][0],
+                       bit_lengths[5 * i + k].size(), bw);
     }
   }
   DeleteHistograms(histogram_image);  // free combined histograms
@@ -708,8 +709,8 @@ static void EncodeImageInternal(int xsize, int ysize,
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
   for (int i = 0; i < bit_lengths.size(); ++i) {
-    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths[i].size(), &(bit_lengths[i])[0],
-                                    &bit_codes[i]);
+    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths[i].size(), &bit_lengths[i][0],
+                                    &bit_codes[i][0]);
   }
 
   // Store actual literals
