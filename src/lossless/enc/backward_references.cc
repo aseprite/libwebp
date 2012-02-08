@@ -155,39 +155,44 @@ class HashChain {
 };
 
 static inline void PushBackCopy(int distance, int length,
-                                std::vector<LiteralOrCopy> *stream) {
+                                LiteralOrCopy *stream,
+                                int *stream_size) {
   while (length >= kMaxLength) {
-    stream->push_back(LiteralOrCopy::CreateCopy(1, kMaxLength));
+    stream[*stream_size] = LiteralOrCopy::CreateCopy(1, kMaxLength);
+    ++(*stream_size);
     length -= kMaxLength;
   }
   if (length > 0) {
-    stream->push_back(LiteralOrCopy::CreateCopy(1, length));
+    stream[*stream_size] = LiteralOrCopy::CreateCopy(1, length);
+    ++(*stream_size);
   }
 }
 
 void BackwardReferencesRle(int xsize, int ysize, const uint32_t *argb,
-                           std::vector<LiteralOrCopy> *stream) {
+                           LiteralOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
-  stream->reserve(pix_count);
   int streak = 0;
+  *stream_size = 0;
   for (int i = 0; i < pix_count; ++i) {
     if (i >= 1 && argb[i] == argb[i - 1]) {
       ++streak;
     } else {
-      PushBackCopy(1, streak, stream);
+      PushBackCopy(1, streak, stream, stream_size);
       streak = 0;
-      stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
+      stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
+      ++(*stream_size);
     }
   }
-  PushBackCopy(1, streak, stream);
+  PushBackCopy(1, streak, stream, stream_size);
 }
 
 void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
                                  const uint32_t *argb, int palette_bits,
-                                 std::vector<LiteralOrCopy> *stream) {
+                                 LiteralOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
+  *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
     // Alternative#1: Code the pixels starting at 'i' using backward reference.
     int offset = 0;
@@ -217,10 +222,11 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
           if (use_palette && hashers.Contains(x, argb[i])) {
             const int ix = hashers.GetIndex(argb[i]);
-            stream->push_back(LiteralOrCopy::CreatePaletteIx(ix));
+            stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
           } else {
-            stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
+            stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
           }
+          ++(*stream_size);
           hashers.Insert(x, argb[i]);
           i++;  // Backward reference to be done for next pixel.
           len = len2;
@@ -230,7 +236,8 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       if (len >= kMaxLength) {
         len = kMaxLength - 1;
       }
-      stream->push_back(LiteralOrCopy::CreateCopy(offset, len));
+      stream[*stream_size] = LiteralOrCopy::CreateCopy(offset, len);
+      ++(*stream_size);
       for (int k = 0; k < len; ++k) {
         hashers.Insert((i + k) % xsize, argb[i + k]);
         if (k != 0 && i + k + 1 < pix_count) {
@@ -243,10 +250,11 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       if (use_palette && hashers.Contains(x, argb[i])) {
         // push pixel as a palette pixel
         int ix = hashers.GetIndex(argb[i]);
-        stream->push_back(LiteralOrCopy::CreatePaletteIx(ix));
+        stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
       } else {
-        stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
+        stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
       }
+      ++(*stream_size);
       hashers.Insert(x, argb[i]);
       if (i + 1 < pix_count) {
         hash_chain->Insert(&argb[i], i);
@@ -263,15 +271,17 @@ class CostModel {
              const uint32_t *argb, int palette_bits) {
     palette_bits_ = palette_bits;
 
-    std::vector<LiteralOrCopy> stream;
+    std::vector<LiteralOrCopy> stream(xsize * ysize);
+    int stream_size;
     if (recursion_level > 0) {
       BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
                                        use_palette, argb,
-                                       palette_bits, &stream);
+                                       palette_bits, &stream[0], &stream_size);
     } else {
       BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
-                                  palette_bits, &stream);
+                                  palette_bits, &stream[0], &stream_size);
     }
+    stream.resize(stream_size);
     Histogram histo(palette_bits);
     for (int i = 0; i < stream.size(); ++i) {
       histo.AddSingleLiteralOrCopy(stream[i]);
@@ -459,11 +469,13 @@ void BackwardReferencesHashChainFollowChosenPath(
     const uint32_t *argb,
     int palette_bits,
     const std::vector<uint32_t> &chosen_path,
-    std::vector<LiteralOrCopy> *stream) {
+    LiteralOrCopy *stream,
+    int *stream_size) {
   const int pix_count = xsize * ysize;
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   int i = 0;
+  *stream_size = 0;
   for (int ix = 0; ix < chosen_path.size(); ++ix) {
     int offset = 0;
     int len = 0;
@@ -471,7 +483,8 @@ void BackwardReferencesHashChainFollowChosenPath(
     if (maxlen != 1) {
       hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
       assert(len == maxlen);
-      stream->push_back(LiteralOrCopy::CreateCopy(offset, len));
+      stream[*stream_size] = LiteralOrCopy::CreateCopy(offset, len);
+      ++(*stream_size);
       for (int k = 0; k < len; ++k) {
         hashers.Insert((i + k) % xsize, argb[i + k]);
         if (i + k + 1 < pix_count) {
@@ -485,10 +498,11 @@ void BackwardReferencesHashChainFollowChosenPath(
         // push pixel as a palette pixel
         int ix = hashers.GetIndex(argb[i]);
         VERIFY(hashers.Lookup(i % xsize, ix) == argb[i]);
-        stream->push_back(LiteralOrCopy::CreatePaletteIx(ix));
+        stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
       } else {
-        stream->push_back(LiteralOrCopy::CreateLiteral(argb[i]));
+        stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
       }
+      ++(*stream_size);
       hashers.Insert(i % xsize, argb[i]);
       if (i + 1 < pix_count) {
         hash_chain->Insert(&argb[i], i);
@@ -505,7 +519,10 @@ void BackwardReferencesTraceBackwards(int xsize, int ysize,
                                       bool use_palette,
                                       const uint32_t *argb,
                                       int palette_bits,
-                                      std::vector<LiteralOrCopy> *stream) {
+                                      LiteralOrCopy *stream,
+                                      int *stream_size) {
+  *stream_size = 0;
+
   std::vector<uint32_t> dist_array;
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
@@ -514,7 +531,7 @@ void BackwardReferencesTraceBackwards(int xsize, int ysize,
   TraceBackwards(dist_array, &chosen_path);
   BackwardReferencesHashChainFollowChosenPath(xsize, ysize, use_palette,
                                               argb, palette_bits, chosen_path,
-                                              stream);
+                                              stream, stream_size);
 }
 
 void BackwardReferences2DLocality(int xsize, int ysize, int data_size,
@@ -583,11 +600,12 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
 }
 
 static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
-                                    const std::vector<LiteralOrCopy> &stream,
+                                    LiteralOrCopy *stream,
+                                    int stream_size,
                                     int palette_bits, Histogram *histo) {
   PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
   int pixel_index = 0;
-  for (int i = 0; i < stream.size(); ++i) {
+  for (int i = 0; i < stream_size; ++i) {
     const LiteralOrCopy &v = stream[i];
     if (v.IsLiteral()) {
       const int x = pixel_index % xsize;
@@ -615,11 +633,15 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
   int palette_bits;
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
-  std::vector<LiteralOrCopy> stream;
-  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, &stream);
+  std::vector<LiteralOrCopy> stream(xsize * ysize);
+  int stream_size;
+  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, &stream[0],
+                              &stream_size);
+  stream.resize(stream_size);
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     Histogram histo(palette_bits);
-    ComputePaletteHistogram(argb, xsize, ysize, stream, palette_bits, &histo);
+    ComputePaletteHistogram(argb, xsize, ysize, &stream[0], stream_size,
+                            palette_bits, &histo);
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;
     double cur_entropy = histo.EstimateBits() +
         kMakeLargePaletteSlightlyLessFavorable * palette_bits;

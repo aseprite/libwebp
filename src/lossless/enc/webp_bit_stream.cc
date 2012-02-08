@@ -471,15 +471,21 @@ static void GetBackwardReferences(int xsize, int ysize,
                                   int palette_bits, bool use_2d_locality,
                                   std::vector<LiteralOrCopy>& backward_refs) {
   // Backward Reference using LZ77.
-  std::vector<LiteralOrCopy> backward_refs_lz77;
+  std::vector<LiteralOrCopy> backward_refs_lz77(xsize * ysize);
+  int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
-                              &backward_refs_lz77);
+                              &backward_refs_lz77[0], &backward_refs_lz77_size);
+  backward_refs_lz77.resize(backward_refs_lz77_size);
   Histogram *histo_lz77 = new Histogram(palette_bits);
   histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77.size());
 
   // Backward Reference using RLE only.
-  std::vector<LiteralOrCopy> backward_refs_rle_only;
-  BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only);
+  std::vector<LiteralOrCopy> backward_refs_rle_only(xsize * ysize);
+  int backward_refs_rle_only_size;
+  BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
+                        &backward_refs_rle_only_size);
+  backward_refs_rle_only.resize(backward_refs_rle_only_size);
+
   Histogram *histo_rle = new Histogram(palette_bits);
   histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
 
@@ -497,8 +503,12 @@ static void GetBackwardReferences(int xsize, int ysize,
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
+    int backward_refs_size;
+    backward_refs.resize(xsize * ysize);
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
-                                     &argb[0], palette_bits, &backward_refs);
+                                     &argb[0], palette_bits, &backward_refs[0],
+                                     &backward_refs_size);
+    backward_refs.resize(backward_refs_size);
   } else {
     if (lz77_is_useful) {
       backward_refs.swap(backward_refs_lz77);
