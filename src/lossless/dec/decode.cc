@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <vector>
-
 #include "./bit_reader.h"
 #include "./constants.h"
 #include "./huffman.h"
@@ -335,8 +333,14 @@ static int DecodeImageInternal(int original_xsize,
   PixelHasherLine* palette = use_palette ?
       new PixelHasherLine(xsize, palette_x_bits, palette_code_bits) : NULL;
 
-  std::vector<HuffmanTreeNode> htrees(num_huffman_trees);
-  for (int i = 0; ok && i < htrees.size(); ++i) {
+  HuffmanTreeNode *htrees = (HuffmanTreeNode *)
+      malloc(num_huffman_trees * sizeof(HuffmanTreeNode));
+  for (int i = 0; i < num_huffman_trees; ++i) {
+    htrees[i].child_[0] = NULL;
+    htrees[i].child_[1] = NULL;
+    htrees[i].symbol_ = -1;
+  }
+  for (int i = 0; ok && i < num_huffman_trees; ++i) {
     int type = tree_types[i];
     int alphabet_size = AlphabetSize(type, palette_size);
     ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
@@ -466,6 +470,13 @@ static int DecodeImageInternal(int original_xsize,
     free(huffman_image);
   }
   free(meta_codes);
+  {
+    for (int i = 0; i < num_huffman_trees; ++i) {
+      delete htrees[i].child_[0];
+      delete htrees[i].child_[1];
+    }
+    free(htrees);
+  }
   if (palette) {
     delete palette;
   }

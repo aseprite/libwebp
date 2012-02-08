@@ -111,7 +111,6 @@ class HuffmanTreeNode {
     return true;
   }
 
- private:
   int symbol_;
   HuffmanTreeNode* child_[2];
 };
