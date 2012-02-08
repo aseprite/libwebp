@@ -29,9 +29,9 @@ void StoreHuffmanTreeOfHuffmanTreeToBitMask(
 
 // Store a Huffman tree.
 void StoreHuffmanTreeToBitMask(
-    const std::vector <uint8_t> &huffman_tree,
-    const std::vector <uint8_t> &huffman_tree_extra_bits,
-    const int num_symbols,
+    const uint8_t *huffman_tree,
+    const uint8_t *huffman_tree_extra_bits,
+    int huffman_tree_size,
     const uint8_t *code_length_bitdepth,
     const std::vector <uint16_t> &code_length_bitdepth_symbols,
     BitWriter* const bw);
