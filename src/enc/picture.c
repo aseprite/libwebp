@@ -11,6 +11,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "./vp8enci.h"
 
@@ -25,7 +26,7 @@ extern "C" {
 //------------------------------------------------------------------------------
 
 int WebPPictureAlloc(WebPPicture* const picture) {
-  if (picture) {
+  if (picture != NULL) {
     const WebPEncCSP uv_csp = picture->colorspace & WEBP_CSP_UV_MASK;
     const int has_alpha = picture->colorspace & WEBP_CSP_ALPHA_BIT;
     const int width = picture->width;
@@ -108,7 +109,7 @@ int WebPPictureAlloc(WebPPicture* const picture) {
 // into 'dst'. Mark 'dst' as not owning any memory. 'src' can be NULL.
 static void WebPPictureGrabSpecs(const WebPPicture* const src,
                                  WebPPicture* const dst) {
-  if (src) *dst = *src;
+  if (src != NULL) *dst = *src;
   dst->y = dst->u = dst->v = NULL;
   dst->u0 = dst->v0 = NULL;
   dst->a = NULL;
@@ -116,7 +117,7 @@ static void WebPPictureGrabSpecs(const WebPPicture* const src,
 
 // Release memory owned by 'picture'.
 void WebPPictureFree(WebPPicture* const picture) {
-  if (picture) {
+  if (picture != NULL) {
     free(picture->y);
     WebPPictureGrabSpecs(NULL, picture);
   }
@@ -125,7 +126,7 @@ void WebPPictureFree(WebPPicture* const picture) {
 //------------------------------------------------------------------------------
 // Picture copying
 
-// TODO(skal): move to dsp/ ?
+// Not worth moving to dsp/enc.c (only used here).
 static void CopyPlane(const uint8_t* src, int src_stride,
                       uint8_t* dst, int dst_stride, int width, int height) {
   while (height-- > 0) {
@@ -195,13 +196,13 @@ int WebPPictureCrop(WebPPicture* const pic,
               tmp.v, tmp.uv_stride, HALVE(width), HALVE(height));
   }
 
-  if (tmp.a) {
+  if (tmp.a != NULL) {
     const int a_offset = top * pic->a_stride + left;
     CopyPlane(pic->a + a_offset, pic->a_stride,
               tmp.a, tmp.a_stride, width, height);
   }
 #ifdef WEBP_EXPERIMENTAL_FEATURES
-  if (tmp.u0) {
+  if (tmp.u0 != NULL) {
     int w = width;
     int l = left;
     if (tmp.colorspace == WEBP_YUV422) {
@@ -331,7 +332,7 @@ int WebPPictureRescale(WebPPicture* const pic, int width, int height) {
   tmp.height = height;
   if (!WebPPictureAlloc(&tmp)) return 0;
 
-  work = malloc(2 * width * sizeof(int32_t));
+  work = (int32_t*)malloc(2 * width * sizeof(int32_t));
   if (work == NULL) {
     WebPPictureFree(&tmp);
     return 0;
@@ -348,12 +349,12 @@ int WebPPictureRescale(WebPPicture* const pic, int width, int height) {
                tmp.v,
                HALVE(width), HALVE(height), tmp.uv_stride, work);
 
-  if (tmp.a) {
+  if (tmp.a != NULL) {
     RescalePlane(pic->a, prev_width, prev_height, pic->a_stride,
                  tmp.a, width, height, tmp.a_stride, work);
   }
 #ifdef WEBP_EXPERIMENTAL_FEATURES
-  if (tmp.u0) {
+  if (tmp.u0 != NULL) {
     int s = 1;
     if ((tmp.colorspace & WEBP_CSP_UV_MASK) == WEBP_YUV422) {
       s = 2;
@@ -382,7 +383,7 @@ typedef struct {
   size_t*   size;
 } WebPMemoryWriter;
 
-static void InitMemoryWriter(WebPMemoryWriter* const writer) {
+static void WebPMemoryWriterInit(WebPMemoryWriter* const writer) {
   *writer->mem = NULL;
   *writer->size = 0;
   writer->max_size = 0;
@@ -412,7 +413,7 @@ static int WebPMemoryWrite(const uint8_t* data, size_t data_size,
     *w->mem = new_mem;
     w->max_size = next_max_size;
   }
-  if (data_size) {
+  if (data_size > 0) {
     memcpy((*w->mem) + (*w->size), data, data_size);
     *w->size += data_size;
   }
@@ -659,7 +660,58 @@ void WebPCleanupTransparentArea(WebPPicture* const pic) {
 #undef SIZE2
 
 //------------------------------------------------------------------------------
-// Simplest call:
+// Distortion
+
+// Max value returned in case of exact similarity.
+static const double kMinDistortion_dB = 99.;
+
+int WebPPictureDistortion(const WebPPicture* const pic1,
+                          const WebPPicture* const pic2,
+                          int type, float result[5]) {
+  int c;
+  DistoStats stats[5];
+
+  if (pic1->width != pic2->width ||
+      pic1->height != pic2->height ||
+      (pic1->a == NULL) != (pic2->a == NULL)) {
+    return 0;
+  }
+
+  memset(stats, 0, sizeof(stats));
+  VP8SSIMAccumulatePlane(pic1->y, pic1->y_stride,
+                         pic2->y, pic2->y_stride,
+                         pic1->width, pic1->height, &stats[0]);
+  VP8SSIMAccumulatePlane(pic1->u, pic1->uv_stride,
+                         pic2->u, pic2->uv_stride,
+                         (pic1->width + 1) >> 1, (pic1->height + 1) >> 1,
+                         &stats[1]);
+  VP8SSIMAccumulatePlane(pic1->v, pic1->uv_stride,
+                         pic2->v, pic2->uv_stride,
+                         (pic1->width + 1) >> 1, (pic1->height + 1) >> 1,
+                         &stats[2]);
+  if (pic1->a != NULL) {
+    VP8SSIMAccumulatePlane(pic1->a, pic1->a_stride,
+                           pic2->a, pic2->a_stride,
+                           pic1->width, pic1->height, &stats[3]);
+  }
+  for (c = 0; c <= 4; ++c) {
+    if (type == 1) {
+      const double v = VP8SSIMGet(&stats[c]);
+      result[c] = (float)((v < 1.) ? -10.0 * log10(1. - v)
+                                   : kMinDistortion_dB);
+    } else {
+      const double v = VP8SSIMGetSquaredError(&stats[c]);
+      result[c] = (float)((v > 0.) ? -4.3429448 * log(v / (255 * 255.))
+                                   : kMinDistortion_dB);
+    }
+    // Accumulate forward
+    if (c < 4) VP8SSIMAddStats(&stats[c], &stats[4]);
+  }
+  return 1;
+}
+
+//------------------------------------------------------------------------------
+// Simplest high-level calls:
 
 typedef int (*Importer)(WebPPicture* const, const uint8_t* const, int);
 
@@ -683,7 +735,7 @@ static size_t Encode(const uint8_t* rgba, int width, int height, int stride,
 
   wrt.mem = output;
   wrt.size = &output_size;
-  InitMemoryWriter(&wrt);
+  WebPMemoryWriterInit(&wrt);
 
   ok = import(&pic, rgba, stride) && WebPEncode(&config, &pic);
   WebPPictureFree(&pic);

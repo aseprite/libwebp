@@ -165,8 +165,9 @@ extern const uint8_t VP8Zigzag[16];
 //------------------------------------------------------------------------------
 // Headers
 
+typedef uint32_t proba_t;   // 16b + 16b
 typedef uint8_t ProbaArray[NUM_CTX][NUM_PROBAS];
-typedef uint64_t StatsArray[NUM_CTX][NUM_PROBAS][2];
+typedef proba_t StatsArray[NUM_CTX][NUM_PROBAS];
 typedef uint16_t CostArray[NUM_CTX][MAX_VARIABLE_LEVEL + 1];
 typedef double LFStats[NUM_MB_SEGMENTS][MAX_LF_LEVELS];  // filter stats
 
@@ -185,8 +186,9 @@ typedef struct {
   uint8_t segments_[3];     // probabilities for segment tree
   uint8_t skip_proba_;      // final probability of being skipped.
   ProbaArray coeffs_[NUM_TYPES][NUM_BANDS];      // 924 bytes
-  StatsArray stats_[NUM_TYPES][NUM_BANDS];       // 7.4k
+  StatsArray stats_[NUM_TYPES][NUM_BANDS];       // 4224 bytes
   CostArray level_cost_[NUM_TYPES][NUM_BANDS];   // 11.4k
+  int dirty_;               // if true, need to call VP8CalculateLevelCosts()
   int use_skip_proba_;      // Note: we always use skip_proba for now.
   int nb_skip_;             // number of skipped blocks
 } VP8Proba;
@@ -241,7 +243,7 @@ typedef struct {
   int16_t y_ac_levels[16][16];
   int16_t uv_levels[4 + 4][16];
   int mode_i16;               // mode number for intra16 prediction
-  int modes_i4[16];           // mode numbers for intra4 predictions
+  uint8_t modes_i4[16];       // mode numbers for intra4 predictions
   int mode_uv;                // mode number of chroma prediction
   uint32_t nz;                // non-zero blocks
 } VP8ModeScore;
@@ -304,11 +306,53 @@ void VP8IteratorBytesToNz(VP8EncIterator* const it);
 
 // Helper functions to set mode properties
 void VP8SetIntra16Mode(const VP8EncIterator* const it, int mode);
-void VP8SetIntra4Mode(const VP8EncIterator* const it, int modes[16]);
+void VP8SetIntra4Mode(const VP8EncIterator* const it, const uint8_t* modes);
 void VP8SetIntraUVMode(const VP8EncIterator* const it, int mode);
 void VP8SetSkip(const VP8EncIterator* const it, int skip);
 void VP8SetSegment(const VP8EncIterator* const it, int segment);
 void VP8IteratorResetCosts(VP8EncIterator* const it);
+
+//------------------------------------------------------------------------------
+// Paginated token buffer
+
+// WIP: #define USE_TOKEN_BUFFER
+
+#ifdef USE_TOKEN_BUFFER
+
+#define MAX_NUM_TOKEN 2048
+
+typedef struct VP8Tokens VP8Tokens;
+struct VP8Tokens {
+  uint16_t tokens_[MAX_NUM_TOKEN];  // bit#15: bit, bits 0..14: slot
+  int left_;
+  VP8Tokens* next_;
+};
+
+typedef struct {
+  VP8Tokens* rows_;
+  uint16_t* tokens_;    // set to (*last_)->tokens_
+  VP8Tokens** last_;
+  int left_;
+  int error_;  // true in case of malloc error
+} VP8TBuffer;
+
+void VP8TBufferInit(VP8TBuffer* const b);    // initialize an empty buffer
+int VP8TBufferNewPage(VP8TBuffer* const b);  // allocate a new page
+void VP8TBufferClear(VP8TBuffer* const b);   // de-allocate memory
+
+int VP8EmitTokens(const VP8TBuffer* const b, VP8BitWriter* const bw,
+                  const uint8_t* const probas);
+
+static WEBP_INLINE int VP8AddToken(VP8TBuffer* const b,
+                                   int bit, int proba_idx) {
+  if (b->left_ > 0 || VP8TBufferNewPage(b)) {
+    const int slot = --b->left_;
+    b->tokens_[slot] = (bit << 15) | proba_idx;
+  }
+  return bit;
+}
+
+#endif  // USE_TOKEN_BUFFER
 
 //------------------------------------------------------------------------------
 // VP8Encoder
@@ -455,9 +499,22 @@ int VP8EncFinishLayer(VP8Encoder* const enc);    // finalize coding
 void VP8EncDeleteLayer(VP8Encoder* enc);         // reclaim memory
 
   // in filter.c
-extern void VP8InitFilter(VP8EncIterator* const it);
-extern void VP8StoreFilterStats(VP8EncIterator* const it);
-extern void VP8AdjustFilterStrength(VP8EncIterator* const it);
+
+// SSIM utils
+typedef struct {
+  double w, xm, ym, xxm, xym, yym;
+} DistoStats;
+void VP8SSIMAddStats(const DistoStats* const src, DistoStats* const dst);
+void VP8SSIMAccumulatePlane(const uint8_t* src1, int stride1,
+                            const uint8_t* src2, int stride2,
+                            int W, int H, DistoStats* const stats);
+double VP8SSIMGet(const DistoStats* const stats);
+double VP8SSIMGetSquaredError(const DistoStats* const stats);
+
+// autofilter
+void VP8InitFilter(VP8EncIterator* const it);
+void VP8StoreFilterStats(VP8EncIterator* const it);
+void VP8AdjustFilterStrength(VP8EncIterator* const it);
 
 //------------------------------------------------------------------------------
 

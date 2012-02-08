@@ -162,8 +162,9 @@ typedef struct {  // used for syntax-parsing
 } VP8MB;
 
 // Dequantization matrices
+typedef int quant_t[2];      // [DC / AC].  Can be 'uint16_t[2]' too (~slower).
 typedef struct {
-  uint16_t y1_mat_[2], y2_mat_[2], uv_mat_[2];    // [DC / AC]
+  quant_t y1_mat_, y2_mat_, uv_mat_;
 } VP8QuantMatrix;
 
 // Persistent information needed by the parallel processing
@@ -250,7 +251,7 @@ struct VP8Decoder {
 
   // main memory chunk for the above data. Persistent.
   void* mem_;
-  int mem_size_;
+  size_t mem_size_;
 
   // Per macroblock non-persistent infos.
   int mb_x_, mb_y_;       // current position, in macroblock units
@@ -323,14 +324,10 @@ VP8StatusCode VP8EnterCritical(VP8Decoder* const dec, VP8Io* const io);
 // Must always be called in pair with VP8EnterCritical().
 // Returns false in case of error.
 int VP8ExitCritical(VP8Decoder* const dec, VP8Io* const io);
-// Filter the decoded macroblock row (if needed)
-int VP8FinishRow(VP8Decoder* const dec, VP8Io* io);   // multi threaded call
 // Process the last decoded row (filtering + output)
 int VP8ProcessRow(VP8Decoder* const dec, VP8Io* const io);
 // Store a block, along with filtering params
 void VP8StoreBlock(VP8Decoder* const dec);
-// Finalize and transmit a complete row. Return false in case of user-abort.
-int VP8FinishRow(VP8Decoder* const dec, VP8Io* const io);
 // To be called at the start of a new scanline, to initialize predictors.
 void VP8InitScanline(VP8Decoder* const dec);
 // Decode one macroblock. Returns false if there is not enough data.

@@ -50,9 +50,9 @@ const uint16_t VP8EntropyCost[256] = {
 //------------------------------------------------------------------------------
 // Level cost tables
 
-// For each given level, the following table given the pattern of contexts
-// to use for coding it (in [][0]) as well as the bit value to use for
-// each context (in [][1]).
+// For each given level, the following table gives the pattern of contexts to
+// use for coding it (in [][0]) as well as the bit value to use for each
+// context (in [][1]).
 const uint16_t VP8LevelCodes[MAX_VARIABLE_LEVEL][2] = {
                   {0x001, 0x000}, {0x007, 0x001}, {0x00f, 0x005},
   {0x00f, 0x00d}, {0x033, 0x003}, {0x033, 0x003}, {0x033, 0x023},
@@ -354,6 +354,9 @@ static int VariableLevelCost(int level, const uint8_t probas[NUM_PROBAS]) {
 
 void VP8CalculateLevelCosts(VP8Proba* const proba) {
   int ctype, band, ctx;
+
+  if (!proba->dirty_) return;  // nothing to do.
+
   for (ctype = 0; ctype < NUM_TYPES; ++ctype) {
     for (band = 0; band < NUM_BANDS; ++band) {
       for(ctx = 0; ctx < NUM_CTX; ++ctx) {
@@ -370,6 +373,7 @@ void VP8CalculateLevelCosts(VP8Proba* const proba) {
       }
     }
   }
+  proba->dirty_ = 0;
 }
 
 //------------------------------------------------------------------------------
