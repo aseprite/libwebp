@@ -209,7 +209,8 @@ static int ReadCodeLengthTree(BitReader* const br,
 
 static int ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
                                   BitReader* br,
-                                  std::vector<int>* code_lengths) {
+                                  int code_lengths_size,
+                                  int* code_lengths) {
   bool use_length = ReadBits(br, 1);
   int max_length = 0;
   if (use_length) {
@@ -218,13 +219,13 @@ static int ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
   }
   int previous = 8;
   int num_symbols = 0;
-  for (int i = 0; i < code_lengths->size(); ++i) {
+  for (int i = 0; i < code_lengths_size; ++i) {
     if (use_length && ++num_symbols > max_length) break;
     FillBitWindow(br);
     int code_length = ReadSymbol(decoder_root, br);
     VERIFY(code_length < kCodeLengthCodes);
     if (code_length < kCodeLengthLiterals) {
-      (*code_lengths)[i] = code_length;
+      code_lengths[i] = code_length;
       if (code_length != 0) previous = code_length;
     } else {
       int repeat_ix = code_length - kCodeLengthLiterals;
@@ -233,7 +234,7 @@ static int ReadHuffmanCodeLengths(const HuffmanTreeNode& decoder_root,
       int repeat = ReadBits(br, extra_bits) + repeat_offset;
       bool use_previous = code_length == kCodeLengthRepeatCode;
       for (int k = 0; k < repeat; ++k) {
-        (*code_lengths)[i + k] = use_previous ? previous : 0;
+        code_lengths[i + k] = use_previous ? previous : 0;
       }
       i += repeat - 1;
     }
@@ -263,10 +264,12 @@ static int ReadHuffmanCode(int alphabet_size,
     VERIFY(!ok || root->IsFull());
   } else {
     HuffmanTreeNode decoder_root;
-    std::vector<int> code_lengths(alphabet_size);
+    int* code_lengths = (int *)malloc(alphabet_size * sizeof(int));
+    memset(code_lengths, 0, alphabet_size * sizeof(code_lengths[0]));
     ok = ReadCodeLengthTree(br, &decoder_root) &&
-         ReadHuffmanCodeLengths(decoder_root, br, &code_lengths) &&
-         root->BuildTree(code_lengths.data(), code_lengths.size());
+        ReadHuffmanCodeLengths(decoder_root, br, alphabet_size, code_lengths) &&
+        root->BuildTree(code_lengths, alphabet_size);
+    free(code_lengths);
     if (!ok) {
       printf("error #2\n");
     }
