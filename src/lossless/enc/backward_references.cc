@@ -269,10 +269,10 @@ class CostModel {
  public:
   void Build(int xsize, int ysize, int recursion_level, int use_palette,
              const uint32_t *argb, int palette_bits) {
-    palette_bits_ = palette_bits;
-
-    std::vector<LiteralOrCopy> stream(xsize * ysize);
     int stream_size;
+    LiteralOrCopy *stream =
+        (LiteralOrCopy *)malloc(xsize * ysize * sizeof(LiteralOrCopy));
+    palette_bits_ = palette_bits;
     if (recursion_level > 0) {
       BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
                                        use_palette, argb,
@@ -281,11 +281,11 @@ class CostModel {
       BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
                                   palette_bits, &stream[0], &stream_size);
     }
-    stream.resize(stream_size);
     Histogram histo(palette_bits);
-    for (int i = 0; i < stream.size(); ++i) {
+    for (int i = 0; i < stream_size; ++i) {
       histo.AddSingleLiteralOrCopy(stream[i]);
     }
+    free(stream);
     ConvertPopulationCountTableToBitEstimates(
         histo.NumLiteralOrCopyCodes(),
         &histo.literal_[0], &literal_[0]);
@@ -347,9 +347,8 @@ void BackwardReferencesHashChainDistanceOnly(
     bool use_palette,
     const uint32_t *argb,
     int palette_bits,
-    std::vector<uint32_t> *dist_array) {
+    uint32_t *dist_array) {
   const int pix_count = xsize * ysize;
-  dist_array->resize(pix_count);
   double *cost = (double *)malloc(pix_count * sizeof(double));
   int i;
   for (i = 0; i < pix_count; ++i) {
@@ -363,7 +362,7 @@ void BackwardReferencesHashChainDistanceOnly(
   HashChain *hash_chain = new HashChain(pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
-  (*dist_array)[0] = 0;
+  dist_array[0] = 0;
   for (i = 0; i < pix_count; ++i) {
     double prev_cost = 0.0;
     int shortmax;
@@ -388,7 +387,7 @@ void BackwardReferencesHashChainDistanceOnly(
           const double cost_val = distance_cost + cost_model->LengthCost(k);
           if (cost[i + k] > cost_val) {
             cost[i + k] = cost_val;
-            (*dist_array)[i + k] = k + 1;
+            dist_array[i + k] = k + 1;
           }
         }
         // This if is for speedup only. It roughly doubles the speed, and
@@ -431,7 +430,7 @@ void BackwardReferencesHashChainDistanceOnly(
       }
       if (cost[i] > cost_val) {
         cost[i] = cost_val;
-        (*dist_array)[i] = 1;  // only one is inserted.
+        dist_array[i] = 1;  // only one is inserted.
       }
       hashers.Insert(x, argb[i]);
     }
@@ -444,10 +443,11 @@ void BackwardReferencesHashChainDistanceOnly(
   free(cost);
 }
 
-void TraceBackwards(const std::vector<uint32_t> &dist_array,
+void TraceBackwards(const uint32_t *dist_array,
+                    int dist_array_size,
                     std::vector<uint32_t> *chosen_path) {
   int i;
-  for (i = dist_array.size() - 1; i >= 0; ) {
+  for (i = dist_array_size - 1; i >= 0; ) {
     int k = dist_array[i];
     assert(k >= 1);
     chosen_path->push_back(k);
@@ -521,14 +521,17 @@ void BackwardReferencesTraceBackwards(int xsize, int ysize,
                                       int palette_bits,
                                       LiteralOrCopy *stream,
                                       int *stream_size) {
+  const int dist_array_size = xsize * ysize;
+
   *stream_size = 0;
 
-  std::vector<uint32_t> dist_array;
+  uint32_t *dist_array = (uint32_t *)malloc(dist_array_size * sizeof(uint32_t));
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
-                                          &dist_array);
+                                          dist_array);
   std::vector<uint32_t> chosen_path;
-  TraceBackwards(dist_array, &chosen_path);
+  TraceBackwards(dist_array, dist_array_size, &chosen_path);
+  free(dist_array);
   BackwardReferencesHashChainFollowChosenPath(xsize, ysize, use_palette,
                                               argb, palette_bits, chosen_path,
                                               stream, stream_size);
@@ -633,11 +636,10 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
   int palette_bits;
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
-  std::vector<LiteralOrCopy> stream(xsize * ysize);
+  LiteralOrCopy *stream = (LiteralOrCopy *)
+      malloc(xsize * ysize * sizeof(LiteralOrCopy *));
   int stream_size;
-  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, &stream[0],
-                              &stream_size);
-  stream.resize(stream_size);
+  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, stream, &stream_size);
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     Histogram histo(palette_bits);
     ComputePaletteHistogram(argb, xsize, ysize, &stream[0], stream_size,
@@ -650,5 +652,6 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
       lowest_entropy = cur_entropy;
     }
   }
+  free(stream);
   return best_palette_bits;
 }
