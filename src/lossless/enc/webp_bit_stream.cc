@@ -156,7 +156,7 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   }
 }
 
-void PackLiteralBitLengths(const std::vector<uint8_t> bit_lengths,
+void PackLiteralBitLengths(const uint8_t* bit_lengths,
                            int palette_bits, bool use_palette,
                            std::vector<uint8_t>* new_lengths) {
   for (int i = 0; i < 256; ++i) {
@@ -199,7 +199,7 @@ void StoreHuffmanTreeToBitMask(
     const uint8_t *huffman_tree_extra_bits,
     const int num_symbols,
     const uint8_t *code_length_bitdepth,
-    const std::vector<uint16_t> &code_length_bitdepth_symbols,
+    const uint16_t *code_length_bitdepth_symbols,
     BitWriter* const bw) {
   for (uint32_t i = 0; i < num_symbols; ++i) {
     int ix = huffman_tree[i];
@@ -298,7 +298,7 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                             &huffman_tree_extra_bits[0],
                             length,
                             &code_length_bitdepth[0],
-                            code_length_bitdepth_symbols,
+                            &code_length_bitdepth_symbols[0],
                             bw);
 }
 
@@ -358,16 +358,16 @@ void StoreImageToBitMask(
   }
 }
 
-void ShiftHistogramImage(std::vector<uint32_t>* image) {
-  for (int i = 0; i < image->size(); ++i) {
-    (*image)[i] <<= 8;
-    (*image)[i] |= 0xff000000;
+void ShiftHistogramImage(int image_size, uint32_t* image) {
+  for (int i = 0; i < image_size; ++i) {
+    image[i] <<= 8;
+    image[i] |= 0xff000000;
   }
 }
 
-int NumberOfUsedRBAComponents(const std::vector<uint32_t>& argb) {
+int NumberOfUsedRBAComponents(int image_size, uint32_t* argb) {
   int num = 0;
-  for (int i = 0; i < argb.size() && num < 3; ++i) {
+  for (int i = 0; i < image_size && num < 3; ++i) {
     if (((argb[i] >> 24) & 0xff) != 0xff) return 3;
     if ((argb[i] & 0xff) != 0 && num < 2) num = 2;
     if (((argb[i] >> 16) & 0xff) != 0 && num < 1) num = 1;
@@ -392,7 +392,8 @@ static int Uint32Order(const void *p1, const void *p2) {
 }
 
 bool CreatePalette256(int n, const uint32_t *argb,
-                      std::vector<uint32_t>* palette) {
+                      int* palette_size,
+                      uint32_t* palette) {
   int i;
   const int max_palette_size = 256;
   int current_size = 0;
@@ -425,23 +426,24 @@ bool CreatePalette256(int n, const uint32_t *argb,
       }
     }
   }
+  *palette_size = 0;
   for (i = 0; i < sizeof(in_use); ++i) {
     if (in_use[i]) {
-      palette->push_back(colors[i]);
+      palette[*palette_size] = colors[i];
+      ++(*palette_size);
     }
   }
-  qsort(&(*palette)[0], palette->size(), sizeof((*palette)[0]), Uint32Order);
+  qsort(&palette[0], *palette_size, sizeof(palette[0]), Uint32Order);
   return true;
 }
 
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
 // Returns the new xsize.
 int BundlePixels(int xsize, int ysize, int xbits,
-                 const std::vector<uint32_t>& from_argb,
+                 const uint32_t *from_argb,
                  std::vector<uint32_t>* to_argb) {
   const int bit_depth = 1 << (3 - xbits);
   const int xs = MetaSize(xsize, xbits);
-  VERIFY(xsize * ysize == from_argb.size());
   to_argb->resize(xs * ysize);
   for (int y = 0; y < ysize; ++y) {
     uint32_t code;
@@ -466,7 +468,7 @@ static void DeleteHistograms(std::vector<Histogram *> &histograms) {
 }
 
 static void GetBackwardReferences(int xsize, int ysize,
-                                  const std::vector<uint32_t>& argb,
+                                  const uint32_t* argb,
                                   int quality, int use_palette,
                                   int palette_bits, bool use_2d_locality,
                                   std::vector<LiteralOrCopy>& backward_refs) {
@@ -633,7 +635,7 @@ static void GetHuffBitLengthsAndCodes(
 }
 
 static void EncodeImageInternal(int xsize, int ysize,
-                                const std::vector<uint32_t>& argb, int quality,
+                                const uint32_t *argb, int quality,
                                 int palette_bits, int histogram_bits,
                                 bool use_2d_locality, BitWriter *bw) {
   const int use_palette = palette_bits ? 1 : 0;
@@ -664,12 +666,12 @@ static void EncodeImageInternal(int xsize, int ysize,
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
     std::vector<uint32_t> histogram_argb(histogram_symbols.begin(),
-                                       histogram_symbols.end());
-    ShiftHistogramImage(&histogram_argb);
+                                         histogram_symbols.end());
+    ShiftHistogramImage(histogram_argb.size(), &histogram_argb[0]);
     WriteBits(4, histogram_bits, bw);
     EncodeImageInternal(MetaSize(xsize, histogram_bits),
                         MetaSize(ysize, histogram_bits),
-                        histogram_argb,
+                        &histogram_argb[0],
                         quality,
                         0,
                         0,      // no histogram bits
@@ -696,7 +698,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   // Store Huffman codes.
   for (int i = 0; i < histogram_image.size(); ++i) {
     std::vector<uint8_t> literal_lengths;
-    PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
+    PackLiteralBitLengths(&bit_lengths[5 * i][0], palette_bits, use_palette,
                           &literal_lengths);
     StoreHuffmanCode(&literal_lengths[0], literal_lengths.size(), bw);
     for (int k = 1; k < 5; ++k) {
@@ -770,11 +772,12 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     delete after;
   }
 
-  std::vector<uint32_t> palette;
+  int palette_size;
+  uint32_t palette[256];
   if (use_small_palette &&
-      CreatePalette256(xsize * ysize, &argb[0], &palette)) {
+      CreatePalette256(xsize * ysize, &argb[0], &palette_size, &palette[0])) {
     for (int i = 0; i < xsize * ysize; ++i) {
-      for (int k = 0; k < palette.size(); ++k) {
+      for (int k = 0; k < palette_size; ++k) {
         if (argb[i] == palette[k]) {
           argb[i] = 0xff000000 | (k << 8);
           break;
@@ -783,21 +786,21 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     }
     WriteBits(1, 1, &bw);
     WriteBits(3, 3, &bw);
-    WriteBits(8, palette.size() - 1, &bw);
-    for (int i = int(palette.size()) - 1; i >= 1; --i) {
+    WriteBits(8, palette_size - 1, &bw);
+    for (int i = palette_size - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
     }
-    EncodeImageInternal(palette.size(), 1, palette, quality, 0, 0, true, &bw);
+    EncodeImageInternal(palette_size, 1, &palette[0], quality, 0, 0, true, &bw);
     use_emerging_palette = false;
-    if (palette.size() <= 16) {
+    if (palette_size <= 16) {
       int xbits = 1;
-      if (palette.size() <= 2) {
+      if (palette_size <= 2) {
         xbits = 3;
-      } else if (palette.size() <= 4) {
+      } else if (palette_size <= 4) {
         xbits = 2;
       }
       std::vector<uint32_t> from_argb(argb.begin(), argb.end());
-      xsize = BundlePixels(xsize, ysize, xbits, from_argb, &argb);
+      xsize = BundlePixels(xsize, ysize, xbits, &from_argb[0], &argb);
       WriteBits(1, 1, &bw);
       WriteBits(3, 4, &bw);
       WriteBits(2, xbits, &bw);
@@ -819,7 +822,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     WriteBits(4, predict_bits, &bw);
     EncodeImageInternal(MetaSize(xsize, predict_bits),
                         MetaSize(ysize, predict_bits),
-                        predictor_image,
+                        &predictor_image[0],
                         quality,
                         0,
                         0,      // no histogram bits
@@ -842,7 +845,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     WriteBits(4, cross_color_transform_bits, &bw);
     EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
                         MetaSize(ysize, cross_color_transform_bits),
-                        color_space_image,
+                        &color_space_image[0],
                         quality,
                         0,
                         0,      // no histogram bits
@@ -859,7 +862,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
 
   EncodeImageInternal(xsize,
                       ysize,
-                      argb,
+                      &argb[0],
                       quality,
                       palette_bits,
                       histogram_bits,
