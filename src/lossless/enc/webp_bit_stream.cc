@@ -10,7 +10,7 @@
 // This module is mostly for actually writing the bits, but has also
 // some algorithmic code and some higher level code.
 
-#include "webp_bit_stream.h"
+#include "./encode.h"
 
 #include <string.h>
 
@@ -21,7 +21,6 @@
 #include "./backward_distance.h"
 #include "./backward_references.h"
 #include "./bit_writer.h"
-#include "./encode.h"
 #include "./entropy_encode.h"
 #include "./histogram_image.h"
 #include "./predictor.h"
