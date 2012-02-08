@@ -12,7 +12,7 @@
 #include "histogram_image.h"
 
 #include <stdio.h>
-#include <vector>
+#include <string.h>
 
 #include "histogram.h"
 #include "backward_references.h"
@@ -63,7 +63,7 @@ void CombineHistogramImage(Histogram **in,
   // Copy
   *out_size = in_size;
   *out = (Histogram **)malloc(in_size * sizeof(Histogram *));
-  std::vector<double> bit_costs(in_size);
+  double *bit_costs = (double *)malloc(in_size * sizeof(double));
   for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = new Histogram(palettebits);
     *new_histo = *(in[i]);
@@ -108,14 +108,16 @@ void CombineHistogramImage(Histogram **in,
       delete (*out)[best_ix1];
       memmove(&(*out)[best_ix1], &(*out)[best_ix1 + 1],
               (*out_size - best_ix1 - 1) * sizeof((*out)[0]));
+      memmove(&bit_costs[best_ix1], &bit_costs[best_ix1 + 1],
+              (*out_size - best_ix1 - 1) * sizeof(bit_costs[0]));
       --(*out_size);
-      bit_costs.erase(bit_costs.begin() + best_ix1);
       tries_with_no_success = 0;
     }
     if (++tries_with_no_success >= 50) {
       break;
     }
   }
+  free(bit_costs);
 }
 
 // What is the bit cost of moving square_histogram from
