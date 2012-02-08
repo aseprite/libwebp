@@ -534,9 +534,20 @@ static void GetHistImageSymbols(int xsize, int ysize,
   // Collapse similar histograms.
   histogram_symbols.clear();
   histogram_symbols.resize(histogram_image_raw_size, -1);
-  CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
-                        quality, palette_bits,
-                        &histogram_image);
+  {
+    // TODO(jyrki): remove these once this function does not use a vector<>.
+    Histogram **no_vec;
+    int count;
+    CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
+                          quality, palette_bits,
+                          &no_vec,
+                          &count);
+    histogram_image.resize(count);
+    for (int i = 0; i < count; ++i) {
+      histogram_image[i] = no_vec[i];
+    }
+    free(no_vec);
+  }
   // Refine histogram image.
   const int max_refinement_iters = 1;
   for (int iter = 0; iter < max_refinement_iters; ++iter) {

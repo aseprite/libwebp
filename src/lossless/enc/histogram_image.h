@@ -29,7 +29,8 @@ void CombineHistogramImage(Histogram **in,
                            int in_size,
                            int quality,
                            int palette_bits,
-                           std::vector<Histogram *> *out);
+                           Histogram ***out,
+                           int *out_size);
 
 void RefineHistogramImage(Histogram **raw,
                           int raw_size,

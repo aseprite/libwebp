@@ -53,14 +53,16 @@ void CombineHistogramImage(Histogram **in,
                            int in_size,
                            int quality,
                            int palettebits,
-                           std::vector<Histogram *> *out) {
+                           Histogram ***out,
+                           int *out_size) {
   int i;
   unsigned int seed = 0;
   int tries_with_no_success = 0;
   int inner_iters = 10 + quality / 2;
   int iter;
   // Copy
-  out->resize(in_size);
+  *out_size = in_size;
+  *out = (Histogram **)malloc(in_size * sizeof(Histogram *));
   std::vector<double> bit_costs(in_size);
   for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = new Histogram(palettebits);
@@ -69,7 +71,7 @@ void CombineHistogramImage(Histogram **in,
     bit_costs[i] = (*out)[i]->EstimateBits();
   }
   // Collapse similar histograms.
-  for (iter = 0; iter < in_size * 3 && out->size() >= 2; ++iter) {
+  for (iter = 0; iter < in_size * 3 && *out_size >= 2; ++iter) {
     double best_val = 0;
     int best_ix0 = 0;
     int best_ix1 = 0;
@@ -77,12 +79,12 @@ void CombineHistogramImage(Histogram **in,
     int k;
     for (k = 0; k < inner_iters; ++k) {
       // Choose two.
-      int ix0 = rand_r(&seed) % out->size();
-      int diff = ((k & 7) + 1) % (out->size() - 1);
+      int ix0 = rand_r(&seed) % *out_size;
+      int diff = ((k & 7) + 1) % (*out_size - 1);
       if (diff >= 3) {
-        diff = rand_r(&seed) % (out->size() - 1);
+        diff = rand_r(&seed) % (*out_size - 1);
       }
-      const int ix1 = (ix0 + diff + 1) % out->size();
+      const int ix1 = (ix0 + diff + 1) % *out_size;
       if (ix0 == ix1) {
         continue;
       }
@@ -102,8 +104,11 @@ void CombineHistogramImage(Histogram **in,
       (*out)[best_ix0]->Add(*((*out)[best_ix1]));
       bit_costs[best_ix0] =
           best_val + bit_costs[best_ix0] + bit_costs[best_ix1];
-      delete *(out->begin() + best_ix1);
-      out->erase(out->begin() + best_ix1);
+      // Erase (*out)[best_ix1]
+      delete (*out)[best_ix1];
+      memmove(&(*out)[best_ix1], &(*out)[best_ix1 + 1],
+              (*out_size - best_ix1 - 1) * sizeof((*out)[0]));
+      --(*out_size);
       bit_costs.erase(bit_costs.begin() + best_ix1);
       tries_with_no_success = 0;
     }
