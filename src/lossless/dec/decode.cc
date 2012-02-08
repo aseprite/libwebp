@@ -152,7 +152,8 @@ int GetMetaIndex(int huffman_xsize, int bits, const uint32_t* image,
 }
 
 static void ReadMetaCodes(BitReader* br,
-                          std::vector<int>* meta_codes,
+                          int** meta_codes,
+                          int* meta_codes_size,
                           int** tree_types,
                           int* num_trees) {
   int meta_codes_nbits = ReadBits(br, 4);
@@ -160,10 +161,12 @@ static void ReadMetaCodes(BitReader* br,
   int nbits = ReadBits(br, 4);
   *num_trees = 0;
   *tree_types = (int*)malloc((1 << nbits) * sizeof((*tree_types)[0]));
+  *meta_codes_size = num_meta_codes * kHuffmanCodesPerMetaCode;
+  *meta_codes = (int*)malloc(*meta_codes_size * sizeof((*meta_codes)[0]));
   for (int i = 0; i < num_meta_codes; ++i) {
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       int tree_index = ReadBits(br, nbits);
-      meta_codes->push_back(tree_index);
+      (*meta_codes)[i * kHuffmanCodesPerMetaCode + k] = tree_index;
       (*tree_types)[tree_index] = HuffmanCodeIndexToTreeType(k);
       if (*num_trees < tree_index + 1) {
         *num_trees = tree_index + 1;
@@ -297,7 +300,8 @@ static int DecodeImageInternal(int original_xsize,
   bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
   uint32_t* huffman_image;
-  std::vector<int> meta_codes;
+  int *meta_codes;
+  int meta_codes_size;
   int *tree_types;
   int num_huffman_trees = kHuffmanCodesPerMetaCode;
   if (use_meta_codes) {
@@ -312,12 +316,14 @@ static int DecodeImageInternal(int original_xsize,
       // Strip alpha (in bits [24..17]).
       huffman_image[i] &= 0xffff;
     }
-    ReadMetaCodes(br, &meta_codes, &tree_types, &num_huffman_trees);
+    ReadMetaCodes(br, &meta_codes, &meta_codes_size,
+                  &tree_types, &num_huffman_trees);
   } else {
-    tree_types = (int *)malloc(kHuffmanCodesPerMetaCode *
-                               sizeof(tree_types[0]));
+    tree_types = (int*)malloc(kHuffmanCodesPerMetaCode * sizeof(tree_types[0]));
+    meta_codes = (int*)malloc(kHuffmanCodesPerMetaCode * sizeof(meta_codes[0]));
+    meta_codes_size = 5;
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
-      meta_codes.push_back(k);
+      meta_codes[k] = k;
       tree_types[k] = HuffmanCodeIndexToTreeType(k);
     }
   }
@@ -459,6 +465,7 @@ static int DecodeImageInternal(int original_xsize,
   if (use_meta_codes) {
     free(huffman_image);
   }
+  free(meta_codes);
   if (palette) {
     delete palette;
   }
