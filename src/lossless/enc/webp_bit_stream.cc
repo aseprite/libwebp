@@ -258,7 +258,7 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     ++huffman_tree_histogram[huffman_tree[i]];
   }
   uint8_t code_length_bitdepth[kCodeLengthCodes] = { 0 };
-  std::vector<uint16_t> code_length_bitdepth_symbols(kCodeLengthCodes);
+  uint16_t code_length_bitdepth_symbols[kCodeLengthCodes] = { 0 };
   CreateHuffmanTree(&huffman_tree_histogram[0], kCodeLengthCodes,
                     7, &code_length_bitdepth[0]);
   ConvertBitDepthsToSymbols(&code_length_bitdepth[0], kCodeLengthCodes,
@@ -440,10 +440,10 @@ bool CreatePalette256(int n, const uint32_t *argb,
 // Returns the new xsize.
 int BundlePixels(int xsize, int ysize, int xbits,
                  const uint32_t *from_argb,
-                 std::vector<uint32_t>* to_argb) {
+                 uint32_t** to_argb) {
   const int bit_depth = 1 << (3 - xbits);
   const int xs = MetaSize(xsize, xbits);
-  to_argb->resize(xs * ysize);
+  *to_argb = (uint32_t *)malloc(xs * ysize * sizeof((*to_argb)[0]));
   for (int y = 0; y < ysize; ++y) {
     uint32_t code;
     for (int x = 0; x < xsize; ++x) {
@@ -741,7 +741,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   bool use_emerging_palette = true;
-  std::vector<uint32_t> argb(argb_orig, argb_orig + xsize * ysize);
+  uint32_t* argb = (uint32_t *)malloc(xsize * ysize * sizeof(uint32_t));
+  memcpy(argb, argb_orig, xsize * ysize * sizeof(uint32_t));
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
 
   BitWriter bw;
@@ -765,7 +766,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
       WriteBits(3, 2, &bw);
     } else {
       // Undo subtract green from blue and red -- rewrite with original data.
-      argb = std::vector<uint32_t>(argb_orig, argb_orig + xsize * ysize);
+      memcpy(argb, argb_orig, xsize * ysize * sizeof(argb[0]));
     }
     delete before;
     delete after;
@@ -798,8 +799,11 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
       } else if (palette_size <= 4) {
         xbits = 2;
       }
-      std::vector<uint32_t> from_argb(argb.begin(), argb.end());
+      uint32_t *from_argb = (uint32_t *)malloc(xsize * ysize * sizeof(argb[0]));
+      memcpy(from_argb, &argb[0], xsize * ysize * sizeof(argb[0]));
+      free(argb);
       xsize = BundlePixels(xsize, ysize, xbits, &from_argb[0], &argb);
+      free(from_argb);
       WriteBits(1, 1, &bw);
       WriteBits(3, 4, &bw);
       WriteBits(2, xbits, &bw);
@@ -810,8 +814,10 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     const int predictor_image_size =
         MetaSize(xsize, predict_bits) *
         MetaSize(ysize, predict_bits);
-    std::vector<uint32_t> predictor_image(predictor_image_size);
-    std::vector<uint32_t> from_argb(argb.begin(), argb.end());
+    uint32_t* predictor_image = (uint32_t*)
+        malloc(predictor_image_size * sizeof(uint32_t));
+    uint32_t* from_argb = (uint32_t*)malloc(xsize * ysize * sizeof(uint32_t));
+    memcpy(from_argb, &argb[0], xsize * ysize * sizeof(argb[0]));
     PredictorImage(xsize, ysize, predict_bits,
                    &from_argb[0],
                    &argb[0],
@@ -827,6 +833,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         &bw);
+    free(from_argb);
+    free(predictor_image);
   }
 
   if (cross_color_transform) {
@@ -867,6 +875,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                       histogram_bits,
                       true,   // use_2d_locality
                       &bw);
+
+  free(argb);
 
   const size_t webpll_size = BitWriterNumBytes(&bw);
   uint8_t *webpll_data = BitWriterFinish(&bw);
