@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include <algorithm>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -156,12 +155,13 @@ int GetMetaIndex(int huffman_xsize, int bits, const uint32_t* image,
 
 static void ReadMetaCodes(BitReader* br,
                           std::vector<int>* meta_codes,
-                          std::map<int, int>* tree_types,
+                          int** tree_types,
                           int* num_trees) {
   int meta_codes_nbits = ReadBits(br, 4);
   int num_meta_codes = ReadBits(br, meta_codes_nbits) + 2;
   int nbits = ReadBits(br, 4);
   *num_trees = 0;
+  *tree_types = (int*)malloc((1 << nbits) * sizeof((*tree_types)[0]));
   for (int i = 0; i < num_meta_codes; ++i) {
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       int tree_index = ReadBits(br, nbits);
@@ -307,7 +307,7 @@ static int DecodeImageInternal(int original_xsize,
   int huffman_bits = 0;
   uint32_t* huffman_image;
   std::vector<int> meta_codes;
-  std::map<int, int> tree_types;
+  int *tree_types;
   int num_huffman_trees = kHuffmanCodesPerMetaCode;
   if (use_meta_codes) {
     huffman_bits = ReadBits(br, 4);
@@ -323,6 +323,8 @@ static int DecodeImageInternal(int original_xsize,
     }
     ReadMetaCodes(br, &meta_codes, &tree_types, &num_huffman_trees);
   } else {
+    tree_types = (int *)malloc(kHuffmanCodesPerMetaCode *
+                               sizeof(tree_types[0]));
     for (int k = 0; k < kHuffmanCodesPerMetaCode; ++k) {
       meta_codes.push_back(k);
       tree_types[k] = HuffmanCodeIndexToTreeType(k);
@@ -342,6 +344,7 @@ static int DecodeImageInternal(int original_xsize,
     int alphabet_size = AlphabetSize(type, palette_size);
     ok = ReadHuffmanCode(alphabet_size, br, &htrees[i]);
   }
+  free(tree_types);
 
   uint32_t *image = (uint32_t*)malloc(xsize * ysize * sizeof(uint32_t));
   int x = 0;
