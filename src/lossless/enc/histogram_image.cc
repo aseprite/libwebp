@@ -123,27 +123,26 @@ void CombineHistogramImage(Histogram **in,
 double HistogramDistance(const Histogram &square_histogram,
                          int cur_symbol,
                          int candidate_symbol,
-                         std::vector<Histogram *> *candidate_histograms) {
+                         Histogram **candidate_histograms) {
   double new_bit_cost;
   double previous_bit_cost;
   if (cur_symbol == candidate_symbol) {
     return 0;  // going nowhere. no savings.
   }
-  previous_bit_cost =
-      (*candidate_histograms)[candidate_symbol]->EstimateBits();
+  previous_bit_cost = candidate_histograms[candidate_symbol]->EstimateBits();
   if (cur_symbol != -1) {
-    previous_bit_cost += (*candidate_histograms)[cur_symbol]->EstimateBits();
+    previous_bit_cost += candidate_histograms[cur_symbol]->EstimateBits();
   }
 
   Histogram *tmp = new Histogram(square_histogram.palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
-  *tmp = *(*candidate_histograms)[candidate_symbol];
+  *tmp = *candidate_histograms[candidate_symbol];
   tmp->Add(square_histogram);
   new_bit_cost = tmp->EstimateBits();
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
-    *tmp = *(*candidate_histograms)[cur_symbol];
+    *tmp = *candidate_histograms[cur_symbol];
     tmp->Remove(square_histogram);
     new_bit_cost += tmp->EstimateBits();
   }
@@ -153,31 +152,30 @@ double HistogramDistance(const Histogram &square_histogram,
 
 void RefineHistogramImage(Histogram **raw,
                           int raw_size,
-                          std::vector<uint32_t> *symbols,
-                          std::vector<Histogram *> *out) {
+                          uint32_t *symbols,
+                          int out_size,
+                          Histogram **out) {
   int i;
-  symbols->resize(raw_size);
-
   // Find the best 'out' histogram for each of the raw histograms
   for (i = 0; i < raw_size; ++i) {
     int best_out = 0;
-    double best_bits = HistogramDistance(*raw[i], (*symbols)[i], 0, out);
+    double best_bits = HistogramDistance(*raw[i], symbols[i], 0, out);
     int k;
-    for (k = 1; k < out->size(); ++k) {
-      double cur_bits = HistogramDistance(*raw[i], (*symbols)[i], k, out);
+    for (k = 1; k < out_size; ++k) {
+      double cur_bits = HistogramDistance(*raw[i], symbols[i], k, out);
       if (cur_bits < best_bits) {
         best_bits = cur_bits;
         best_out = k;
       }
     }
-    (*symbols)[i] = best_out;
+    symbols[i] = best_out;
   }
 
   // Recompute each out based on raw and symbols.
-  for (i = 0; i < out->size(); ++i) {
-    (*out)[i]->Clear();
+  for (i = 0; i < out_size; ++i) {
+    out[i]->Clear();
   }
   for (i = 0; i < raw_size; ++i) {
-    (*out)[(*symbols)[i]]->Add(*raw[i]);
+    out[symbols[i]]->Add(*raw[i]);
   }
 }

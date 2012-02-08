@@ -34,8 +34,9 @@ void CombineHistogramImage(Histogram **in,
 
 void RefineHistogramImage(Histogram **raw,
                           int raw_size,
-                          std::vector<uint32_t> *symbols,
-                          std::vector<Histogram *> *out);
+                          uint32_t *symbols,
+                          int out_size,
+                          Histogram **out);
 
 
 #endif  // WEBP_HISTOGRAM_IMAGE_H_
