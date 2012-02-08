@@ -12,7 +12,6 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <vector>
 
 #include "backward_distance.h"
 
