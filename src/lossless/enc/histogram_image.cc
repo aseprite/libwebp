@@ -53,7 +53,7 @@ void CombineHistogramImage(Histogram **in,
                            int in_size,
                            int quality,
                            int palettebits,
-                           Histogram ***out,
+                           Histogram ***out_arg,
                            int *out_size) {
   int i;
   unsigned int seed = 0;
@@ -62,13 +62,14 @@ void CombineHistogramImage(Histogram **in,
   int iter;
   // Copy
   *out_size = in_size;
-  *out = (Histogram **)malloc(in_size * sizeof(Histogram *));
+  Histogram **out = (Histogram **)malloc(in_size * sizeof(Histogram *));
+  *out_arg = out;
   double *bit_costs = (double *)malloc(in_size * sizeof(double));
   for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = new Histogram(palettebits);
     *new_histo = *(in[i]);
-    (*out)[i] = new_histo;
-    bit_costs[i] = (*out)[i]->EstimateBits();
+    out[i] = new_histo;
+    bit_costs[i] = out[i]->EstimateBits();
   }
   // Collapse similar histograms.
   for (iter = 0; iter < in_size * 3 && *out_size >= 2; ++iter) {
@@ -89,8 +90,8 @@ void CombineHistogramImage(Histogram **in,
         continue;
       }
       Histogram *combo = new Histogram(palettebits);
-      *combo = *(*out)[ix0];
-      combo->Add(*(*out)[ix1]);
+      *combo = *out[ix0];
+      combo->Add(*out[ix1]);
       const double val = combo->EstimateBits() -
           bit_costs[ix0] - bit_costs[ix1];
       if (best_val > val) {
@@ -101,13 +102,13 @@ void CombineHistogramImage(Histogram **in,
       delete combo;
     }
     if (best_val < 0.0) {
-      (*out)[best_ix0]->Add(*((*out)[best_ix1]));
+      out[best_ix0]->Add(*out[best_ix1]);
       bit_costs[best_ix0] =
           best_val + bit_costs[best_ix0] + bit_costs[best_ix1];
       // Erase (*out)[best_ix1]
-      delete (*out)[best_ix1];
-      memmove(&(*out)[best_ix1], &(*out)[best_ix1 + 1],
-              (*out_size - best_ix1 - 1) * sizeof((*out)[0]));
+      delete out[best_ix1];
+      memmove(&out[best_ix1], &out[best_ix1 + 1],
+              (*out_size - best_ix1 - 1) * sizeof(out[0]));
       memmove(&bit_costs[best_ix1], &bit_costs[best_ix1 + 1],
               (*out_size - best_ix1 - 1) * sizeof(bit_costs[0]));
       --(*out_size);
