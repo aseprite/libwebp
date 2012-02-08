@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
-#include <vector>
 #include "../dec/decode.h"
 #include "../enc/encode.h"
 #include "png.h"
@@ -50,7 +49,6 @@ class PngDecoder {
   // Returns all pixels starting in an array, indexed by y * x_size + x.
   const uint32_t *GetPixelsInArgbArray() const;
 
- private:
   // Convert the png into the internal argb buffer.
   void ConvertToArgb();
 
@@ -78,7 +76,7 @@ struct PngDecoder::Impl {
   png_infop info_ptr;
   png_infop end_info;
   png_bytep *row_pointers;
-  std::vector<uint32_t> pixels_;
+  uint32_t *pixels_;
 };
 
 int PngDecoder::width() const {
@@ -99,7 +97,7 @@ void PngDecoder::InvertAlphaChannel() {
   // subtracting the alpha value from 255 is equivalent to XOR'ing with 255
   // since 255 is 11111111 in binary.
   uint32_t *pixels = &pimpl_->pixels_[0];
-  const int size = pimpl_->pixels_.size();
+  const int size = width() * height();
 
   for (int i = 0; i < size; ++i) {
     pixels[i] ^= 0xff << 24;
@@ -127,7 +125,8 @@ static inline uint8_t MultiplyAlpha(const uint8_t a, const uint8_t color) {
 
 void PngDecoder::ConvertToPremultipliedAlpha() {
   uint32_t *p = &pimpl_->pixels_[0];
-  for (int i = 0; i < pimpl_->pixels_.size(); ++i) {
+  const int size = width() * height();
+  for (int i = 0; i < size; ++i) {
     const uint32_t v = p[i];
     const uint8_t a = static_cast<uint8_t>(v >> 24);
     const uint8_t r = MultiplyAlpha(a, (v >> 16) & 0xff);
@@ -140,8 +139,8 @@ void PngDecoder::ConvertToPremultipliedAlpha() {
 void PngDecoder::ConvertToArgb() {
   const int xsize = width();
   const int ysize = height();
-  pimpl_->pixels_.clear();
-  pimpl_->pixels_.resize(xsize * ysize);
+  pimpl_->pixels_ = (uint32_t *)
+      malloc(xsize * ysize * sizeof(pimpl_->pixels_[0]));
 
   switch (components()) {
     case 1: {
@@ -256,6 +255,7 @@ PngDecoder::PngDecoder(const std::string &png_data_str,
                        const bool premultiplied_alpha)
     : pimpl_(new Impl),
       error_(false) {
+  pimpl_->pixels_ = NULL;
   pimpl_->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                            NULL, NULL, NULL);
   VERIFY(pimpl_->png_ptr != NULL);
@@ -293,6 +293,7 @@ PngDecoder::~PngDecoder() {
   png_destroy_read_struct(&pimpl_->png_ptr,
                           &pimpl_->info_ptr,
                           &pimpl_->end_info);
+  free(pimpl_->pixels_);
   delete pimpl_;
 }
 
@@ -310,7 +311,8 @@ static int Uint32Order(const void *p1, const void *p2) {
 
 // TODO(jyrki): this is already private in webp_bit_stream.cc
 static bool CreatePalette256(int n, const uint32_t *argb,
-                             std::vector<uint32_t>* palette) {
+                             int* palette_size,
+                             uint32_t* palette) {
   int i;
   const int max_palette_size = 256;
   int current_size = 0;
@@ -343,12 +345,14 @@ static bool CreatePalette256(int n, const uint32_t *argb,
       }
     }
   }
+  *palette_size = 0;
   for (i = 0; i < sizeof(in_use); ++i) {
     if (in_use[i]) {
-      palette->push_back(colors[i]);
+      palette[*palette_size] = colors[i];
+      ++(*palette_size);
     }
   }
-  qsort(&(*palette)[0], palette->size(), sizeof((*palette)[0]), Uint32Order);
+  qsort(&palette[0], *palette_size, sizeof(palette[0]), Uint32Order);
   return true;
 }
 
@@ -434,7 +438,8 @@ static void IsPhotographic(int xsize, int ysize, const uint32_t *argb,
 }
 
 static void NearLossless(int xsize, int ysize, uint32_t *argb, int limit_bits) {
-  std::vector<uint32_t> copy(argb, argb + xsize * ysize);
+  uint32_t *copy = (uint32_t *)malloc(xsize * ysize * sizeof(argb[0]));
+  memcpy(copy, argb, xsize * ysize * sizeof(argb[0]));
   int limit = 1 << limit_bits;
   for (int y = 0; y < ysize; ++y) {
     for (int x = 0; x < xsize; ++x) {
@@ -455,6 +460,7 @@ static void NearLossless(int xsize, int ysize, uint32_t *argb, int limit_bits) {
       }
     }
   }
+  free(copy);
 }
 
 int main(int argc, char **argv) {
@@ -538,8 +544,9 @@ int main(int argc, char **argv) {
 
   VERIFY(near_lossless >= 0);
   VERIFY(near_lossless < 5);
-  std::vector<uint32_t> near_lossless_argb(argb_orig,
-                                           argb_orig + xsize * ysize);
+  uint32_t *near_lossless_argb =
+      (uint32_t *)malloc(xsize * ysize * sizeof(argb_orig[0]));
+  memcpy(near_lossless_argb, argb_orig, xsize * ysize * sizeof(argb_orig[0]));
   if (near_lossless) {
     for (int k = near_lossless; k != 0; --k) {
       NearLossless(xsize, ysize, &near_lossless_argb[0], k);
@@ -551,9 +558,10 @@ int main(int argc, char **argv) {
   // 1: non-color-predicted mode
   // 2: mode with the small palette
 
-  std::vector<uint32_t> palette;
+  uint32_t palette[256];
+  int palette_size;
   int try_with_small_palette =
-      CreatePalette256(xsize * ysize, argb_orig, &palette);
+      CreatePalette256(xsize * ysize, argb_orig, &palette_size, &palette[0]);
   double nonpredicted_bits = 0.0;
   double predicted_bits = 0.0;
   IsPhotographic(xsize, ysize, argb_orig, &nonpredicted_bits, &predicted_bits);
@@ -659,6 +667,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
+  free(near_lossless_argb);
   WriteStringToFile(out_path, to_file);
   size_t new_size = to_file.size();
   fprintf(stderr, "png = %zd, webpll = %zd bytes (%g)\n",
