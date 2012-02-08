@@ -308,7 +308,7 @@ void StoreImageToBitMask(
     const int palette_bits,
     const LiteralOrCopy *literal,
     const int n_literal_and_length,
-    const std::vector<uint32_t> &histogram_symbol,
+    const uint32_t *histogram_symbol,
     const std::vector< std::vector<uint8_t> > &bitdepth,
     const std::vector< std::vector<uint16_t> > &bit_symbols,
     BitWriter *bw) {
@@ -535,17 +535,17 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 int quality, int histogram_bits,
                                 int palette_bits, bool use_2d_locality,
                                 std::vector<Histogram*>& histogram_image,
-                                std::vector<uint32_t>& histogram_symbols) {
+                                uint32_t* histogram_symbols) {
   // Build histogram image.
+  const int max_refinement_iters = 1;
   Histogram** histogram_image_raw;
   int histogram_image_raw_size;
+  int i;
   BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
                       backward_refs, backward_refs_size,
                       &histogram_image_raw,
                       &histogram_image_raw_size);
   // Collapse similar histograms.
-  histogram_symbols.clear();
-  histogram_symbols.resize(histogram_image_raw_size, -1);
   {
     // TODO(jyrki): remove these once this function does not use a vector<>.
     Histogram **no_vec;
@@ -555,17 +555,18 @@ static void GetHistImageSymbols(int xsize, int ysize,
                           &no_vec,
                           &count);
     histogram_image.resize(count);
-    for (int i = 0; i < count; ++i) {
+    for (i = 0; i < count; ++i) {
       histogram_image[i] = no_vec[i];
     }
     free(no_vec);
   }
   // Refine histogram image.
-  const int max_refinement_iters = 1;
-  histogram_symbols.resize(histogram_image_raw_size);
-  for (int iter = 0; iter < max_refinement_iters; ++iter) {
+  for (i = 0; i < histogram_image_raw_size; ++i) {
+    histogram_symbols[i] = -1;
+  }
+  for (i = 0; i < max_refinement_iters; ++i) {
     RefineHistogramImage(histogram_image_raw, histogram_image_raw_size,
-                         &histogram_symbols[0],
+                         histogram_symbols,
                          histogram_image.size(),
                          &histogram_image[0]);
 
@@ -640,8 +641,12 @@ static void EncodeImageInternal(int xsize, int ysize,
                         use_2d_locality, backward_refs);
 
   // Build histogram image & symbols from backward references.
+  const int histogram_image_xysize = MetaSize(xsize, histogram_bits) *
+      MetaSize(ysize, histogram_bits);
   std::vector<Histogram*> histogram_image;
-  std::vector<uint32_t> histogram_symbols;
+  uint32_t *histogram_symbols = (uint32_t *)
+      malloc(histogram_image_xysize * sizeof(uint32_t));
+  memset(histogram_symbols, 0, histogram_image_xysize * sizeof(uint32_t));
   GetHistImageSymbols(xsize, ysize, &backward_refs[0], backward_refs.size(),
                       quality, histogram_bits,
                       palette_bits, use_2d_locality, histogram_image,
@@ -660,9 +665,12 @@ static void EncodeImageInternal(int xsize, int ysize,
   const bool write_histogram_image = (histogram_image.size() > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
-    std::vector<uint32_t> histogram_argb(histogram_symbols.begin(),
-                                         histogram_symbols.end());
-    ShiftHistogramImage(histogram_argb.size(), &histogram_argb[0]);
+    uint32_t* histogram_argb = (uint32_t*)
+        malloc(histogram_image_xysize * sizeof(uint32_t));
+    memcpy(histogram_argb, histogram_symbols,
+           histogram_image_xysize * sizeof(uint32_t));
+
+    ShiftHistogramImage(histogram_image_xysize, &histogram_argb[0]);
     WriteBits(4, histogram_bits, bw);
     EncodeImageInternal(MetaSize(xsize, histogram_bits),
                         MetaSize(ysize, histogram_bits),
@@ -701,8 +709,8 @@ static void EncodeImageInternal(int xsize, int ysize,
                        bit_lengths[5 * i + k].size(), bw);
     }
   }
-  DeleteHistograms(histogram_image.size(),
-                   &histogram_image[0]);  // free combined histograms
+  // free combined histograms
+  DeleteHistograms(histogram_image.size(), &histogram_image[0]);
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
