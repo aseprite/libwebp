@@ -257,7 +257,7 @@ VP8StatusCode WebPParseHeaders(const uint8_t** data, uint32_t* data_size,
     *vp8_size = vp8_size_tmp;
   }
 
-  *bytes_skipped = buf - *data;
+  *bytes_skipped = (uint32_t)(buf - *data);
   assert(*bytes_skipped == *data_size - buf_size);
   *data = buf;
   *data_size = buf_size;
