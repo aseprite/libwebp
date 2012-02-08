@@ -15,7 +15,6 @@
 #ifndef WEBP_WEBP_BIT_STREAM_H_
 #define WEBP_WEBP_BIT_STREAM_H_
 
-#include <string>
 #include <vector>
 
 #include "./backward_references.h"

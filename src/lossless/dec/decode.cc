@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "./bit_reader.h"
 #include "./constants.h"

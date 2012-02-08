@@ -11,8 +11,7 @@
 #define WEBP_DEC_HUFFMAN_H_
 
 #include <stdio.h>
-#include <algorithm>
-#include <vector>
+#include <stdlib.h>
 
 class HuffmanTreeNode {
  public:
@@ -71,7 +70,9 @@ class HuffmanTreeNode {
     int num_symbols = 0;
     int root_symbol = 0;
     for (int i = 0; i < size; ++i) {
-      max_code_length = std::max(max_code_length, code_lengths[i]);
+      if (max_code_length < code_lengths[i]) {
+        max_code_length = code_lengths[i];
+      }
       if (code_lengths[i] != 0) {
         ++num_symbols;
         root_symbol = i;
@@ -80,17 +81,21 @@ class HuffmanTreeNode {
     if (num_symbols < 2) {
       return AddSymbol(root_symbol, 0, 0);
     }
-    std::vector<int> bl_count(max_code_length + 1);
+    int *bl_count = (int *)malloc((max_code_length + 1) * sizeof(int));
+    memset(bl_count, 0, (max_code_length + 1) * sizeof(bl_count[0]));
     for (int i = 0; i < size; ++i) {
       ++bl_count[code_lengths[i]];
     }
     unsigned int code = 0;
     bl_count[0] = 0;
-    std::vector<unsigned int> next_code(max_code_length + 1);
+    unsigned int *next_code = (unsigned int *)
+        malloc((max_code_length + 1) * sizeof(unsigned int));
+    memset(next_code, 0, (max_code_length + 1) * sizeof(next_code[0]));
     for (int l = 1; l <= max_code_length; ++l) {
       code = (code + bl_count[l - 1]) << 1;
       next_code[l] = code;
     }
+    free(bl_count);
     for (int i = 0; i < size; ++i) {
       int length = code_lengths[i];
       if (length != 0) {
@@ -98,6 +103,7 @@ class HuffmanTreeNode {
         ++next_code[length];
       }
     }
+    free(next_code);
     if (!IsFull()) {
       printf("Huffman tree is not full after building.\n");
       return false;
