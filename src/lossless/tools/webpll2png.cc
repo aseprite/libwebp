@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
-#include <vector>
 
 #include "../common/integral_types.h"
 #include "../dec/decode.h"
@@ -35,8 +34,8 @@ static void PNGAPI error_function(png_structp png, png_const_charp dummy) {
 
 static int WritePng(const char *path, int xsize, int ysize, uint32_t *argb) {
   // Convert 32-bit ARGB to 8-bit RGBA for png encoding.
-  std::vector<uint8_t> rgba_image(xsize * ysize * 4);
-  uint8_t* rgba = &rgba_image[0];
+  uint8_t* const rgba_image = (uint8_t *)malloc(xsize * ysize * 4);
+  uint8_t* rgba = rgba_image;
   for (int i = 0; i < xsize * ysize; ++i) {
     *rgba++ = (argb[i] >> 16) & 0xff;
     *rgba++ = (argb[i] >> 8) & 0xff;
@@ -73,6 +72,7 @@ static int WritePng(const char *path, int xsize, int ysize, uint32_t *argb) {
   png_write_end(png, info);
   png_destroy_write_struct(&png, &info);
   VERIFY(fclose(out_file) == 0);
+  free(rgba_image);
   return 0;
 }
 
