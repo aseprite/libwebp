@@ -470,62 +470,63 @@ static void GetBackwardReferences(int xsize, int ysize,
                                   const uint32_t* argb,
                                   int quality, int use_palette,
                                   int palette_bits, bool use_2d_locality,
-                                  std::vector<LiteralOrCopy>& backward_refs) {
+                                  int *backward_refs_size,
+                                  LiteralOrCopy** backward_refs) {
   // Backward Reference using LZ77.
-  std::vector<LiteralOrCopy> backward_refs_lz77(xsize * ysize);
+  LiteralOrCopy *backward_refs_lz77 = (LiteralOrCopy *)
+      malloc(xsize * ysize * sizeof(LiteralOrCopy));
   int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
-  backward_refs_lz77.resize(backward_refs_lz77_size);
   Histogram *histo_lz77 = new Histogram(palette_bits);
-  histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77.size());
+  histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
-  std::vector<LiteralOrCopy> backward_refs_rle_only(xsize * ysize);
+  LiteralOrCopy *backward_refs_rle_only = (LiteralOrCopy *)
+      malloc(xsize * ysize * sizeof(LiteralOrCopy));
   int backward_refs_rle_only_size;
   BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
                         &backward_refs_rle_only_size);
-  backward_refs_rle_only.resize(backward_refs_rle_only_size);
 
   Histogram *histo_rle = new Histogram(palette_bits);
-  histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only.size());
+  histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
   const bool lz77_is_useful =
       (histo_rle->EstimateBits() > histo_lz77->EstimateBits());
-  if (lz77_is_useful) {
-    backward_refs_rle_only.clear();
-  } else {
-    backward_refs_lz77.clear();
-  }
   delete histo_rle;
   delete histo_lz77;
 
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
-    int backward_refs_size;
-    backward_refs.resize(xsize * ysize);
+    free(backward_refs_rle_only);
+    free(backward_refs_lz77);
+    *backward_refs = (LiteralOrCopy *)
+        malloc(xsize * ysize * sizeof(LiteralOrCopy));
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
-                                     &argb[0], palette_bits, &backward_refs[0],
-                                     &backward_refs_size);
-    backward_refs.resize(backward_refs_size);
+                                     &argb[0], palette_bits, *backward_refs,
+                                     backward_refs_size);
   } else {
     if (lz77_is_useful) {
-      backward_refs.swap(backward_refs_lz77);
+      *backward_refs = backward_refs_lz77;
+      *backward_refs_size = backward_refs_lz77_size;
+      free(backward_refs_rle_only);
     } else {
-      backward_refs.swap(backward_refs_rle_only);
+      *backward_refs = backward_refs_rle_only;
+      *backward_refs_size = backward_refs_rle_only_size;
+      free(backward_refs_lz77);
     }
   }
 
   // Verify.
   VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize, palette_bits,
-                                  &backward_refs[0], backward_refs.size()));
+                                  *backward_refs, *backward_refs_size));
 
   if (use_2d_locality) {
     // Use backward reference with 2D locality.
-    BackwardReferences2DLocality(xsize, ysize, backward_refs.size(),
-                                 &backward_refs[0]);
+    BackwardReferences2DLocality(xsize, ysize, *backward_refs_size,
+                                 *backward_refs);
   }
 }
 
@@ -636,9 +637,10 @@ static void EncodeImageInternal(int xsize, int ysize,
   const int use_palette = palette_bits ? 1 : 0;
 
   // Calculate backward references from ARGB image.
-  std::vector<LiteralOrCopy> backward_refs;
+  int backward_refs_size;
+  LiteralOrCopy* backward_refs;
   GetBackwardReferences(xsize, ysize, argb, quality, use_palette, palette_bits,
-                        use_2d_locality, backward_refs);
+                        use_2d_locality, &backward_refs_size, &backward_refs);
 
   // Build histogram image & symbols from backward references.
   const int histogram_image_xysize = MetaSize(xsize, histogram_bits) *
@@ -647,7 +649,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   uint32_t *histogram_symbols = (uint32_t *)
       malloc(histogram_image_xysize * sizeof(uint32_t));
   memset(histogram_symbols, 0, histogram_image_xysize * sizeof(uint32_t));
-  GetHistImageSymbols(xsize, ysize, &backward_refs[0], backward_refs.size(),
+  GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
                       quality, histogram_bits,
                       palette_bits, use_2d_locality, histogram_image,
                       histogram_symbols);
@@ -721,7 +723,7 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Store actual literals
   StoreImageToBitMask(xsize, ysize, histogram_bits, palette_bits,
-                      &backward_refs[0], backward_refs.size(),
+                      backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
 }
 
