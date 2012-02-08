@@ -459,9 +459,9 @@ int BundlePixels(int xsize, int ysize, int xbits,
   return xs;
 }
 
-static void DeleteHistograms(std::vector<Histogram *> &histograms) {
+static void DeleteHistograms(int size, Histogram** histograms) {
   int i;
-  for (i = 0; i < histograms.size(); ++i) {
+  for (i = 0; i < size; ++i) {
     delete histograms[i];
   }
 }
@@ -530,7 +530,8 @@ static void GetBackwardReferences(int xsize, int ysize,
 }
 
 static void GetHistImageSymbols(int xsize, int ysize,
-                                const std::vector<LiteralOrCopy>& backward_refs,
+                                LiteralOrCopy* backward_refs,
+                                int backward_refs_size,
                                 int quality, int histogram_bits,
                                 int palette_bits, bool use_2d_locality,
                                 std::vector<Histogram*>& histogram_image,
@@ -539,7 +540,7 @@ static void GetHistImageSymbols(int xsize, int ysize,
   Histogram** histogram_image_raw;
   int histogram_image_raw_size;
   BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
-                      &backward_refs[0], backward_refs.size(),
+                      backward_refs, backward_refs_size,
                       &histogram_image_raw,
                       &histogram_image_raw_size);
   // Collapse similar histograms.
@@ -572,14 +573,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
       break;
     }
   }
-  // TODO(jyrki): Restore the use of DeleteHistograms(histogram_image_raw);
-  {
-    int i;
-    for (i = 0; i < histogram_image_raw_size; ++i) {
-      delete histogram_image_raw[i];
-    }
-    free(histogram_image_raw);
-  }
+  DeleteHistograms(histogram_image_raw_size, histogram_image_raw);
+  free(histogram_image_raw);
 }
 
 static void GetHuffBitLengthsAndCodes(
@@ -647,7 +642,8 @@ static void EncodeImageInternal(int xsize, int ysize,
   // Build histogram image & symbols from backward references.
   std::vector<Histogram*> histogram_image;
   std::vector<uint32_t> histogram_symbols;
-  GetHistImageSymbols(xsize, ysize, backward_refs, quality, histogram_bits,
+  GetHistImageSymbols(xsize, ysize, &backward_refs[0], backward_refs.size(),
+                      quality, histogram_bits,
                       palette_bits, use_2d_locality, histogram_image,
                       histogram_symbols);
 
@@ -705,7 +701,8 @@ static void EncodeImageInternal(int xsize, int ysize,
                        bit_lengths[5 * i + k].size(), bw);
     }
   }
-  DeleteHistograms(histogram_image);  // free combined histograms
+  DeleteHistograms(histogram_image.size(),
+                   &histogram_image[0]);  // free combined histograms
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
@@ -841,23 +838,25 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     const int color_space_image_size =
         MetaSize(xsize, cross_color_transform_bits) *
         MetaSize(ysize, cross_color_transform_bits);
-    std::vector<uint32_t> color_space_image(color_space_image_size);
+    uint32_t* color_space_image = (uint32_t *)
+        malloc(color_space_image_size * sizeof(uint32_t));
     ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
                         &argb[0],
                         quality,
                         &argb[0],
-                        &color_space_image[0]);
+                        color_space_image);
     WriteBits(1, 1, &bw);
     WriteBits(3, 1, &bw);
     WriteBits(4, cross_color_transform_bits, &bw);
     EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
                         MetaSize(ysize, cross_color_transform_bits),
-                        &color_space_image[0],
+                        color_space_image,
                         quality,
                         0,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         &bw);
+    free(color_space_image);
   }
 
   palette_bits = 0;
