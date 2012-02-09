@@ -12,9 +12,8 @@
 
 #include "./encode.h"
 
+#include <stdlib.h>
 #include <string.h>
-
-#include <vector>
 
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
@@ -318,8 +317,8 @@ void StoreImageToBitMask(
     const LiteralOrCopy *literal,
     const int n_literal_and_length,
     const uint32_t *histogram_symbol,
-    const std::vector< std::vector<uint8_t> > &bitdepth,
-    const std::vector< std::vector<uint16_t> > &bit_symbols,
+    uint8_t** bitdepth,
+    uint16_t** bit_symbols,
     BitWriter *bw) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   // x and y trace the position in the image.
@@ -582,10 +581,15 @@ static void GetHuffBitLengthsAndCodes(
     int histogram_image_size,
     Histogram** histogram_image,
     int use_palette,
-    std::vector< std::vector<uint8_t> >& bit_lengths,
-    std::vector< std::vector<uint16_t> >& bit_codes) {
+    int **bit_length_sizes,
+    uint8_t*** bit_lengths,
+    uint16_t*** bit_codes) {
   for (int i = 0; i < histogram_image_size; ++i) {
-    bit_lengths[5 * i].resize(histogram_image[i]->NumLiteralOrCopyCodes());
+    (*bit_length_sizes)[5 * i] = histogram_image[i]->NumLiteralOrCopyCodes();
+    (*bit_lengths)[5 * i] = (uint8_t *)
+        calloc(histogram_image[i]->NumLiteralOrCopyCodes(), 1);
+    (*bit_codes)[5 * i] = (uint16_t *)
+        malloc(histogram_image[i]->NumLiteralOrCopyCodes() * sizeof(uint16_t));
 
     // For each component, optimize histogram for Huffman with RLE compression.
     OptimizeHuffmanForRle(histogram_image[i]->NumLiteralOrCopyCodes(),
@@ -605,28 +609,30 @@ static void GetHuffBitLengthsAndCodes(
     // Create a Huffman tree (in the form of bit lengths) for each component.
     CreateHuffmanTree(histogram_image[i]->literal_,
                       histogram_image[i]->NumLiteralOrCopyCodes(), 15,
-                      &bit_lengths[5 * i][0]);
-    bit_lengths[5 * i + 1].resize(256);
+                      (*bit_lengths)[5 * i]);
+    for (int k = 1; k < 5; ++k) {
+      int val = 256;
+      if (k == 4) {
+        val = kDistanceCodes;
+      }
+      (*bit_length_sizes)[5 * i + k] = val;
+      (*bit_lengths)[5 * i + k] = (uint8_t *)calloc(val, 1);
+      (*bit_codes)[5 * i + k] = (uint16_t *)calloc(val, sizeof(bit_codes[0]));
+    }
     CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
-                      &bit_lengths[5 * i + 1][0]);
-
-    bit_lengths[5 * i + 2].resize(256);
+                      (*bit_lengths)[5 * i + 1]);
     CreateHuffmanTree(histogram_image[i]->blue_, 256, 15,
-                      &bit_lengths[5 * i + 2][0]);
-    bit_lengths[5 * i + 3].resize(256);
+                      (*bit_lengths)[5 * i + 2]);
     CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
-                      &bit_lengths[5 * i + 3][0]);
-    bit_lengths[5 * i + 4].resize(kDistanceCodes);
+                      (*bit_lengths)[5 * i + 3]);
     CreateHuffmanTree(histogram_image[i]->distance_, kDistanceCodes, 15,
-                      &bit_lengths[5 * i + 4][0]);
-  }
-
-  // Create the actual bit codes for the bit lengths.
-  bit_codes.resize(bit_lengths.size());
-  for (int i = 0; i < bit_codes.size(); ++i) {
-    bit_codes[i].resize(bit_lengths[i].size());
-    ConvertBitDepthsToSymbols(&bit_lengths[i][0], bit_lengths[i].size(),
-                              &bit_codes[i][0]);
+                      (*bit_lengths)[5 * i + 4]);
+    // Create the actual bit codes for the bit lengths.
+    for (int k = 0; k < 5; ++k) {
+      int ix = 5 * i + k;
+      ConvertBitDepthsToSymbols((*bit_lengths)[ix], (*bit_length_sizes)[ix],
+                                (*bit_codes)[ix]);
+    }
   }
 }
 
@@ -659,10 +665,15 @@ static void EncodeImageInternal(int xsize, int ysize,
                       histogram_symbols);
 
   // Create Huffman bit lengths & codes for each histogram image.
-  std::vector< std::vector<uint8_t> > bit_lengths(5 * histogram_image_size);
-  std::vector< std::vector<uint16_t> > bit_codes;
+  int* bit_lengths_sizes = (int *)
+      calloc(5 * histogram_image_size, sizeof(int));
+  uint8_t** bit_lengths = (uint8_t**)
+      calloc(5 * histogram_image_size, sizeof(uint8_t*));
+  uint16_t** bit_codes = (uint16_t**)
+      calloc(5 * histogram_image_size, sizeof(uint16_t*));
   GetHuffBitLengthsAndCodes(histogram_image_size, histogram_image,
-                            use_palette, bit_lengths, bit_codes);
+                            use_palette, &bit_lengths_sizes,
+                            &bit_lengths, &bit_codes);
 
   // No transforms.
   WriteBits(1, 0, bw);
@@ -714,7 +725,7 @@ static void EncodeImageInternal(int xsize, int ysize,
     free(literal_lengths);
     for (int k = 1; k < 5; ++k) {
       StoreHuffmanCode(&bit_lengths[5 * i + k][0],
-                       bit_lengths[5 * i + k].size(), bw);
+                       bit_lengths_sizes[5 * i + k], bw);
     }
   }
   // free combined histograms
@@ -723,15 +734,21 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
-  for (int i = 0; i < bit_lengths.size(); ++i) {
-    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths[i].size(), &bit_lengths[i][0],
+  for (int i = 0; i < 5 * histogram_image_size; ++i) {
+    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths_sizes[i], &bit_lengths[i][0],
                                     &bit_codes[i][0]);
   }
-
   // Store actual literals
   StoreImageToBitMask(xsize, ysize, histogram_bits, palette_bits,
                       backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
+  for (int i = 0; i < 5 * histogram_image_size; ++i) {
+    free(bit_lengths[i]);
+    free(bit_codes[i]);
+  }
+  free(bit_lengths_sizes);
+  free(bit_lengths);
+  free(bit_codes);
 }
 
 inline void WriteImageSize(uint32_t xsize, uint32_t ysize, BitWriter *bw) {
