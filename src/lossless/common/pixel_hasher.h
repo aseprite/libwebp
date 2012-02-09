@@ -21,19 +21,18 @@ static const uint32_t kHashMul = 0x1e35a7bd;
 // PixelHasher, but is never recalled as a value.
 static const uint32_t kNotInitialized = kHashMul;
 
-class PixelHasher {
- public:
+struct PixelHasher {
   void Init(int hash_bits) {
     int i;
     hash_shift_ = 32 - hash_bits;
     hash_size_ = 1 << hash_bits;
-    data_ = new uint32_t[hash_size_];
+    data_ = (uint32_t *)malloc(hash_size_ * sizeof(data_[0]));
     for (i = 0; i < hash_size_; ++i) {
       data_[i] = kNotInitialized;
     }
   }
   void Delete() {
-    delete[] data_;
+    free(data_);
   }
   void insert(uint32_t argb) {
     const uint32_t key = (kHashMul * argb) >> hash_shift_;
@@ -60,15 +59,13 @@ class PixelHasher {
     return false;
   }
 
- private:
   uint32_t *data_;
   uint32_t hash_shift_;
   uint32_t hash_size_;
 };
 
-class PixelHasherLine {
- public:
-  PixelHasherLine(int xsize, int x_downsample_bits, int hash_bits) {
+struct PixelHasherLine {
+  void Init(int xsize, int x_downsample_bits, int hash_bits) {
     int i;
     if (hash_bits == 0) {
       hash_bits = 1;
@@ -83,7 +80,7 @@ class PixelHasherLine {
       hashers_[i].Init(hash_bits);
     }
   }
-  ~PixelHasherLine() {
+  void Delete() {
     int i;
     for (i = 0; i < hashers_size_; ++i) {
       hashers_[i].Delete();

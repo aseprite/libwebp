@@ -330,8 +330,10 @@ static int DecodeImageInternal(int original_xsize,
   const int palette_x_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_size = use_palette ? 1 << palette_code_bits : 0;
-  PixelHasherLine* palette = use_palette ?
-      new PixelHasherLine(xsize, palette_x_bits, palette_code_bits) : NULL;
+  PixelHasherLine* palette = use_palette ? new PixelHasherLine : NULL;
+  if (palette) {
+    palette->Init(xsize, palette_x_bits, palette_code_bits);
+  }
 
   HuffmanTreeNode *htrees = (HuffmanTreeNode *)
       malloc(num_huffman_trees * sizeof(HuffmanTreeNode));
@@ -465,6 +467,9 @@ static int DecodeImageInternal(int original_xsize,
     }
     printf("Error: Could not interpret GREEN symbol %d\n", green);
     abort();
+  }
+  if (palette) {
+    palette->Delete();
   }
   if (use_meta_codes) {
     free(huffman_image);

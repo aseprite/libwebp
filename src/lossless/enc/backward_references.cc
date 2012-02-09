@@ -190,7 +190,8 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
                                  const uint32_t *argb, int palette_bits,
                                  LiteralOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  PixelHasherLine hashers;
+  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
@@ -263,6 +264,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
     }
   }
   delete hash_chain;
+  hashers.Delete();
 }
 
 class CostModel {
@@ -358,7 +360,8 @@ void BackwardReferencesHashChainDistanceOnly(
   cost_model->Build(xsize, ysize, recursive_cost_model, use_palette, argb,
                     palette_bits);
 
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  PixelHasherLine hashers;
+  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
@@ -441,6 +444,7 @@ void BackwardReferencesHashChainDistanceOnly(
   delete hash_chain;
   delete cost_model;
   free(cost);
+  hashers.Delete();
 }
 
 void TraceBackwards(const uint32_t *dist_array, int dist_array_size,
@@ -477,7 +481,8 @@ void BackwardReferencesHashChainFollowChosenPath(
     LiteralOrCopy *stream,
     int *stream_size) {
   const int pix_count = xsize * ysize;
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  PixelHasherLine hashers;
+  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   int i = 0;
   *stream_size = 0;
@@ -516,6 +521,7 @@ void BackwardReferencesHashChainFollowChosenPath(
     }
   }
   delete hash_chain;
+  hashers.Delete();
 }
 
 
@@ -560,13 +566,15 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                               int palette_bits,
                               const LiteralOrCopy *lit,
                               int lit_size) {
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  PixelHasherLine hashers;
+  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
   int num_pixels = 0;
   for (int i = 0; i < lit_size; ++i) {
     if (lit[i].IsLiteral()) {
       if (argb[num_pixels] != lit[i].Argb()) {
         printf("i %d, pixel %d, original: 0x%08x, literal: 0x%08x\n",
                i, num_pixels, argb[num_pixels], lit[i].Argb());
+        hashers.Delete();
         return false;
       }
       hashers.Insert(num_pixels % xsize, argb[num_pixels]);
@@ -579,6 +587,7 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                "palette_entry: 0x%08x\n",
                i, num_pixels, argb[num_pixels], lit[i].PaletteIx(),
                palette_entry);
+        hashers.Delete();
         return false;
       }
       hashers.Insert(num_pixels % xsize, argb[num_pixels]);
@@ -586,6 +595,7 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
     } else if (lit[i].IsCopy()) {
       if (lit[i].Distance() == 0) {
         printf("Bw reference with zero distance.\n");
+        hashers.Delete();
         return false;
       }
       for (int k = 0; k < lit[i].len; ++k) {
@@ -593,6 +603,7 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
           printf("i %d, pixel %d, original: 0x%08x, copied: 0x%08x, dist: %d\n",
                  i, num_pixels, argb[num_pixels],
                  argb[num_pixels - lit[i].Distance()], lit[i].Distance());
+          hashers.Delete();
           return false;
         }
         hashers.Insert(num_pixels % xsize, argb[num_pixels]);
@@ -604,9 +615,11 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
     const int pix_count = xsize * ysize;
     if (num_pixels != pix_count) {
       printf("verify failure: %d != %d\n", num_pixels, pix_count);
+      hashers.Delete();
       return false;
     }
   }
+  hashers.Delete();
   return true;
 }
 
@@ -614,7 +627,8 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
                                     LiteralOrCopy *stream,
                                     int stream_size,
                                     int palette_bits, Histogram *histo) {
-  PixelHasherLine hashers(xsize, kRowHasherXSubsampling, palette_bits);
+  PixelHasherLine hashers;
+  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
   int pixel_index = 0;
   for (int i = 0; i < stream_size; ++i) {
     const LiteralOrCopy &v = stream[i];
@@ -636,6 +650,7 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
     }
   }
   VERIFY(pixel_index == xsize * ysize);
+  hashers.Delete();
 }
 
 // Returns how many bits are to be used for a palette.
