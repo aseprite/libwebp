@@ -203,7 +203,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
     const uint32_t *argb) {
   double best_diff = 1e99;
   ColorSpaceTransformElement best_tx;
-  best_tx.Clear();
+  ColorSpaceTransformElementClear(&best_tx);
   const int step = (quality == 0) ? 16 : 8;
   const int halfstep = step / 2;
   const int max_tile_size = 1 << bits;
@@ -221,7 +221,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
   for (green_to_red = -64; green_to_red <= 64; green_to_red += halfstep) {
     int all_y;
     ColorSpaceTransformElement tx;
-    tx.Clear();
+    ColorSpaceTransformElementClear(&tx);
     tx.green_to_red_ = green_to_red & 0xff;
 
     int histo[256] = { 0 };
@@ -232,7 +232,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
         if (SkipRepeatedPixels(argb, ix, xsize)) {
           continue;
         }
-        const uint32_t predict = tx.Transform(argb[ix]);
+        const uint32_t predict =
+            ColorSpaceTransformElementTransform(&tx, argb[ix]);
         ++histo[(predict >> 16) & 0xff];  // red.
       }
     }
@@ -261,7 +262,6 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
       int all_y;
       int histo[256] = { 0 };
       ColorSpaceTransformElement tx;
-      tx.Clear();
       tx.green_to_red_ = green_to_red;
       tx.green_to_blue_ = green_to_blue;
       tx.red_to_blue_ = red_to_blue;
@@ -272,7 +272,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
           if (SkipRepeatedPixels(argb, ix, xsize)) {
             continue;
           }
-          const uint32_t predict = tx.Transform(argb[ix]);
+          const uint32_t predict =
+              ColorSpaceTransformElementTransform(&tx, argb[ix]);
           ++histo[predict & 0xff];  // blue.
         }
       }
@@ -320,18 +321,21 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
   int tile_x;
   ColorSpaceTransformElement prevX;
   ColorSpaceTransformElement prevY;
-  prevY.Clear();
-  prevX.Clear();
+  ColorSpaceTransformElementClear(&prevY);
+  ColorSpaceTransformElementClear(&prevX);
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       int y;
       const int tile_y_offset = tile_y * max_tile_size;
       const int tile_x_offset = tile_x * max_tile_size;
       if (tile_y != 0) {
-        prevY.InitFromCode(image[(tile_y - 1) * tile_xsize + tile_x]);
-        prevX.InitFromCode(image[tile_y * tile_xsize + tile_x - 1]);
+        ColorSpaceTransformElementInitFromCode(
+            &prevY, image[(tile_y - 1) * tile_xsize + tile_x]);
+        ColorSpaceTransformElementInitFromCode(
+            &prevX, image[tile_y * tile_xsize + tile_x - 1]);
       } else if (tile_x != 0) {
-        prevX.InitFromCode(image[tile_y * tile_xsize + tile_x - 1]);
+        ColorSpaceTransformElementInitFromCode(
+            &prevX, image[tile_y * tile_xsize + tile_x - 1]);
       }
       const ColorSpaceTransformElement color_transform =
           GetBestColorTransformForTile(tile_x, tile_y, bits,
@@ -340,7 +344,8 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
                                        &accumulated_red_histo[0],
                                        &accumulated_blue_histo[0],
                                        from_argb);
-      image[tile_y * tile_xsize + tile_x] = color_transform.Code();
+      image[tile_y * tile_xsize + tile_x] =
+          ColorSpaceTransformElementCode(&color_transform);
       CopyTileWithColorTransform(xsize, ysize, from_argb,
                                  tile_x, tile_y, bits, color_transform,
                                  false,  // forward transform

@@ -227,7 +227,7 @@ void CopyTileWithColorTransform(int xsize, int ysize,
                                 const uint32_t *from_argb,
                                 int tile_x, int tile_y, int bits,
                                 ColorSpaceTransformElement color_transform,
-                                bool inverse,
+                                int inverse,
                                 uint32_t *to_argb) {
   int xscan = 1 << bits;
   int yscan = 1 << bits;
@@ -246,7 +246,8 @@ void CopyTileWithColorTransform(int xsize, int ysize,
       int ix = y * xsize + tile_x;
       const int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
-        to_argb[ix] = color_transform.InverseTransform(from_argb[ix]);
+        to_argb[ix] = ColorSpaceTransformElementInverseTransform(
+            &color_transform, from_argb[ix]);
       }
     }
   } else {
@@ -255,7 +256,8 @@ void CopyTileWithColorTransform(int xsize, int ysize,
       int ix = y * xsize + tile_x;
       const int end_ix = ix + xscan;
       for (;ix < end_ix; ++ix) {
-        to_argb[ix] = color_transform.Transform(from_argb[ix]);
+        to_argb[ix] = ColorSpaceTransformElementTransform(
+            &color_transform, from_argb[ix]);
       }
     }
   }
@@ -273,7 +275,7 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (tile_x = 0; tile_x < tile_xsize; ++tile_x, ++tile_ix) {
       ColorSpaceTransformElement color_transform;
-      color_transform.InitFromCode(image[tile_ix]);
+      ColorSpaceTransformElementInitFromCode(&color_transform, image[tile_ix]);
       CopyTileWithColorTransform(xsize, ysize, from_argb,
                                  tile_x, tile_y, bits, color_transform,
                                  true,  // inverse transform
