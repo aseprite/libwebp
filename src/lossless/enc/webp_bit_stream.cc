@@ -535,7 +535,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 int backward_refs_size,
                                 int quality, int histogram_bits,
                                 int palette_bits, bool use_2d_locality,
-                                std::vector<Histogram*>& histogram_image,
+                                int *histogram_image_size,
+                                Histogram*** histogram_image,
                                 uint32_t* histogram_symbols) {
   // Build histogram image.
   const int max_refinement_iters = 1;
@@ -547,20 +548,10 @@ static void GetHistImageSymbols(int xsize, int ysize,
                       &histogram_image_raw,
                       &histogram_image_raw_size);
   // Collapse similar histograms.
-  {
-    // TODO(jyrki): remove these once this function does not use a vector<>.
-    Histogram **no_vec;
-    int count;
-    CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
-                          quality, palette_bits,
-                          &no_vec,
-                          &count);
-    histogram_image.resize(count);
-    for (i = 0; i < count; ++i) {
-      histogram_image[i] = no_vec[i];
-    }
-    free(no_vec);
-  }
+  CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
+                        quality, palette_bits,
+                        histogram_image,
+                        histogram_image_size);
   // Refine histogram image.
   for (i = 0; i < histogram_image_raw_size; ++i) {
     histogram_symbols[i] = -1;
@@ -568,9 +559,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
   for (i = 0; i < max_refinement_iters; ++i) {
     RefineHistogramImage(histogram_image_raw, histogram_image_raw_size,
                          histogram_symbols,
-                         histogram_image.size(),
-                         &histogram_image[0]);
-
+                         *histogram_image_size,
+                         *histogram_image);
     if (quality < 30) {
       break;
     }
@@ -580,11 +570,12 @@ static void GetHistImageSymbols(int xsize, int ysize,
 }
 
 static void GetHuffBitLengthsAndCodes(
-    const std::vector<Histogram*>& histogram_image,
+    int histogram_image_size,
+    Histogram** histogram_image,
     int use_palette,
     std::vector< std::vector<uint8_t> >& bit_lengths,
     std::vector< std::vector<uint16_t> >& bit_codes) {
-  for (int i = 0; i < histogram_image.size(); ++i) {
+  for (int i = 0; i < histogram_image_size; ++i) {
     bit_lengths[5 * i].resize(histogram_image[i]->NumLiteralOrCopyCodes());
 
     // For each component, optimize histogram for Huffman with RLE compression.
@@ -645,26 +636,30 @@ static void EncodeImageInternal(int xsize, int ysize,
   // Build histogram image & symbols from backward references.
   const int histogram_image_xysize = MetaSize(xsize, histogram_bits) *
       MetaSize(ysize, histogram_bits);
-  std::vector<Histogram*> histogram_image;
   uint32_t *histogram_symbols = (uint32_t *)
       malloc(histogram_image_xysize * sizeof(uint32_t));
   memset(histogram_symbols, 0, histogram_image_xysize * sizeof(uint32_t));
+
+  int histogram_image_size;
+  Histogram **histogram_image;
   GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
                       quality, histogram_bits,
-                      palette_bits, use_2d_locality, histogram_image,
+                      palette_bits, use_2d_locality,
+                      &histogram_image_size,
+                      &histogram_image,
                       histogram_symbols);
 
   // Create Huffman bit lengths & codes for each histogram image.
-  std::vector< std::vector<uint8_t> > bit_lengths(5 * histogram_image.size());
+  std::vector< std::vector<uint8_t> > bit_lengths(5 * histogram_image_size);
   std::vector< std::vector<uint16_t> > bit_codes;
-  GetHuffBitLengthsAndCodes(histogram_image, use_palette,
-                            bit_lengths, bit_codes);
+  GetHuffBitLengthsAndCodes(histogram_image_size, histogram_image,
+                            use_palette, bit_lengths, bit_codes);
 
   // No transforms.
   WriteBits(1, 0, bw);
 
   // Huffman image + meta huffman.
-  const bool write_histogram_image = (histogram_image.size() > 1);
+  const bool write_histogram_image = (histogram_image_size > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
     uint32_t* histogram_argb = (uint32_t*)
@@ -682,10 +677,10 @@ static void EncodeImageInternal(int xsize, int ysize,
                         0,      // no histogram bits
                         true,   // use_2d_locality
                         bw);
-    const int image_size_bits = BitsLog2Ceiling(histogram_image.size() - 1);
+    const int image_size_bits = BitsLog2Ceiling(histogram_image_size - 1);
     WriteBits(4, image_size_bits, bw);
-    WriteBits(image_size_bits, histogram_image.size() - 2, bw);
-    const int num_histograms = 5 * histogram_image.size();
+    WriteBits(image_size_bits, histogram_image_size - 2, bw);
+    const int num_histograms = 5 * histogram_image_size;
     int nbits = BitsLog2Ceiling(num_histograms);
     WriteBits(4, nbits, bw);
     for (int i = 0; i < num_histograms; ++i) {
@@ -701,7 +696,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   }
 
   // Store Huffman codes.
-  for (int i = 0; i < histogram_image.size(); ++i) {
+  for (int i = 0; i < histogram_image_size; ++i) {
     std::vector<uint8_t> literal_lengths;
     PackLiteralBitLengths(&bit_lengths[5 * i][0], palette_bits, use_palette,
                           &literal_lengths);
@@ -712,7 +707,8 @@ static void EncodeImageInternal(int xsize, int ysize,
     }
   }
   // free combined histograms
-  DeleteHistograms(histogram_image.size(), &histogram_image[0]);
+  DeleteHistograms(histogram_image_size, &histogram_image[0]);
+  free(histogram_image);
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
