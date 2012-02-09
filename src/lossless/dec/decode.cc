@@ -496,13 +496,14 @@ int DecodeWebpLLImage(size_t encoded_image_size,
                       int* ysize,
                       uint32_t** argb_image) {
   if (encoded_image_size < HEADER_SIZE + SIGNATURE_SIZE) return false;
-  const uint8_t* sig = encoded_image + HEADER_SIZE;
-  if (sig[0] != 0x64) return false;
-  const uint8_t* webpll_data = encoded_image + HEADER_SIZE + SIGNATURE_SIZE;
-  const size_t webpll_size = encoded_image_size - HEADER_SIZE - SIGNATURE_SIZE;
+  const uint8_t* webpll_data = encoded_image + HEADER_SIZE;
+  const size_t webpll_size = encoded_image_size - HEADER_SIZE;
 
   BitReader br;
   InitBitReader(&br, webpll_data, webpll_size);
+  const uint8_t sig = ReadBits(&br, 8 * SIGNATURE_SIZE);
+  if (sig != 0x64) return false;
+
   *xsize = ReadBits(&br, 14) + 1;
   *ysize = ReadBits(&br, 14) + 1;
   DecodeImageInternal(*xsize, *ysize, &br, argb_image);
