@@ -157,17 +157,26 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
 
 void PackLiteralBitLengths(const uint8_t* bit_lengths,
                            int palette_bits, bool use_palette,
-                           std::vector<uint8_t>* new_lengths) {
-  for (int i = 0; i < 256; ++i) {
-    new_lengths->push_back(bit_lengths[i]);
+                           int *new_length_size,
+                           uint8_t** new_lengths) {
+  *new_length_size = 256 + kLengthCodes;
+  if (use_palette) {
+    *new_length_size += 1 << palette_bits;
   }
+  *new_lengths = (uint8_t*)malloc(*new_length_size);
+  for (int i = 0; i < 256; ++i) {
+    (*new_lengths)[i] = bit_lengths[i];
+  }
+  int length_code_offset = 256;
   if (use_palette) {
     for (int i = 0; i < (1 << palette_bits); ++i) {
-      new_lengths->push_back(bit_lengths[256 + i]);
+      (*new_lengths)[256 + i] = bit_lengths[256 + i];
     }
+    length_code_offset += 1 << palette_bits;
   }
   for (int i = 0; i < kLengthCodes; ++i) {
-    new_lengths->push_back(bit_lengths[256 + (1 << palette_bits) + i]);
+    (*new_lengths)[length_code_offset + i] =
+        bit_lengths[256 + (1 << palette_bits) + i];
   }
 }
 
@@ -697,10 +706,12 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Store Huffman codes.
   for (int i = 0; i < histogram_image_size; ++i) {
-    std::vector<uint8_t> literal_lengths;
+    int literal_lengths_size;
+    uint8_t* literal_lengths;
     PackLiteralBitLengths(&bit_lengths[5 * i][0], palette_bits, use_palette,
-                          &literal_lengths);
-    StoreHuffmanCode(&literal_lengths[0], literal_lengths.size(), bw);
+                          &literal_lengths_size, &literal_lengths);
+    StoreHuffmanCode(literal_lengths, literal_lengths_size, bw);
+    free(literal_lengths);
     for (int k = 1; k < 5; ++k) {
       StoreHuffmanCode(&bit_lengths[5 * i + k][0],
                        bit_lengths[5 * i + k].size(), bw);
