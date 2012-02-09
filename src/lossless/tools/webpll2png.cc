@@ -9,22 +9,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
 
 #include "../common/integral_types.h"
 #include "../dec/decode.h"
 #include "png.h"
 
-static std::string ReadFileToString(const char *path) {
+static void ReadFileToString(const char* const path,
+                             int * const output_size,
+                             char** const output) {
   FILE *fp = fopen(path, "rb");
   VERIFY(fp != 0);
   VERIFY(fseek(fp, 0, SEEK_END) == 0);
   size_t len = ftell(fp);
+  *output_size = len;
   VERIFY(fseek(fp, 0, SEEK_SET) == 0);
-  std::string retval(len, '\0');
-  VERIFY(fread(&retval[0], len, 1, fp) == 1);
+  *output = (char *)malloc(len);
+  VERIFY(fread((*output), len, 1, fp) == 1);
   VERIFY(fclose(fp) == 0);
-  return retval;
 }
 
 static void PNGAPI error_function(png_structp png, png_const_charp dummy) {
@@ -128,13 +129,16 @@ int main(int argc, char **argv) {
             argv[0]);
     exit(1);
   }
-  std::string alternate_out_path;
+  char *alternate_out_path = (char *)
+      malloc(strlen(in_path) + 1 + strlen(".png"));
   if (!out_path) {
-    alternate_out_path.assign(in_path);
-    alternate_out_path.append(".png");
+    memcpy(alternate_out_path, in_path, strlen(in_path) + 1);
+    strcat(alternate_out_path, ".png");
     out_path = &alternate_out_path[0];
   }
-  std::string input_data = ReadFileToString(in_path);
+  char *input_data;
+  int input_data_size;
+  ReadFileToString(in_path, &input_data_size, &input_data);
   int xsize = 0;
   int ysize = 0;
   uint32_t* argb_image;
@@ -142,8 +146,8 @@ int main(int argc, char **argv) {
     if (i != 0) {
       free(argb_image);
     }
-    if (!DecodeWebpLLImage(input_data.size(),
-                           (uint8_t*)input_data.data(),
+    if (!DecodeWebpLLImage(input_data_size,
+                           (const uint8_t*)input_data,
                            &xsize,
                            &ysize,
                            &argb_image)) {
@@ -154,6 +158,7 @@ int main(int argc, char **argv) {
   if (!skip_png) {
     WritePng(out_path, xsize, ysize, argb_image);
   }
+  free(alternate_out_path);
   free(argb_image);
   return 0;
 }
