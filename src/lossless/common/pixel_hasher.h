@@ -70,89 +70,102 @@ static bool VP8LPixelHasherLookup(PixelHasher *p,
   return false;
 }
 
-struct PixelHasherLine {
-  void Init(int xsize, int x_downsample_bits, int hash_bits) {
-    int i;
-    if (hash_bits == 0) {
-      hash_bits = 1;
-    }
-    x_downsample_bits_ = x_downsample_bits;
-    hash_bits_ = hash_bits;
-    hashers_size_ =
-        (xsize + (1 << x_downsample_bits) - 1) >> x_downsample_bits;
-
-    hashers_ = (PixelHasher *)malloc(hashers_size_ * sizeof(hashers_[0]));
-    for (i = 0; i < hashers_size_; ++i) {
-      VP8LPixelHasherInit(&hashers_[i], hash_bits);
-    }
-  }
-  void Delete() {
-    int i;
-    for (i = 0; i < hashers_size_; ++i) {
-      VP8LPixelHasherDelete(&hashers_[i]);
-    }
-    free(hashers_);
-  }
-  void Insert(int x, uint32_t argb) {
-    VP8LPixelHasherInsert(&hashers_[x >> x_downsample_bits_], argb);
-  }
-  uint32_t GetIndex(uint32_t argb) const {
-    uint32_t val = kHashMul * argb;
-    val >>= 32 - hash_bits_;
-    return val;
-  }
-  bool Contains(int x, uint32_t argb) {
-    int i;
-    int ix = x >> x_downsample_bits_;
-    if (VP8LPixelHasherContains(&hashers_[ix], argb)) {
-      return true;
-    }
-    if (VP8LPixelHasherIsInitialized(&hashers_[ix], argb)) {
-      return false;
-    }
-    for (i = 1; i < hashers_size_; ++i) {
-      if (ix - i >= 0) {
-        if (VP8LPixelHasherContains(&hashers_[ix - i], argb)) {
-          return true;
-        }
-        if (VP8LPixelHasherIsInitialized(&hashers_[ix - i], argb)) {
-          return false;
-        }
-      }
-      if (ix + i < hashers_size_) {
-        if (VP8LPixelHasherContains(&hashers_[ix + i], argb)) {
-          return true;
-        }
-        if (VP8LPixelHasherIsInitialized(&hashers_[ix + i], argb)) {
-          return false;
-        }
-      }
-    }
-    return false;
-  }
-  uint32_t Lookup(int x, uint32_t hash) {
-    int i;
-    int ix = x >> x_downsample_bits_;
-    uint32_t argb;
-    if (VP8LPixelHasherLookup(&hashers_[ix], hash, &argb)) {
-      return argb;
-    }
-    for (i = 1; i < hashers_size_; ++i) {
-      if (ix - i >= 0 &&
-          VP8LPixelHasherLookup(&hashers_[ix - i], hash, &argb)) {
-        return argb;
-      }
-      if (ix + i < hashers_size_ &&
-          VP8LPixelHasherLookup(&hashers_[ix + i], hash, &argb)) {
-        return argb;
-      }
-    }
-    return 0;
-  }
+struct VP8LPixelHasherLine {
   PixelHasher* hashers_;
   int hash_bits_;
   int x_downsample_bits_;
   int hashers_size_;
 };
+
+static inline void VP8LPixelHasherLineInit(VP8LPixelHasherLine *p,
+                                    int xsize, int x_downsample_bits,
+                                    int hash_bits) {
+  int i;
+  if (hash_bits == 0) {
+    hash_bits = 1;
+  }
+  p->x_downsample_bits_ = x_downsample_bits;
+  p->hash_bits_ = hash_bits;
+  p->hashers_size_ =
+      (xsize + (1 << x_downsample_bits) - 1) >> x_downsample_bits;
+
+  p->hashers_ = (PixelHasher *)
+      malloc(p->hashers_size_ * sizeof(p->hashers_[0]));
+  for (i = 0; i < p->hashers_size_; ++i) {
+    VP8LPixelHasherInit(&p->hashers_[i], hash_bits);
+  }
+}
+
+static inline void VP8LPixelHasherLineDelete(VP8LPixelHasherLine *p) {
+  int i;
+  for (i = 0; i < p->hashers_size_; ++i) {
+    VP8LPixelHasherDelete(&p->hashers_[i]);
+  }
+  free(p->hashers_);
+}
+
+static inline void VP8LPixelHasherLineInsert(VP8LPixelHasherLine *p,
+                                             int x, uint32_t argb) {
+  VP8LPixelHasherInsert(&p->hashers_[x >> p->x_downsample_bits_], argb);
+}
+
+static inline uint32_t VP8LPixelHasherLineGetIndex(const VP8LPixelHasherLine *p,
+                                                   uint32_t argb) {
+  uint32_t val = kHashMul * argb;
+  val >>= 32 - p->hash_bits_;
+  return val;
+}
+
+static inline bool VP8LPixelHasherLineContains(VP8LPixelHasherLine *p,
+                                               int x, uint32_t argb) {
+  int i;
+  int ix = x >> p->x_downsample_bits_;
+  if (VP8LPixelHasherContains(&p->hashers_[ix], argb)) {
+    return true;
+  }
+  if (VP8LPixelHasherIsInitialized(&p->hashers_[ix], argb)) {
+    return false;
+  }
+  for (i = 1; i < p->hashers_size_; ++i) {
+    if (ix - i >= 0) {
+      if (VP8LPixelHasherContains(&p->hashers_[ix - i], argb)) {
+        return true;
+      }
+      if (VP8LPixelHasherIsInitialized(&p->hashers_[ix - i], argb)) {
+        return false;
+      }
+    }
+    if (ix + i < p->hashers_size_) {
+      if (VP8LPixelHasherContains(&p->hashers_[ix + i], argb)) {
+        return true;
+      }
+      if (VP8LPixelHasherIsInitialized(&p->hashers_[ix + i], argb)) {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+static inline uint32_t VP8LPixelHasherLineLookup(VP8LPixelHasherLine *p,
+                                                 int x, uint32_t hash) {
+  int i;
+  int ix = x >> p->x_downsample_bits_;
+  uint32_t argb;
+  if (VP8LPixelHasherLookup(&p->hashers_[ix], hash, &argb)) {
+    return argb;
+  }
+  for (i = 1; i < p->hashers_size_; ++i) {
+    if (ix - i >= 0 &&
+        VP8LPixelHasherLookup(&p->hashers_[ix - i], hash, &argb)) {
+      return argb;
+    }
+    if (ix + i < p->hashers_size_ &&
+        VP8LPixelHasherLookup(&p->hashers_[ix + i], hash, &argb)) {
+      return argb;
+    }
+  }
+  return 0;
+}
 
 #endif  // WEBP_PIXEL_HASHER_H_

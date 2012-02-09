@@ -330,9 +330,10 @@ static int DecodeImageInternal(int original_xsize,
   const int palette_x_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_size = use_palette ? 1 << palette_code_bits : 0;
-  PixelHasherLine* palette = use_palette ? new PixelHasherLine : NULL;
-  if (palette) {
-    palette->Init(xsize, palette_x_bits, palette_code_bits);
+  VP8LPixelHasherLine* hashers =
+      use_palette ? new VP8LPixelHasherLine : NULL;
+  if (hashers) {
+    VP8LPixelHasherLineInit(hashers, xsize, palette_x_bits, palette_code_bits);
   }
 
   HuffmanTreeNode *htrees = (HuffmanTreeNode *)
@@ -391,7 +392,7 @@ static int DecodeImageInternal(int original_xsize,
 
       uint32_t argb = alpha + red + (green << 8) + blue;
       image[pos] = argb;
-      if (palette) palette->Insert(x, argb);
+      if (hashers) VP8LPixelHasherLineInsert(hashers, x, argb);
       ++x;
       if (x >= xsize) {
         x = 0;
@@ -403,9 +404,10 @@ static int DecodeImageInternal(int original_xsize,
     // Palette
     if (green < palette_limit) {
       int palette_symbol = green - 256;
-      const uint32_t argb = palette->Lookup(x, palette_symbol);
+      const uint32_t argb =
+          VP8LPixelHasherLineLookup(hashers, x, palette_symbol);
       image[pos] = argb;
-      palette->Insert(x, argb);
+      VP8LPixelHasherLineInsert(hashers, x, argb);
       ++x;
       if (x >= xsize) {
         x = 0;
@@ -428,7 +430,7 @@ static int DecodeImageInternal(int original_xsize,
       dist = PlaneCodeToDistance(xsize, ysize, dist);
       VERIFY(dist <= pos);
       VERIFY(pos + length <= xsize * ysize);
-      if (!palette) {
+      if (!hashers) {
         for (int i = 0; i < length; ++i) {
           image[pos] = image[pos - dist];
           ++pos;
@@ -441,7 +443,7 @@ static int DecodeImageInternal(int original_xsize,
       } else {
         for (int i = 0; i < length; ++i) {
           image[pos] = image[pos - dist];
-          palette->Insert(x, image[pos]);
+          VP8LPixelHasherLineInsert(hashers, x, image[pos]);
           ++pos;
           ++x;
           if (x >= xsize) {
@@ -468,8 +470,9 @@ static int DecodeImageInternal(int original_xsize,
     printf("Error: Could not interpret GREEN symbol %d\n", green);
     abort();
   }
-  if (palette) {
-    palette->Delete();
+  if (hashers) {
+    VP8LPixelHasherLineDelete(hashers);
+    delete hashers;
   }
   if (use_meta_codes) {
     free(huffman_image);
@@ -481,9 +484,6 @@ static int DecodeImageInternal(int original_xsize,
       delete htrees[i].child_[1];
     }
     free(htrees);
-  }
-  if (palette) {
-    delete palette;
   }
 
   *argb_image = image;

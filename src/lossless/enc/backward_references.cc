@@ -190,8 +190,9 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
                                  const uint32_t *argb, int palette_bits,
                                  LiteralOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
-  PixelHasherLine hashers;
-  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
+  VP8LPixelHasherLine hashers;
+  VP8LPixelHasherLineInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
@@ -221,14 +222,15 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
                              &len2);
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
-          if (use_palette && hashers.Contains(x, argb[i])) {
-            const int ix = hashers.GetIndex(argb[i]);
+          if (use_palette &&
+              VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
+            const int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
             stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
           } else {
             stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
           }
           ++(*stream_size);
-          hashers.Insert(x, argb[i]);
+          VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
           i++;  // Backward reference to be done for next pixel.
           len = len2;
           offset = offset2;
@@ -240,7 +242,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       stream[*stream_size] = LiteralOrCopy::CreateCopy(offset, len);
       ++(*stream_size);
       for (int k = 0; k < len; ++k) {
-        hashers.Insert((i + k) % xsize, argb[i + k]);
+        VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (k != 0 && i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           hash_chain->Insert(&argb[i + k], i + k);
@@ -248,15 +250,15 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       }
       i += len;
     } else {
-      if (use_palette && hashers.Contains(x, argb[i])) {
+      if (use_palette && VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
         // push pixel as a palette pixel
-        int ix = hashers.GetIndex(argb[i]);
+        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
         stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
       } else {
         stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
       }
       ++(*stream_size);
-      hashers.Insert(x, argb[i]);
+      VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
       if (i + 1 < pix_count) {
         hash_chain->Insert(&argb[i], i);
       }
@@ -264,7 +266,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
     }
   }
   delete hash_chain;
-  hashers.Delete();
+  VP8LPixelHasherLineDelete(&hashers);
 }
 
 class CostModel {
@@ -361,8 +363,9 @@ void BackwardReferencesHashChainDistanceOnly(
   cost_model->Build(xsize, ysize, recursive_cost_model, use_palette, argb,
                     palette_bits);
 
-  PixelHasherLine hashers;
-  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
+  VP8LPixelHasherLine hashers;
+  VP8LPixelHasherLineInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
@@ -401,7 +404,7 @@ void BackwardReferencesHashChainDistanceOnly(
           // lookups for better copies.
           // 1) insert the hashes.
           for (k = 0; k < len; ++k) {
-            hashers.Insert((i + k) % xsize, argb[i + k]);
+            VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
             if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
               hash_chain->Insert(&argb[i + k], i + k);
@@ -426,8 +429,8 @@ void BackwardReferencesHashChainDistanceOnly(
         mul0 = 0.68;
         mul1 = 0.82;
       }
-      if (use_palette && hashers.Contains(x, argb[i])) {
-        int ix = hashers.GetIndex(argb[i]);
+      if (use_palette && VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
+        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
         cost_val += cost_model->PaletteCost(ix) * mul0;
       } else {
         cost_val += cost_model->LiteralCost(argb[i]) * mul1;
@@ -436,7 +439,7 @@ void BackwardReferencesHashChainDistanceOnly(
         cost[i] = cost_val;
         dist_array[i] = 1;  // only one is inserted.
       }
-      hashers.Insert(x, argb[i]);
+      VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
     }
  next_symbol: ;
   }
@@ -445,7 +448,7 @@ void BackwardReferencesHashChainDistanceOnly(
   delete hash_chain;
   delete cost_model;
   free(cost);
-  hashers.Delete();
+  VP8LPixelHasherLineDelete(&hashers);
 }
 
 void TraceBackwards(const uint32_t *dist_array, int dist_array_size,
@@ -482,8 +485,9 @@ void BackwardReferencesHashChainFollowChosenPath(
     LiteralOrCopy *stream,
     int *stream_size) {
   const int pix_count = xsize * ysize;
-  PixelHasherLine hashers;
-  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
+  VP8LPixelHasherLine hashers;
+  VP8LPixelHasherLineInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits);
   HashChain *hash_chain = new HashChain(pix_count);
   int i = 0;
   *stream_size = 0;
@@ -497,7 +501,7 @@ void BackwardReferencesHashChainFollowChosenPath(
       stream[*stream_size] = LiteralOrCopy::CreateCopy(offset, len);
       ++(*stream_size);
       for (int k = 0; k < len; ++k) {
-        hashers.Insert((i + k) % xsize, argb[i + k]);
+        VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           hash_chain->Insert(&argb[i + k], i + k);
@@ -505,16 +509,17 @@ void BackwardReferencesHashChainFollowChosenPath(
       }
       i += len;
     } else {
-      if (use_palette && hashers.Contains(i % xsize, argb[i])) {
+      if (use_palette &&
+          VP8LPixelHasherLineContains(&hashers, i % xsize, argb[i])) {
         // push pixel as a palette pixel
-        int ix = hashers.GetIndex(argb[i]);
-        VERIFY(hashers.Lookup(i % xsize, ix) == argb[i]);
+        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
+        VERIFY(VP8LPixelHasherLineLookup(&hashers, i % xsize, ix) == argb[i]);
         stream[*stream_size] = LiteralOrCopy::CreatePaletteIx(ix);
       } else {
         stream[*stream_size] = LiteralOrCopy::CreateLiteral(argb[i]);
       }
       ++(*stream_size);
-      hashers.Insert(i % xsize, argb[i]);
+      VP8LPixelHasherLineInsert(&hashers, i % xsize, argb[i]);
       if (i + 1 < pix_count) {
         hash_chain->Insert(&argb[i], i);
       }
@@ -522,7 +527,7 @@ void BackwardReferencesHashChainFollowChosenPath(
     }
   }
   delete hash_chain;
-  hashers.Delete();
+  VP8LPixelHasherLineDelete(&hashers);
 }
 
 
@@ -567,36 +572,38 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                               int palette_bits,
                               const LiteralOrCopy *lit,
                               int lit_size) {
-  PixelHasherLine hashers;
-  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
+  VP8LPixelHasherLine hashers;
+  VP8LPixelHasherLineInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits);
   int num_pixels = 0;
   for (int i = 0; i < lit_size; ++i) {
     if (lit[i].IsLiteral()) {
       if (argb[num_pixels] != lit[i].Argb()) {
         printf("i %d, pixel %d, original: 0x%08x, literal: 0x%08x\n",
                i, num_pixels, argb[num_pixels], lit[i].Argb());
-        hashers.Delete();
+        VP8LPixelHasherLineDelete(&hashers);
         return false;
       }
-      hashers.Insert(num_pixels % xsize, argb[num_pixels]);
+      VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
     } else if (lit[i].IsPaletteIx()) {
       uint32_t palette_entry =
-          hashers.Lookup(num_pixels % xsize, lit[i].PaletteIx());
+          VP8LPixelHasherLineLookup(&hashers, num_pixels % xsize,
+                                    lit[i].PaletteIx());
       if (argb[num_pixels] != palette_entry) {
         printf("i %d, pixel %d, original: 0x%08x, palette_ix: %d, "
                "palette_entry: 0x%08x\n",
                i, num_pixels, argb[num_pixels], lit[i].PaletteIx(),
                palette_entry);
-        hashers.Delete();
+        VP8LPixelHasherLineDelete(&hashers);
         return false;
       }
-      hashers.Insert(num_pixels % xsize, argb[num_pixels]);
+      VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
     } else if (lit[i].IsCopy()) {
       if (lit[i].Distance() == 0) {
         printf("Bw reference with zero distance.\n");
-        hashers.Delete();
+        VP8LPixelHasherLineDelete(&hashers);
         return false;
       }
       for (int k = 0; k < lit[i].len; ++k) {
@@ -604,10 +611,11 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
           printf("i %d, pixel %d, original: 0x%08x, copied: 0x%08x, dist: %d\n",
                  i, num_pixels, argb[num_pixels],
                  argb[num_pixels - lit[i].Distance()], lit[i].Distance());
-          hashers.Delete();
+          VP8LPixelHasherLineDelete(&hashers);
           return false;
         }
-        hashers.Insert(num_pixels % xsize, argb[num_pixels]);
+        VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize,
+                                  argb[num_pixels]);
         ++num_pixels;
       }
     }
@@ -616,11 +624,11 @@ bool VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
     const int pix_count = xsize * ysize;
     if (num_pixels != pix_count) {
       printf("verify failure: %d != %d\n", num_pixels, pix_count);
-      hashers.Delete();
+      VP8LPixelHasherLineDelete(&hashers);
       return false;
     }
   }
-  hashers.Delete();
+  VP8LPixelHasherLineDelete(&hashers);
   return true;
 }
 
@@ -628,16 +636,18 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
                                     LiteralOrCopy *stream,
                                     int stream_size,
                                     int palette_bits, Histogram *histo) {
-  PixelHasherLine hashers;
-  hashers.Init(xsize, kRowHasherXSubsampling, palette_bits);
+  VP8LPixelHasherLine hashers;
+  VP8LPixelHasherLineInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits);
   int pixel_index = 0;
   for (int i = 0; i < stream_size; ++i) {
     const LiteralOrCopy &v = stream[i];
     if (v.IsLiteral()) {
       const int x = pixel_index % xsize;
-      if (palette_bits != 0 && hashers.Contains(x, argb[pixel_index])) {
+      if (palette_bits != 0 &&
+          VP8LPixelHasherLineContains(&hashers, x, argb[pixel_index])) {
         // push pixel as a palette pixel
-        const int ix = hashers.GetIndex(argb[pixel_index]);
+        const int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[pixel_index]);
         histo->AddSingleLiteralOrCopy(LiteralOrCopy::CreatePaletteIx(ix));
       } else {
         histo->AddSingleLiteralOrCopy(v);
@@ -646,12 +656,13 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
       histo->AddSingleLiteralOrCopy(v);
     }
     for (int k = 0; k < v.Length(); ++k) {
-      hashers.Insert(pixel_index % xsize, argb[pixel_index]);
+      VP8LPixelHasherLineInsert(&hashers, pixel_index % xsize,
+                                argb[pixel_index]);
       ++pixel_index;
     }
   }
   VERIFY(pixel_index == xsize * ysize);
-  hashers.Delete();
+  VP8LPixelHasherLineDelete(&hashers);
 }
 
 // Returns how many bits are to be used for a palette.
