@@ -4,6 +4,7 @@ libwebputils_la_SOURCES = alpha.h alpha.c \
                           bit_reader.h bit_reader.c \
                           bit_writer.h bit_writer.c \
                           filters.h filters.c \
+                          huffman.h huffman.c \
                           quant_levels.c \
                           tcoder.h tcoderi.h tcoder.c \
                           thread.h thread.c
