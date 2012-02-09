@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "./vp8i.h"
+#include "./vp8li.h"
 #include "./webpi.h"
 #include "../utils/bit_reader.h"
 
@@ -250,6 +251,7 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
   uint32_t alpha_size_tmp;
   uint32_t vp8_chunk_size;
   uint32_t bytes_skipped;
+  int is_lossless = 0;
   VP8FrameHeader* frm_hdr;
   VP8PictureHeader* pic_hdr;
   VP8BitReader* br;
@@ -269,9 +271,14 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
 
   // Process Pre-VP8 chunks.
   status = WebPParseHeaders(&buf, &buf_size, &vp8_chunk_size, &bytes_skipped,
-                            &alpha_data_tmp, &alpha_size_tmp, NULL);
+                            &alpha_data_tmp, &alpha_size_tmp, &is_lossless);
   if (status != VP8_STATUS_OK) {
     return VP8SetError(dec, status, "Incorrect/incomplete header.");
+  }
+  if (is_lossless) {
+    const uint32_t offset = io->data_size - buf_size;
+    VP8LDecoder vp8l_decoder;
+    return VP8LDecodeImage(&vp8l_decoder, io, offset);
   }
   if (dec->alpha_data_ == NULL) {
     assert(dec->alpha_data_size_ == 0);

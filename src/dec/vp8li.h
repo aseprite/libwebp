@@ -20,6 +20,34 @@
 extern "C" {
 #endif
 
+typedef unsigned int argb_t;
+#define NUM_TRANSFORMS 16
+
+typedef enum ImageTransformType {
+  PREDICTOR_TRANSFORM = 0,
+  CROSS_COLOR_TRANSFORM = 1,
+  SUBTRACT_GREEN = 2,
+  COLOR_INDEXING_TRANSFORM = 3,
+  PIXEL_BUNDLE_TRANSFORM = 4
+} ImageTransformType;
+
+typedef struct VP8LTransform VP8LTransform;
+struct VP8LTransform {
+  ImageTransformType    type_;    // transform type.
+  int                   bits_;    // subsampling bits defining transform window.
+  size_t                xsize_;   // transform window X index.
+  size_t                ysize_;   // transform window Y index.
+  uint32_t              *data_;   // transform data.
+};
+
+typedef struct VP8LDecoder VP8LDecoder;
+struct VP8LDecoder {
+  BitReader     *br_;
+  int           next_transform_;
+  argb_t        *argb_;
+  VP8LTransform transforms_[NUM_TRANSFORMS];
+};
+
 //------------------------------------------------------------------------------
 // internal functions. Not public.
 
@@ -31,6 +59,8 @@ extern "C" {
 int VP8LGetInfo(const uint8_t* data,
                 uint32_t data_size,    // data available so far
                 int *width, int *height);
+
+int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
 
 //------------------------------------------------------------------------------
 
