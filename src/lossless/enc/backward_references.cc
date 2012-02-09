@@ -283,7 +283,8 @@ class CostModel {
       BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
                                   palette_bits, &stream[0], &stream_size);
     }
-    Histogram histo(palette_bits);
+    Histogram histo;
+    histo.Init(palette_bits);
     for (int i = 0; i < stream_size; ++i) {
       histo.AddSingleLiteralOrCopy(stream[i]);
     }
@@ -664,7 +665,8 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
   int stream_size;
   BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, stream, &stream_size);
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
-    Histogram histo(palette_bits);
+    Histogram histo;
+    histo.Init(palette_bits);
     ComputePaletteHistogram(argb, xsize, ysize, &stream[0], stream_size,
                             palette_bits, &histo);
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;

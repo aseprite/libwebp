@@ -34,7 +34,8 @@ static double PredictionCostSpatial(int *counts, int weight_0,
 static double PredictionCostSpatialHistogram(Histogram *accumulated,
                                              Histogram *tile) {
   const double exp_val = 0.94;
-  Histogram combo(0);
+  Histogram combo;
+  combo.Init(0);
   combo.Add(*accumulated);
   combo.Add(*tile);
   return
@@ -65,7 +66,8 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   int best_mode = 0;
   int mode;
   for (mode = 0; mode < num_pred_modes; ++mode) {
-    Histogram histo(0);  // 0 is for only 1 (unused) palette value.
+    Histogram histo;
+    histo.Init(0);  // 0 is for only 1 (unused) palette value.
     int all_y;
     for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       int all_x;
@@ -103,7 +105,8 @@ void PredictorImage(int xsize, int ysize, int bits,
   const int max_tile_size = 1 << bits;
   const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
-  Histogram histo(0);
+  Histogram histo;
+  histo.Init(0);
   int tile_y;
   uint32_t *argb_orig = reinterpret_cast<uint32_t *>(
       malloc(sizeof(from_argb[0]) * xsize * ysize));

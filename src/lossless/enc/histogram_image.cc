@@ -31,7 +31,8 @@ void BuildHistogramImage(int xsize, int ysize,
   *image_size = histo_xsize * histo_ysize;
   *image = (Histogram **)malloc(*image_size * sizeof(Histogram *));
   for (i = 0; i < *image_size; ++i) {
-    (*image)[i] = new Histogram(palettebits);
+    (*image)[i] = new Histogram;
+    (*image)[i]->Init(palettebits);
   }
   // x and y trace the position in the image.
   int x = 0;
@@ -66,7 +67,8 @@ void CombineHistogramImage(Histogram **in,
   *out_arg = out;
   double *bit_costs = (double *)malloc(in_size * sizeof(double));
   for (i = 0; i < in_size; ++i) {
-    Histogram *new_histo = new Histogram(palettebits);
+    Histogram *new_histo = new Histogram;
+    new_histo->Init(palettebits);
     *new_histo = *(in[i]);
     out[i] = new_histo;
     bit_costs[i] = out[i]->EstimateBits();
@@ -89,7 +91,8 @@ void CombineHistogramImage(Histogram **in,
       if (ix0 == ix1) {
         continue;
       }
-      Histogram *combo = new Histogram(palettebits);
+      Histogram *combo = new Histogram;
+      combo->Init(palettebits);
       *combo = *out[ix0];
       combo->Add(*out[ix1]);
       const double val = combo->EstimateBits() -
@@ -137,7 +140,8 @@ double HistogramDistance(const Histogram &square_histogram,
     previous_bit_cost += candidate_histograms[cur_symbol]->EstimateBits();
   }
 
-  Histogram *tmp = new Histogram(square_histogram.palette_code_bits_);
+  Histogram *tmp = new Histogram;
+  tmp->Init(square_histogram.palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
   *tmp = *candidate_histograms[candidate_symbol];
   tmp->Add(square_histogram);

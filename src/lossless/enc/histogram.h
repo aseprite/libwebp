@@ -31,9 +31,16 @@ class LiteralOrCopy;
 // 4) alpha histogram
 // 5) distance-prefix histogram.
 struct Histogram {
-  explicit Histogram(int palette_code_bits)
-      : palette_code_bits_(palette_code_bits) {
+  void Init(int palette_code_bits) {
+    palette_code_bits_ = palette_code_bits;
     Clear();
+  }
+  void Clear() {
+    memset(&literal_[0], 0, sizeof(literal_));
+    memset(&red_[0], 0, sizeof(red_));
+    memset(&blue_[0], 0, sizeof(blue_));
+    memset(&alpha_[0], 0, sizeof(alpha_));
+    memset(&distance_[0], 0, sizeof(distance_));
   }
 
   // Create the histogram.
@@ -42,13 +49,6 @@ struct Histogram {
   // literals, stop codes and backward references (both distances and lengths)
   void Build(const LiteralOrCopy *literal_and_length,
              int n_literal_and_length);
-  void Clear() {
-    memset(&literal_[0], 0, sizeof(literal_));
-    memset(&red_[0], 0, sizeof(red_));
-    memset(&blue_[0], 0, sizeof(blue_));
-    memset(&alpha_[0], 0, sizeof(alpha_));
-    memset(&distance_[0], 0, sizeof(distance_));
-  }
   void AddSingleLiteralOrCopy(const LiteralOrCopy &v);
 
   // Estimate how many bits the combined entropy of literals and distance
@@ -108,8 +108,6 @@ struct Histogram {
   // Backward reference prefix-code histogram.
   int distance_[kDistanceCodes];
   int palette_code_bits_;
- private:
-  Histogram();
 };
 
 void ConvertPopulationCountTableToBitEstimates(

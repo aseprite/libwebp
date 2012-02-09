@@ -486,7 +486,8 @@ static void GetBackwardReferences(int xsize, int ysize,
   int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
-  Histogram *histo_lz77 = new Histogram(palette_bits);
+  Histogram *histo_lz77 = new Histogram;
+  histo_lz77->Init(palette_bits);
   histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
@@ -496,7 +497,8 @@ static void GetBackwardReferences(int xsize, int ysize,
   BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
                         &backward_refs_rle_only_size);
 
-  Histogram *histo_rle = new Histogram(palette_bits);
+  Histogram *histo_rle = new Histogram;
+  histo_rle->Init(palette_bits);
   histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
@@ -783,12 +785,14 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
-    Histogram *before = new Histogram(1);
+    Histogram *before = new Histogram;
+    before->Init(1);
     for (int i = 0; i < xsize * ysize; ++i) {
       before->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
-    Histogram *after = new Histogram(1);
+    Histogram *after = new Histogram;
+    after->Init(1);
     for (int i = 0; i < xsize * ysize; ++i) {
       after->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[i]));
     }

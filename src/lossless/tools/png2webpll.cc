@@ -420,8 +420,10 @@ static bool IsFar(uint32_t a, uint32_t b, int limit) {
 static void IsPhotographic(int xsize, int ysize, const uint32_t *argb,
                            double *nonpredicted_bits,
                            double *predicted_bits) {
-  Histogram *predicted = new Histogram(0);
-  Histogram *nonpredicted = new Histogram(0);
+  Histogram *predicted = new Histogram;
+  Histogram *nonpredicted = new Histogram;
+  predicted->Init(0);
+  nonpredicted->Init(0);
   for (int k = 1; k < xsize * ysize; ++k) {
     if ((argb[k] == argb[k - 1]) ||
         (k >= xsize && argb[k] == argb[k - xsize])) {
