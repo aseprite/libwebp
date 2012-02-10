@@ -21,13 +21,11 @@
 #include "../common/integral_types.h"
 #include "backward_references.h"
 
-class LiteralOrCopy;
-
 // A simple container for histograms of data.
 typedef struct {
   // literal_ contains green literal, palette-code and
   // copy-length-prefix histogram
-  int literal_[kLiteralOrCopyCodesMax];
+  int literal_[kPixOrCopyCodesMax];
   int red_[256];
   int blue_[256];
   int alpha_[256];
@@ -51,13 +49,12 @@ static inline void Histogram_Init(Histogram *p, int palette_code_bits) {
 
 // Create the histogram.
 //
-// The input data is the LiteralOrCopy data, which models the
+// The input data is the PixOrCopy data, which models the
 // literals, stop codes and backward references (both distances and lengths)
 void Histogram_Build(Histogram *p,
-                     const LiteralOrCopy *literal_and_length,
+                     const PixOrCopy *literal_and_length,
                      int n_literal_and_length);
-void Histogram_AddSingleLiteralOrCopy(Histogram *p,
-                                      const LiteralOrCopy &v);
+void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v);
 
 // Estimate how many bits the combined entropy of literals and distance
 // approximately maps to.
@@ -73,7 +70,7 @@ double Histogram_EstimateBitsBulk(const Histogram * const p);
 
 static inline void Histogram_Add(Histogram *p, const Histogram *a) {
   int i;
-  for (i = 0; i < kLiteralOrCopyCodesMax; ++i) {
+  for (i = 0; i < kPixOrCopyCodesMax; ++i) {
     p->literal_[i] += a->literal_[i];
   }
   for (i = 0; i < kDistanceCodes; ++i) {
@@ -88,7 +85,7 @@ static inline void Histogram_Add(Histogram *p, const Histogram *a) {
 
 static inline void Histogram_Remove(Histogram *p, const Histogram *a) {
   int i;
-  for (i = 0; i < kLiteralOrCopyCodesMax; ++i) {
+  for (i = 0; i < kPixOrCopyCodesMax; ++i) {
     p->literal_[i] -= a->literal_[i];
     assert(p->literal_[i] >= 0);
   }
@@ -106,7 +103,7 @@ static inline void Histogram_Remove(Histogram *p, const Histogram *a) {
   }
 }
 
-static inline int Histogram_NumLiteralOrCopyCodes(const Histogram *p) {
+static inline int Histogram_NumPixOrCopyCodes(const Histogram *p) {
   return 256 + kLengthCodes + (1 << p->palette_code_bits_);
 }
 

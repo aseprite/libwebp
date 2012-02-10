@@ -21,7 +21,7 @@
 void BuildHistogramImage(int xsize, int ysize,
                          int histobits,
                          int palettebits,
-                         const LiteralOrCopy *backward_refs,
+                         const PixOrCopy *backward_refs,
                          int backward_refs_size,
                          Histogram ***image,
                          int *image_size) {
@@ -38,11 +38,11 @@ void BuildHistogramImage(int xsize, int ysize,
   int x = 0;
   int y = 0;
   for (i = 0; i < backward_refs_size; ++i) {
-    const LiteralOrCopy &v = backward_refs[i];
+    const PixOrCopy &v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;
-    Histogram_AddSingleLiteralOrCopy((*image)[ix], v);
-    x += v.Length();
+    Histogram_AddSinglePixOrCopy((*image)[ix], v);
+    x += PixOrCopy_Length(&v);
     while (x >= xsize) {
       x -= xsize;
       ++y;

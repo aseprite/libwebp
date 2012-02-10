@@ -146,23 +146,23 @@ void ConvertPopulationCountTableToBitEstimates(int num_symbols,
   }
 }
 
-void Histogram_AddSingleLiteralOrCopy(Histogram *p, const LiteralOrCopy &v) {
-  if (v.IsLiteral()) {
-    ++p->alpha_[v.Literal(3)];
-    ++p->red_[v.Literal(2)];
-    ++p->literal_[v.Literal(1)];
-    ++p->blue_[v.Literal(0)];
-  } else if (v.IsPaletteIx()) {
-    int literal_ix = 256 + v.PaletteIx();
+void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v) {
+  if (PixOrCopy_IsLiteral(&v)) {
+    ++p->alpha_[PixOrCopy_Literal(&v, 3)];
+    ++p->red_[PixOrCopy_Literal(&v, 2)];
+    ++p->literal_[PixOrCopy_Literal(&v, 1)];
+    ++p->blue_[PixOrCopy_Literal(&v, 0)];
+  } else if (PixOrCopy_IsPaletteIx(&v)) {
+    int literal_ix = 256 + PixOrCopy_PaletteIx(&v);
     ++p->literal_[literal_ix];
   } else {
     int code, extra_bits_count, extra_bits_value;
-    BackwardLength::Encode(v.Length(),
+    BackwardLength::Encode(PixOrCopy_Length(&v),
                            &code,
                            &extra_bits_count,
                            &extra_bits_value);
     ++p->literal_[256 + (1 << p->palette_code_bits_) + code];
-    BackwardDistance::Encode(v.Distance(),
+    BackwardDistance::Encode(PixOrCopy_Distance(&v),
                              &code,
                              &extra_bits_count,
                              &extra_bits_value);
@@ -171,11 +171,11 @@ void Histogram_AddSingleLiteralOrCopy(Histogram *p, const LiteralOrCopy &v) {
 }
 
 void Histogram_Build(Histogram *p,
-                     const LiteralOrCopy *literal_and_length,
+                     const PixOrCopy *literal_and_length,
                      int n_literal_and_length) {
   Histogram_Clear(p);
   for (int i = 0; i < n_literal_and_length; ++i) {
-    Histogram_AddSingleLiteralOrCopy(p, literal_and_length[i]);
+    Histogram_AddSinglePixOrCopy(p, literal_and_length[i]);
   }
 }
 
@@ -227,7 +227,7 @@ double BitsEntropy(const int *array, int n) {
 
 double Histogram_EstimateBitsBulk(const Histogram * const p) {
   double retval = BitsEntropy(&p->literal_[0],
-                              Histogram_NumLiteralOrCopyCodes(p)) +
+                              Histogram_NumPixOrCopyCodes(p)) +
       BitsEntropy(&p->red_[0], 256) +
       BitsEntropy(&p->blue_[0], 256) +
       BitsEntropy(&p->alpha_[0], 256) +
@@ -290,7 +290,7 @@ double HuffmanCost(const int *population, int length) {
 double Histogram_EstimateBitsHeader(const Histogram * const p) {
   return HuffmanCost(&p->alpha_[0], 256) +
       HuffmanCost(&p->red_[0], 256) +
-      HuffmanCost(&p->literal_[0], Histogram_NumLiteralOrCopyCodes(p)) +
+      HuffmanCost(&p->literal_[0], Histogram_NumPixOrCopyCodes(p)) +
       HuffmanCost(&p->blue_[0], 256) +
       HuffmanCost(&p->distance_[0], kDistanceCodes);
 }

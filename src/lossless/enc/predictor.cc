@@ -86,8 +86,8 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
         }
         const uint32_t predict_diff =
             Subtract(argb[all_y * xsize + all_x], predict);
-        Histogram_AddSingleLiteralOrCopy(
-            &histo, LiteralOrCopy::CreateLiteral(predict_diff));
+        Histogram_AddSinglePixOrCopy(
+            &histo, PixOrCopy_CreateLiteral(predict_diff));
       }
     }
     const double cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
@@ -136,8 +136,8 @@ void PredictorImage(int xsize, int ysize, int bits,
         }
         ix = all_y * xsize + tile_x_offset;
         for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          Histogram_AddSingleLiteralOrCopy(
-              &histo, LiteralOrCopy::CreateLiteral(to_argb[ix]));
+          Histogram_AddSinglePixOrCopy(
+              &histo, PixOrCopy_CreateLiteral(to_argb[ix]));
         }
       }
     }

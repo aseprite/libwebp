@@ -19,7 +19,7 @@
 void BuildHistogramImage(int xsize, int ysize,
                          int histobits,
                          int palette_bits,
-                         const LiteralOrCopy *backward_refs,
+                         const PixOrCopy *backward_refs,
                          int backward_refs_size,
                          Histogram ***image,
                          int *histogram_size);

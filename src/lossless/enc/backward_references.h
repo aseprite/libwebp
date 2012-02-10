@@ -23,82 +23,97 @@ static const int kLengthCodes = 24;
 static const int kCodeLengthCodes = 19;
 static const int kRowHasherXSubsampling = 7;
 static const int kPaletteCodeBitsMax = 11;
-static const int kLiteralOrCopyCodesMax =
+static const int kPixOrCopyCodesMax =
     256 + kLengthCodes + (1 << kPaletteCodeBitsMax);
 static const int kMaxLength = 4096;
 
-struct LiteralOrCopy {
-  static LiteralOrCopy CreateCopy(uint32_t offset_arg, uint16_t len_arg) {
-    LiteralOrCopy retval;
-    retval.mode = kCopy;
-    retval.argb_or_offset = offset_arg;
-    retval.len = len_arg;
-    return retval;
-  }
-  static LiteralOrCopy CreatePaletteIx(int ix) {
-    assert(ix >= 0);
-    assert(ix < (1 << kPaletteCodeBitsMax));
-    LiteralOrCopy retval;
-    retval.mode = kPaletteIx;
-    retval.argb_or_offset = ix;
-    retval.len = 1;
-    return retval;
-  }
-  static LiteralOrCopy CreateLiteral(uint32_t argb_arg) {
-    LiteralOrCopy retval;
-    retval.mode = kLiteral;
-    retval.argb_or_offset = argb_arg;
-    retval.len = 1;
-    return retval;
-  }
-  enum Mode {
-    kLiteral,
-    kPaletteIx,
-    kCopy,
-    kNone,
-  };
-  bool IsLiteral() const {
-    return mode == kLiteral;
-  }
-  bool IsPaletteIx() const {
-    return mode == kPaletteIx;
-  }
-  bool IsCopy() const {
-    return mode == kCopy;
-  }
-  uint32_t Literal(int component) const {
-    assert(mode == kLiteral);
-    return (argb_or_offset >> (component * 8)) & 0xff;
-  }
-  uint32_t Length() const {
-    return len;
-  }
-  uint32_t Argb() const {
-    assert(mode == kLiteral);
-    return argb_or_offset;
-  }
-  uint32_t PaletteIx() const {
-    assert(mode == kPaletteIx);
-    assert(argb_or_offset >= 0);
-    assert(argb_or_offset < (1 << kPaletteCodeBitsMax));
-    return argb_or_offset;
-  }
-  uint32_t Distance() const {
-    assert(mode == kCopy);
-    return argb_or_offset;
-  }
-  inline void LengthCodeAndBits(int *code, int *n_bits, int *bits) const {
-    assert(len >= 1 && len <= kMaxLength);
-    // Unlike flate, distance and length are encoded the same way.
-    BackwardLength::Encode(len, code, n_bits, bits);
-  }
+enum Mode {
+  kLiteral,
+  kPaletteIx,
+  kCopy,
+  kNone,
+};
 
+typedef struct {
   // mode as uint 8, and not as type Mode, to make the memory layout
-  // of this class as 8 bytes.
+  // of this class to be exactly 8 bytes.
   uint8_t mode;
   uint16_t len;
   uint32_t argb_or_offset;
-};
+} PixOrCopy;
+
+static inline PixOrCopy PixOrCopy_CreateCopy(uint32_t offset_arg,
+                                             uint16_t len_arg) {
+  PixOrCopy retval;
+  retval.mode = kCopy;
+  retval.argb_or_offset = offset_arg;
+  retval.len = len_arg;
+  return retval;
+}
+
+static inline PixOrCopy PixOrCopy_CreatePaletteIx(int ix) {
+  assert(ix >= 0);
+  assert(ix < (1 << kPaletteCodeBitsMax));
+  PixOrCopy retval;
+  retval.mode = kPaletteIx;
+  retval.argb_or_offset = ix;
+  retval.len = 1;
+  return retval;
+}
+
+static inline PixOrCopy PixOrCopy_CreateLiteral(uint32_t argb_arg) {
+  PixOrCopy retval;
+  retval.mode = kLiteral;
+  retval.argb_or_offset = argb_arg;
+  retval.len = 1;
+  return retval;
+}
+
+static inline int PixOrCopy_IsLiteral(const PixOrCopy *p) {
+  return p->mode == kLiteral;
+}
+
+static inline int PixOrCopy_IsPaletteIx(const PixOrCopy *p) {
+  return p->mode == kPaletteIx;
+}
+
+static inline int PixOrCopy_IsCopy(const PixOrCopy *p) {
+  return p->mode == kCopy;
+}
+
+static inline uint32_t PixOrCopy_Literal(const PixOrCopy *p, int component) {
+  assert(p->mode == kLiteral);
+  return (p->argb_or_offset >> (component * 8)) & 0xff;
+}
+
+static inline uint32_t PixOrCopy_Length(const PixOrCopy *p) {
+  return p->len;
+}
+
+static inline uint32_t PixOrCopy_Argb(const PixOrCopy *p) {
+  assert(p->mode == kLiteral);
+  return p->argb_or_offset;
+}
+
+static inline uint32_t PixOrCopy_PaletteIx(const PixOrCopy *p) {
+  assert(p->mode == kPaletteIx);
+  assert(p->argb_or_offset >= 0);
+  assert(p->argb_or_offset < (1 << kPaletteCodeBitsMax));
+  return p->argb_or_offset;
+}
+
+static inline uint32_t PixOrCopy_Distance(const PixOrCopy *p) {
+  assert(p->mode == kCopy);
+  return p->argb_or_offset;
+}
+
+static inline void PixOrCopy_LengthCodeAndBits(
+    const PixOrCopy *p, int *code, int *n_bits, int *bits) {
+  assert(p->len >= 1 && p->len <= kMaxLength);
+  // Unlike flate, distance and length are encoded the same way.
+  BackwardLength::Encode(p->len, code, n_bits, bits);
+}
+
 
 // Ridiculously simple backward references for images where it is unlikely
 // that there are large backward references (photos).
@@ -106,7 +121,7 @@ void BackwardReferencesRle(
     int xsize,
     int ysize,
     const uint32_t *argb,
-    LiteralOrCopy *stream,
+    PixOrCopy *stream,
     int *stream_size);
 
 // This is a simple fast function for obtaining backward references
@@ -114,10 +129,10 @@ void BackwardReferencesRle(
 void BackwardReferencesHashChain(
     int xsize,
     int ysize,
-    bool use_palette,
+    int use_palette,
     const uint32_t *argb,
     int palette_bits,
-    LiteralOrCopy *stream,
+    PixOrCopy *stream,
     int *stream_size);
 
 // This method looks for a shortest path through the backward reference
@@ -126,10 +141,10 @@ void BackwardReferencesTraceBackwards(
     int xsize,
     int ysize,
     int recursive_cost_model,
-    bool use_palette,
+    int use_palette,
     const uint32_t *argb,
     int palette_bits,
-    LiteralOrCopy *stream,
+    PixOrCopy *stream,
     int *stream_size);
 
 
@@ -139,18 +154,18 @@ void BackwardReferencesTraceBackwards(
 void BackwardReferences2DLocality(int xsize,
                                   int ysize,
                                   int data_size,
-                                  LiteralOrCopy *data);
+                                  PixOrCopy *data);
 
 // Internals of locality transform exposed for testing use.
 int DistanceToPlaneCode(int xsize, int ysize, int distance);
 
 // Returns true if the given backward references actually produce
 // the image given in tuple (argb, xsize, ysize).
-bool VerifyBackwardReferences(const uint32_t* argb,
-                              int xsize, int ysize,
-                              int palette_bits,
-                              const LiteralOrCopy *lit,
-                              int lit_size);
+int VerifyBackwardReferences(const uint32_t* argb,
+                             int xsize, int ysize,
+                             int palette_bits,
+                             const PixOrCopy *lit,
+                             int lit_size);
 
 // Produce an estimate for a good emerging palette size for the image.
 int CalculateEstimateForPaletteSize(const uint32_t *argb, int xsize, int ysize);

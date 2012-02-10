@@ -314,7 +314,7 @@ inline int MetaSize(int size, int bits) {
 }
 
 void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
-                         const LiteralOrCopy *literals, int literals_size,
+                         const PixOrCopy *literals, int literals_size,
                          const uint32_t *histogram_symbols,
                          uint8_t** const bitdepths,
                          uint16_t** const bit_symbols,
@@ -324,19 +324,19 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
   int x = 0;
   int y = 0;
   for (int i = 0; i < literals_size; ++i) {
-    const LiteralOrCopy &v = literals[i];
+    const PixOrCopy &v = literals[i];
     int histogram_ix = histogram_symbols[histo_bits ?
                                         (y >> histo_bits) * histo_xsize +
                                         (x >> histo_bits) : 0];
-    if (v.IsPaletteIx()) {
-      const int code = v.PaletteIx();
+    if (PixOrCopy_IsPaletteIx(&v)) {
+      const int code = PixOrCopy_PaletteIx(&v);
       int literal_ix = 256 + code;
       WriteBits(bitdepths[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix], bw);
-    } else if (v.IsLiteral()) {
+    } else if (PixOrCopy_IsLiteral(&v)) {
       int order[] = {1, 2, 0, 3};
       for (int i = 0; i < 4; ++i) {
-        const int code = v.Literal(order[i]);
+        const int code = PixOrCopy_Literal(&v, order[i]);
         WriteBits(bitdepths[5 * histogram_ix + i][code],
                   bit_symbols[5 * histogram_ix + i][code], bw);
       }
@@ -344,19 +344,19 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
       int code;
       int n_bits;
       int bits;
-      v.LengthCodeAndBits(&code, &n_bits, &bits);
+      PixOrCopy_LengthCodeAndBits(&v, &code, &n_bits, &bits);
       int len_ix = 256 + (1 << palette_bits) + code;
       WriteBits(bitdepths[5 * histogram_ix][len_ix],
                 bit_symbols[5 * histogram_ix][len_ix], bw);
       WriteBits(n_bits, bits, bw);
 
-      const int distance = v.Distance();
+      const int distance = PixOrCopy_Distance(&v);
       BackwardDistance::Encode(distance, &code, &n_bits, &bits);
       WriteBits(bitdepths[5 * histogram_ix + 4][code],
                 bit_symbols[5 * histogram_ix + 4][code], bw);
       WriteBits(n_bits, bits, bw);
     }
-    x += v.Length();
+    x += PixOrCopy_Length(&v);
     while (x >= xsize) {
       x -= xsize;
       ++y;
@@ -474,10 +474,10 @@ static void GetBackwardReferences(int xsize, int ysize,
                                   int quality, int use_palette,
                                   int palette_bits, bool use_2d_locality,
                                   int *backward_refs_size,
-                                  LiteralOrCopy** backward_refs) {
+                                  PixOrCopy** backward_refs) {
   // Backward Reference using LZ77.
-  LiteralOrCopy *backward_refs_lz77 = (LiteralOrCopy *)
-      malloc(xsize * ysize * sizeof(LiteralOrCopy));
+  PixOrCopy *backward_refs_lz77 = (PixOrCopy *)
+      malloc(xsize * ysize * sizeof(PixOrCopy));
   int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
@@ -486,8 +486,8 @@ static void GetBackwardReferences(int xsize, int ysize,
   Histogram_Build(histo_lz77, &backward_refs_lz77[0], backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
-  LiteralOrCopy *backward_refs_rle_only = (LiteralOrCopy *)
-      malloc(xsize * ysize * sizeof(LiteralOrCopy));
+  PixOrCopy *backward_refs_rle_only = (PixOrCopy *)
+      malloc(xsize * ysize * sizeof(PixOrCopy));
   int backward_refs_rle_only_size;
   BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
                         &backward_refs_rle_only_size);
@@ -508,8 +508,8 @@ static void GetBackwardReferences(int xsize, int ysize,
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
     free(backward_refs_rle_only);
     free(backward_refs_lz77);
-    *backward_refs = (LiteralOrCopy *)
-        malloc(xsize * ysize * sizeof(LiteralOrCopy));
+    *backward_refs = (PixOrCopy *)
+        malloc(xsize * ysize * sizeof(PixOrCopy));
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
                                      &argb[0], palette_bits, *backward_refs,
                                      backward_refs_size);
@@ -537,7 +537,7 @@ static void GetBackwardReferences(int xsize, int ysize,
 }
 
 static void GetHistImageSymbols(int xsize, int ysize,
-                                LiteralOrCopy* backward_refs,
+                                PixOrCopy* backward_refs,
                                 int backward_refs_size,
                                 int quality, int histogram_bits,
                                 int palette_bits, bool use_2d_locality,
@@ -583,7 +583,7 @@ static void GetHuffBitLengthsAndCodes(
     uint8_t*** bit_lengths,
     uint16_t*** bit_codes) {
   for (int i = 0; i < histogram_image_size; ++i) {
-    const int lit_len = Histogram_NumLiteralOrCopyCodes(histogram_image[i]);
+    const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
     (*bit_lengths)[5 * i] = (uint8_t *)calloc(lit_len, 1);
     (*bit_codes)[5 * i] = (uint16_t *)malloc(lit_len * sizeof(uint16_t));
@@ -639,7 +639,7 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Calculate backward references from ARGB image.
   int backward_refs_size;
-  LiteralOrCopy* backward_refs;
+  PixOrCopy* backward_refs;
   GetBackwardReferences(xsize, ysize, argb, quality, use_palette, palette_bits,
                         use_2d_locality, &backward_refs_size, &backward_refs);
 
@@ -781,15 +781,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     Histogram *before = new Histogram;
     Histogram_Init(before, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
-      Histogram_AddSingleLiteralOrCopy(before,
-                                       LiteralOrCopy::CreateLiteral(argb[i]));
+      Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
     Histogram *after = new Histogram;
     Histogram_Init(after, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
-      Histogram_AddSingleLiteralOrCopy(after,
-                                       LiteralOrCopy::CreateLiteral(argb[i]));
+      Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
     }
     if (Histogram_EstimateBits(after) < Histogram_EstimateBits(before)) {
       WriteBits(1, 1, &bw);
