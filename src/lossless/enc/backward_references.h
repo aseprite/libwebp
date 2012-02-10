@@ -19,12 +19,12 @@
 static const int kDistanceCodes = 40;
 
 // Compression constants
-static const int kLengthCodes = 24;
 static const int kCodeLengthCodes = 19;
 static const int kRowHasherXSubsampling = 7;
+static const int kLengthCodes = 24;
 static const int kPaletteCodeBitsMax = 11;
 static const int kPixOrCopyCodesMax =
-    256 + kLengthCodes + (1 << kPaletteCodeBitsMax);
+    256 + 24 /* kLengthCodes */ + (1 << 11 /* kPaletteCodeBitsMax */ );
 static const int kMaxLength = 4096;
 
 enum Mode {
