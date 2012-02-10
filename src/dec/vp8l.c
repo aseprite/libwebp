@@ -462,9 +462,22 @@ static int DecodeBackwardRefs(
   return ok;
 }
 
-static int ApplyTransforms(VP8LDecoder* const dec) {
+static int ApplyInverseImageTransform(VP8LTransform* transform) {
   int ok = 1;
-  (void)dec;
+  (void)transform;
+
+  return ok;
+}
+
+static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx) {
+  int ok = 1;
+
+  if (dec->next_transform_ == 0) return ok;
+  while(ok && dec->next_transform_ > start_idx) {
+    VP8LTransform* transform = &(dec->transforms_[dec->next_transform_ - 1]);
+    ok = ApplyInverseImageTransform(transform);
+    --dec->next_transform_;
+  }
 
   return ok;
 }
@@ -525,6 +538,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
 
   HuffmanTreeNode* htrees = NULL;
   BitReader* const br = dec->br_;
+  int transform_start_idx = dec->next_transform_;
 
   // Step#1: Read the transforms.
   while(ok && VP8LReadBits(br, 1)) {
@@ -544,16 +558,15 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                           huffman_image, huffman_subsample_bits,
                           meta_codes, htrees, decoded_data);
 
-  // Step#4: Appply transforms on the decoded data.
-  // TODO: Implementation of this method.
-  ok = ApplyTransforms(dec);
-
   free(huffman_image);
   free(meta_codes);
   for (tree_idx = 0; tree_idx < num_huffman_trees; ++tree_idx) {
     HuffmanTreeRelease(&htrees[tree_idx]);
   }
   free(htrees);
+
+  // Step#4: Appply transforms on the decoded data.
+  ok = ApplyInverseTransforms(dec, transform_start_idx);
 
   return ok;
 }
