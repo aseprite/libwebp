@@ -276,72 +276,74 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
   VP8LPixelHasherLineDelete(&hashers);
 }
 
-struct CostModel {
-  void Build(int xsize, int ysize, int recursion_level, int use_palette,
-             const uint32_t *argb, int palette_bits) {
-    int stream_size;
-    PixOrCopy *stream =
-        (PixOrCopy *)malloc(xsize * ysize * sizeof(PixOrCopy));
-    palette_bits_ = palette_bits;
-    if (recursion_level > 0) {
-      BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
-                                       use_palette, argb,
-                                       palette_bits, &stream[0], &stream_size);
-    } else {
-      BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
-                                  palette_bits, &stream[0], &stream_size);
-    }
-    Histogram histo;
-    Histogram_Init(&histo, palette_bits);
-    for (int i = 0; i < stream_size; ++i) {
-      Histogram_AddSinglePixOrCopy(&histo, stream[i]);
-    }
-    free(stream);
-    ConvertPopulationCountTableToBitEstimates(
-        Histogram_NumPixOrCopyCodes(&histo),
-        &histo.literal_[0], &literal_[0]);
-    ConvertPopulationCountTableToBitEstimates(
-        VALUES_IN_BYTE, &histo.red_[0], &red_[0]);
-    ConvertPopulationCountTableToBitEstimates(
-        VALUES_IN_BYTE, &histo.blue_[0], &blue_[0]);
-    ConvertPopulationCountTableToBitEstimates(
-        VALUES_IN_BYTE, &histo.alpha_[0], &alpha_[0]);
-    ConvertPopulationCountTableToBitEstimates(
-        kDistanceCodes, &histo.distance_[0], &distance_[0]);
-  }
-
-  double LiteralCost(uint32_t v) const {
-    return alpha_[v >> 24] +
-        red_[(v >> 16) & 0xff] +
-        literal_[(v >> 8) & 0xff] +
-        blue_[v & 0xff];
-  }
-
-  double PaletteCost(uint32_t ix) const {
-    int literal_ix = VALUES_IN_BYTE + ix;
-    return literal_[literal_ix];
-  }
-
-  double LengthCost(uint32_t len) const {
-    int code, extra_bits_count, extra_bits_value;
-    PrefixEncode(len, &code, &extra_bits_count, &extra_bits_value);
-    return literal_[VALUES_IN_BYTE + (1 << palette_bits_) + code] +
-        extra_bits_count;
-  }
-
-  double DistanceCost(uint32_t distance) const {
-    int code, extra_bits_count, extra_bits_value;
-    PrefixEncode(distance, &code, &extra_bits_count, &extra_bits_value);
-    return distance_[code] + extra_bits_count;
-  }
-
+typedef struct {
   double alpha_[VALUES_IN_BYTE];
   double red_[VALUES_IN_BYTE];
   double literal_[VALUES_IN_BYTE + (1 << kPaletteCodeBitsMax) + kLengthCodes];
   double blue_[VALUES_IN_BYTE];
   double distance_[kDistanceCodes];
   int palette_bits_;
-};
+} CostModel;
+
+static void CostModel_Build(CostModel *p, int xsize, int ysize,
+                            int recursion_level, int use_palette,
+                            const uint32_t *argb, int palette_bits) {
+  int stream_size;
+  PixOrCopy *stream =
+      (PixOrCopy *)malloc(xsize * ysize * sizeof(PixOrCopy));
+  p->palette_bits_ = palette_bits;
+  if (recursion_level > 0) {
+    BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
+                                     use_palette, argb,
+                                     palette_bits, &stream[0], &stream_size);
+  } else {
+    BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
+                                palette_bits, &stream[0], &stream_size);
+  }
+  Histogram histo;
+  Histogram_Init(&histo, palette_bits);
+  for (int i = 0; i < stream_size; ++i) {
+    Histogram_AddSinglePixOrCopy(&histo, stream[i]);
+  }
+  free(stream);
+  ConvertPopulationCountTableToBitEstimates(
+      Histogram_NumPixOrCopyCodes(&histo),
+      &histo.literal_[0], &p->literal_[0]);
+  ConvertPopulationCountTableToBitEstimates(
+      VALUES_IN_BYTE, &histo.red_[0], &p->red_[0]);
+  ConvertPopulationCountTableToBitEstimates(
+      VALUES_IN_BYTE, &histo.blue_[0], &p->blue_[0]);
+  ConvertPopulationCountTableToBitEstimates(
+      VALUES_IN_BYTE, &histo.alpha_[0], &p->alpha_[0]);
+  ConvertPopulationCountTableToBitEstimates(
+      kDistanceCodes, &histo.distance_[0], &p->distance_[0]);
+}
+
+static inline double CostModel_LiteralCost(const CostModel *p, uint32_t v) {
+  return p->alpha_[v >> 24] +
+      p->red_[(v >> 16) & 0xff] +
+      p->literal_[(v >> 8) & 0xff] +
+      p->blue_[v & 0xff];
+}
+
+static inline double CostModel_PaletteCost(const CostModel *p, uint32_t ix) {
+  int literal_ix = VALUES_IN_BYTE + ix;
+  return p->literal_[literal_ix];
+}
+
+static inline double CostModel_LengthCost(const CostModel *p, uint32_t len) {
+  int code, extra_bits_count, extra_bits_value;
+  PrefixEncode(len, &code, &extra_bits_count, &extra_bits_value);
+  return p->literal_[VALUES_IN_BYTE + (1 << p->palette_bits_) + code] +
+      extra_bits_count;
+}
+
+static inline double CostModel_DistanceCost(const CostModel *p,
+                                            uint32_t distance) {
+  int code, extra_bits_count, extra_bits_value;
+  PrefixEncode(distance, &code, &extra_bits_count, &extra_bits_value);
+  return p->distance_[code] + extra_bits_count;
+}
 
 void BackwardReferencesHashChainDistanceOnly(
     int xsize, int ysize,
@@ -356,9 +358,9 @@ void BackwardReferencesHashChainDistanceOnly(
   for (i = 0; i < pix_count; ++i) {
     cost[i] = 1e100;
   }
-  CostModel *cost_model = new CostModel;
-  cost_model->Build(xsize, ysize, recursive_cost_model, use_palette, argb,
-                    palette_bits);
+  CostModel *cost_model = (CostModel *)malloc(sizeof(CostModel));
+  CostModel_Build(cost_model, xsize, ysize, recursive_cost_model,
+                  use_palette, argb, palette_bits);
 
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
@@ -387,10 +389,12 @@ void BackwardReferencesHashChainDistanceOnly(
       }
       if (len >= kMinLength) {
         const int code = DistanceToPlaneCode(xsize, ysize, offset);
-        const double distance_cost = prev_cost + cost_model->DistanceCost(code);
+        const double distance_cost =
+            prev_cost + CostModel_DistanceCost(cost_model, code);
         int k;
         for (k = 1; k < len; ++k) {
-          const double cost_val = distance_cost + cost_model->LengthCost(k);
+          const double cost_val =
+              distance_cost + CostModel_LengthCost(cost_model, k);
           if (cost[i + k] > cost_val) {
             cost[i + k] = cost_val;
             dist_array[i + k] = k + 1;
@@ -430,9 +434,9 @@ void BackwardReferencesHashChainDistanceOnly(
       }
       if (use_palette && VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
         int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
-        cost_val += cost_model->PaletteCost(ix) * mul0;
+        cost_val += CostModel_PaletteCost(cost_model, ix) * mul0;
       } else {
-        cost_val += cost_model->LiteralCost(argb[i]) * mul1;
+        cost_val += CostModel_LiteralCost(cost_model, argb[i]) * mul1;
       }
       if (cost[i] > cost_val) {
         cost[i] = cost_val;
@@ -446,7 +450,7 @@ void BackwardReferencesHashChainDistanceOnly(
   // through cheaper means already.
   VP8LHashChain_Delete(hash_chain);
   free(hash_chain);
-  delete cost_model;
+  free(cost_model);
   free(cost);
   VP8LPixelHasherLineDelete(&hashers);
 }
