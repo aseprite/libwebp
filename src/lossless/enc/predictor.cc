@@ -35,12 +35,12 @@ static double PredictionCostSpatialHistogram(Histogram *accumulated,
                                              Histogram *tile) {
   const double exp_val = 0.94;
   Histogram combo;
-  combo.Init(0);
-  combo.Add(*accumulated);
-  combo.Add(*tile);
+  Histogram_Init(&combo, 0);
+  Histogram_Add(&combo, accumulated);
+  Histogram_Add(&combo, tile);
   return
-      tile->EstimateBitsBulk() +
-      combo.EstimateBitsBulk() +
+      Histogram_EstimateBitsBulk(tile) +
+      Histogram_EstimateBitsBulk(&combo) +
       PredictionCostSpatial(tile->alpha_, 1, exp_val) +
       PredictionCostSpatial(tile->literal_, 1, exp_val) +
       PredictionCostSpatial(tile->red_, 1, exp_val) +
@@ -67,7 +67,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   int mode;
   for (mode = 0; mode < num_pred_modes; ++mode) {
     Histogram histo;
-    histo.Init(0);  // 0 is for only 1 (unused) palette value.
+    Histogram_Init(&histo, 0);  // 0 is for only 1 (unused) palette value.
     int all_y;
     for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       int all_x;
@@ -86,8 +86,8 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
         }
         const uint32_t predict_diff =
             Subtract(argb[all_y * xsize + all_x], predict);
-        histo.AddSingleLiteralOrCopy(
-            LiteralOrCopy::CreateLiteral(predict_diff));
+        Histogram_AddSingleLiteralOrCopy(
+            &histo, LiteralOrCopy::CreateLiteral(predict_diff));
       }
     }
     const double cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
@@ -106,7 +106,7 @@ void PredictorImage(int xsize, int ysize, int bits,
   const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   Histogram histo;
-  histo.Init(0);
+  Histogram_Init(&histo, 0);
   int tile_y;
   uint32_t *argb_orig = reinterpret_cast<uint32_t *>(
       malloc(sizeof(from_argb[0]) * xsize * ysize));
@@ -136,8 +136,8 @@ void PredictorImage(int xsize, int ysize, int bits,
         }
         ix = all_y * xsize + tile_x_offset;
         for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          histo.AddSingleLiteralOrCopy(
-              LiteralOrCopy::CreateLiteral(to_argb[ix]));
+          Histogram_AddSingleLiteralOrCopy(
+              &histo, LiteralOrCopy::CreateLiteral(to_argb[ix]));
         }
       }
     }

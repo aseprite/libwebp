@@ -482,8 +482,8 @@ static void GetBackwardReferences(int xsize, int ysize,
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
   Histogram *histo_lz77 = new Histogram;
-  histo_lz77->Init(palette_bits);
-  histo_lz77->Build(&backward_refs_lz77[0], backward_refs_lz77_size);
+  Histogram_Init(histo_lz77, palette_bits);
+  Histogram_Build(histo_lz77, &backward_refs_lz77[0], backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
   LiteralOrCopy *backward_refs_rle_only = (LiteralOrCopy *)
@@ -493,12 +493,13 @@ static void GetBackwardReferences(int xsize, int ysize,
                         &backward_refs_rle_only_size);
 
   Histogram *histo_rle = new Histogram;
-  histo_rle->Init(palette_bits);
-  histo_rle->Build(&backward_refs_rle_only[0], backward_refs_rle_only_size);
+  Histogram_Init(histo_rle, palette_bits);
+  Histogram_Build(histo_rle,
+                  &backward_refs_rle_only[0], backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
   const bool lz77_is_useful =
-      (histo_rle->EstimateBits() > histo_lz77->EstimateBits());
+      (Histogram_EstimateBits(histo_rle) > Histogram_EstimateBits(histo_lz77));
   delete histo_rle;
   delete histo_lz77;
 
@@ -582,15 +583,13 @@ static void GetHuffBitLengthsAndCodes(
     uint8_t*** bit_lengths,
     uint16_t*** bit_codes) {
   for (int i = 0; i < histogram_image_size; ++i) {
-    (*bit_length_sizes)[5 * i] = histogram_image[i]->NumLiteralOrCopyCodes();
-    (*bit_lengths)[5 * i] = (uint8_t *)
-        calloc(histogram_image[i]->NumLiteralOrCopyCodes(), 1);
-    (*bit_codes)[5 * i] = (uint16_t *)
-        malloc(histogram_image[i]->NumLiteralOrCopyCodes() * sizeof(uint16_t));
+    const int lit_len = Histogram_NumLiteralOrCopyCodes(histogram_image[i]);
+    (*bit_length_sizes)[5 * i] = lit_len;
+    (*bit_lengths)[5 * i] = (uint8_t *)calloc(lit_len, 1);
+    (*bit_codes)[5 * i] = (uint16_t *)malloc(lit_len * sizeof(uint16_t));
 
     // For each component, optimize histogram for Huffman with RLE compression.
-    OptimizeHuffmanForRle(histogram_image[i]->NumLiteralOrCopyCodes(),
-                          &histogram_image[i]->literal_[0]);
+    OptimizeHuffmanForRle(lit_len, &histogram_image[i]->literal_[0]);
     if (!use_palette) {
       // Implies that palette_bits == 0,
       // and so number of palette entries = (1 << 0) = 1.
@@ -604,8 +603,7 @@ static void GetHuffBitLengthsAndCodes(
     OptimizeHuffmanForRle(kDistanceCodes, &histogram_image[i]->distance_[0]);
 
     // Create a Huffman tree (in the form of bit lengths) for each component.
-    CreateHuffmanTree(histogram_image[i]->literal_,
-                      histogram_image[i]->NumLiteralOrCopyCodes(), 15,
+    CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
                       (*bit_lengths)[5 * i]);
     for (int k = 1; k < 5; ++k) {
       int val = 256;
@@ -781,17 +779,19 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
 
   if (!use_small_palette) {
     Histogram *before = new Histogram;
-    before->Init(1);
+    Histogram_Init(before, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
-      before->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[i]));
+      Histogram_AddSingleLiteralOrCopy(before,
+                                       LiteralOrCopy::CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
     Histogram *after = new Histogram;
-    after->Init(1);
+    Histogram_Init(after, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
-      after->AddSingleLiteralOrCopy(LiteralOrCopy::CreateLiteral(argb[i]));
+      Histogram_AddSingleLiteralOrCopy(after,
+                                       LiteralOrCopy::CreateLiteral(argb[i]));
     }
-    if (after->EstimateBits() < before->EstimateBits()) {
+    if (Histogram_EstimateBits(after) < Histogram_EstimateBits(before)) {
       WriteBits(1, 1, &bw);
       WriteBits(3, 2, &bw);
     } else {

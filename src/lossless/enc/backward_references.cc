@@ -290,13 +290,13 @@ class CostModel {
                                   palette_bits, &stream[0], &stream_size);
     }
     Histogram histo;
-    histo.Init(palette_bits);
+    Histogram_Init(&histo, palette_bits);
     for (int i = 0; i < stream_size; ++i) {
-      histo.AddSingleLiteralOrCopy(stream[i]);
+      Histogram_AddSingleLiteralOrCopy(&histo, stream[i]);
     }
     free(stream);
     ConvertPopulationCountTableToBitEstimates(
-        histo.NumLiteralOrCopyCodes(),
+        Histogram_NumLiteralOrCopyCodes(&histo),
         &histo.literal_[0], &literal_[0]);
     ConvertPopulationCountTableToBitEstimates(
         kNumSymbols, &histo.red_[0], &red_[0]);
@@ -657,12 +657,13 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
           VP8LPixelHasherLineContains(&hashers, x, argb[pixel_index])) {
         // push pixel as a palette pixel
         const int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[pixel_index]);
-        histo->AddSingleLiteralOrCopy(LiteralOrCopy::CreatePaletteIx(ix));
+        Histogram_AddSingleLiteralOrCopy(histo,
+                                         LiteralOrCopy::CreatePaletteIx(ix));
       } else {
-        histo->AddSingleLiteralOrCopy(v);
+        Histogram_AddSingleLiteralOrCopy(histo, v);
       }
     } else {
-      histo->AddSingleLiteralOrCopy(v);
+      Histogram_AddSingleLiteralOrCopy(histo, v);
     }
     for (int k = 0; k < v.Length(); ++k) {
       VP8LPixelHasherLineInsert(&hashers, pixel_index % xsize,
@@ -686,11 +687,11 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
   BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, stream, &stream_size);
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     Histogram histo;
-    histo.Init(palette_bits);
+    Histogram_Init(&histo, palette_bits);
     ComputePaletteHistogram(argb, xsize, ysize, &stream[0], stream_size,
                             palette_bits, &histo);
     double kMakeLargePaletteSlightlyLessFavorable = 4.0;
-    double cur_entropy = histo.EstimateBits() +
+    double cur_entropy = Histogram_EstimateBits(&histo) +
         kMakeLargePaletteSlightlyLessFavorable * palette_bits;
     if (palette_bits == 0 || cur_entropy < lowest_entropy) {
       best_palette_bits = palette_bits;
