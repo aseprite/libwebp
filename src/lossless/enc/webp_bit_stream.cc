@@ -17,7 +17,6 @@
 
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
-#include "./backward_distance.h"
 #include "./backward_references.h"
 #include "./bit_writer.h"
 #include "./entropy_encode.h"

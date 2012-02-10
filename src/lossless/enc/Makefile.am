@@ -8,5 +8,5 @@ libwebpllencode_la_SOURCES = backward_references.cc \
                              webp_bit_stream.cc
 libwebpllencode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE)
 
-noinst_HEADERS = backward_distance.h backward_references.h
+noinst_HEADERS = backward_references.h
 noinst_LTLIBRARIES = libwebpllencode.la

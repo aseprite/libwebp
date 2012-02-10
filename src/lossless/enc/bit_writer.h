@@ -19,7 +19,6 @@
 #endif
 
 #include <string.h>   // for memcpy()
-#include "./backward_distance.h"
 #include "../common/integral_types.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)

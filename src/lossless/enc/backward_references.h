@@ -13,8 +13,6 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "backward_distance.h"
-
 // Backward reference distance codes, for all 32-bit values.
 static const int kDistanceCodes = 40;
 
@@ -26,6 +24,61 @@ static const int kPaletteCodeBitsMax = 11;
 static const int kPixOrCopyCodesMax =
     256 + 24 /* kLengthCodes */ + (1 << 11 /* kPaletteCodeBitsMax */ );
 static const int kMaxLength = 4096;
+
+// use GNU builtins where available
+#if defined(__GNUC__) && \
+    ((__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || __GNUC__ >= 4)
+inline int BitsLog2Floor(uint32_t n) {
+  return n == 0 ? -1 : 31 ^ __builtin_clz(n);
+}
+#else
+inline int BitsLog2Floor(uint32_t n) {
+  int log;
+  uint32_t value;
+  int i;
+  if (n == 0)
+    return -1;
+  log = 0;
+  value = n;
+  for (i = 4; i >= 0; --i) {
+    int shift = (1 << i);
+    uint32_t x = value >> shift;
+    if (x != 0) {
+      value = x;
+      log += shift;
+    }
+  }
+  return log;
+}
+#endif
+
+inline int BitsLog2Ceiling(uint32_t n) {
+  int floor = BitsLog2Floor(n);
+  if (n == (n & ~(n - 1)))  // zero or a power of two.
+    return floor;
+  else
+    return floor + 1;
+}
+
+// Splitting of distance and length codes into prefixes and
+// extra bits. The prefixes are encoded with an entropy code
+// while the extra bits are stored just as normal bits.
+static inline void PrefixEncode(
+    int distance,
+    int *code,
+    int *extra_bits_count,
+    int *extra_bits_value) {
+  // Collect the two most significant bits where the highest bit is 1.
+  const int highest_bit = BitsLog2Floor(--distance);
+  // & 0x3f is to make behavior well defined when highest_bit
+  // does not exist or is the least significant bit.
+  const int second_highest_bit =
+      (distance >> ((highest_bit - 1) & 0x3f)) & 1;
+  *extra_bits_count = (highest_bit > 0) ? highest_bit - 1 : 0;
+  *extra_bits_value = distance & ((1 << *extra_bits_count) - 1);
+  *code = (highest_bit > 0) ? 2 * highest_bit + second_highest_bit :
+      (highest_bit == 0) ? 1 : 0;
+}
 
 enum Mode {
   kLiteral,

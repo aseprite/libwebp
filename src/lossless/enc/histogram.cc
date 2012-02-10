@@ -12,7 +12,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "backward_distance.h"
 #include "backward_references.h"
 #include "../common/integral_types.h"
 
