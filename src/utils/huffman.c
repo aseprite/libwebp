@@ -41,12 +41,15 @@ void HuffmanTreeRelease(HuffmanTreeNode* const root) {
 }
 
 // This internal version does NOT check if node is NULL for performance reasons.
-#define IS_INTERNAL_NODE(node) (node->child_[0] == NULL)
+static WEBP_INLINE int IsLeafUnsafe(const HuffmanTreeNode* const node) {
+  assert(node != NULL);
+  return (node->child_[0] == NULL);  // Implies that node->child_[1] == NULL.
+}
 
 int HuffmanTreeIsFull(const HuffmanTreeNode* const root) {
   if (root == NULL) {
     return 0;
-  } else if (IS_INTERNAL_NODE(root)) {
+  } else if (IsLeafUnsafe(root)) {
     return root->symbol_ != NON_EXISTENT_SYMBOL;
   } else {
     return HuffmanTreeIsFull(root->child_[0]) &&
@@ -121,7 +124,7 @@ int HuffmanTreeAddSymbol(HuffmanTreeNode* const root, int symbol,
 
   if (code_length == 0) {
     // Verify we are at a leaf, so that prefix-tree property is not violated.
-    if (!IS_INTERNAL_NODE(root)) return 0;
+    if (!IsLeafUnsafe(root)) return 0;
     // Add symbol in this node.
     root->symbol_ = symbol;
     return 1;
@@ -130,7 +133,7 @@ int HuffmanTreeAddSymbol(HuffmanTreeNode* const root, int symbol,
       // Violates prefix-tree property.
       return 0;
     }
-    if (IS_INTERNAL_NODE(root)) {
+    if (IsLeafUnsafe(root)) {
       // Allocate children.
       root->child_[0] = HuffmanTreeNodeNew();
       if (root->child_[0] == NULL) return 0;
@@ -158,7 +161,7 @@ int HuffmanTreeBuild(HuffmanTreeNode* const root,
   size_t root_symbol = 0;
 
   if (root == NULL || code_lengths == NULL || code_lengths_size == 0) return 0;
-  if (!IS_INTERNAL_NODE(root)) return 0;
+  if (!IsLeafUnsafe(root)) return 0;
 
   // Find out number of symbols & the root symbol.
   for (symbol = 0; symbol < code_lengths_size; ++symbol) {
@@ -200,8 +203,6 @@ int HuffmanTreeBuild(HuffmanTreeNode* const root,
     return ok;
   }
 }
-
-#undef IS_INTERNAL_NODE
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
