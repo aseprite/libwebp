@@ -471,7 +471,7 @@ void TraceBackwards(const uint32_t *dist_array, int dist_array_size,
   }
   // Allocate.
   *chosen_path_size = count;
-  *chosen_path = (uint32_t *)malloc(count * sizeof(uint32_t));
+  *chosen_path = (uint32_t *)malloc(count * sizeof(*chosen_path));
   // Write in reverse order.
   for (i = dist_array_size - 1; i >= 0; ) {
     int k = dist_array[i];
@@ -551,7 +551,8 @@ void BackwardReferencesTraceBackwards(int xsize, int ysize,
 
   *stream_size = 0;
 
-  uint32_t *dist_array = (uint32_t *)malloc(dist_array_size * sizeof(uint32_t));
+  uint32_t *dist_array = (uint32_t *)malloc(dist_array_size *
+                                            sizeof(*dist_array));
   BackwardReferencesHashChainDistanceOnly(xsize, ysize, recursive_cost_model,
                                           use_palette, argb, palette_bits,
                                           dist_array);
@@ -682,7 +683,7 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
   int best_palette_bits = -1;
   double lowest_entropy = 1e99;
   LiteralOrCopy *stream = (LiteralOrCopy *)
-      malloc(xsize * ysize * sizeof(LiteralOrCopy *));
+      malloc(xsize * ysize * sizeof(*stream));
   int stream_size;
   BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, stream, &stream_size);
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
