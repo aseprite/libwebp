@@ -49,9 +49,17 @@ static inline int FindMatchLength(const uint32_t* array1,
   return matched;
 }
 
-class HashChain {
+static const int kHashBits = 20;
+static const int kHashSize = (1 << kHashBits);
+static const uint64_t kHashMultiplier = 0xc6a4a7935bd1e995ULL;
+static const int kWindowSize = (1 << 20) - 120;  // A window with 1M pixels
+                                                 // (4 megabytes) - 120
+                                                 // special codes for short
+                                                 // distances.
+
+typedef struct {
  public:
-  explicit HashChain(int size) {
+  void Init(int size) {
     chain_ = (int *)malloc(size * sizeof(*chain_));
     for (int i = 0; i < size; ++i) {
       chain_[i] = -1;
@@ -61,7 +69,7 @@ class HashChain {
     }
   }
 
-  ~HashChain() {
+  void Delete() {
     free(chain_);
   }
 
@@ -129,7 +137,6 @@ class HashChain {
     return *len >= kMinLength;
   }
 
- private:
   static inline uint64_t GetHash64(uint64_t num) {
     num *= kHashMultiplier;
     num >>= 64 - kHashBits;
@@ -140,19 +147,11 @@ class HashChain {
     return ((uint64_t)(argb[1]) << 32) | argb[0];
   }
 
-  static const int kHashBits = 20;
-  static const int kHashSize = (1 << kHashBits);
-  static const uint64_t kHashMultiplier = 0xc6a4a7935bd1e995ULL;
-  static const int kWindowSize = (1 << 20) - 120;  // A window with 1M pixels
-                                                   // (4 megabytes) - 120
-                                                   // special codes for short
-                                                   // distances.
-
   int32_t hash_to_first_index[kHashSize];  // Stores the most recently added
                                          // position with the given hash value.
   int32_t *chain_;  // chain_[pos] stores the previous position with the same
                     // hash value.
-};
+} VP8LHashChain;
 
 static inline void PushBackCopy(int distance, int length,
                                 LiteralOrCopy *stream,
@@ -193,7 +192,8 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  HashChain *hash_chain = new HashChain(pix_count);
+  VP8LHashChain *hash_chain = new VP8LHashChain;
+  hash_chain->Init(pix_count);
   *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
     // Alternative#1: Code the pixels starting at 'i' using backward reference.
@@ -265,6 +265,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       ++i;
     }
   }
+  hash_chain->Delete();
   delete hash_chain;
   VP8LPixelHasherLineDelete(&hashers);
 }
@@ -366,7 +367,8 @@ void BackwardReferencesHashChainDistanceOnly(
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  HashChain *hash_chain = new HashChain(pix_count);
+  VP8LHashChain *hash_chain = new VP8LHashChain;
+  hash_chain->Init(pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
   dist_array[0] = 0;
@@ -445,6 +447,7 @@ void BackwardReferencesHashChainDistanceOnly(
   }
   // Last pixel still to do, it can only be a single step if not reached
   // through cheaper means already.
+  hash_chain->Delete();
   delete hash_chain;
   delete cost_model;
   free(cost);
@@ -488,7 +491,8 @@ void BackwardReferencesHashChainFollowChosenPath(
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  HashChain *hash_chain = new HashChain(pix_count);
+  VP8LHashChain *hash_chain = new VP8LHashChain;
+  hash_chain->Init(pix_count);
   int i = 0;
   *stream_size = 0;
   for (int ix = 0; ix < chosen_path_size; ++ix) {
@@ -526,6 +530,7 @@ void BackwardReferencesHashChainFollowChosenPath(
       ++i;
     }
   }
+  hash_chain->Delete();
   delete hash_chain;
   VP8LPixelHasherLineDelete(&hashers);
 }
