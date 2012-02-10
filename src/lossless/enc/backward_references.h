@@ -28,22 +28,6 @@ static const int kLiteralOrCopyCodesMax =
 static const int kMaxLength = 4096;
 
 struct LiteralOrCopy {
-  LiteralOrCopy() {
-    mode = kNone;
-  }
-  LiteralOrCopy(const LiteralOrCopy &r) {
-    mode = r.mode;
-    argb_or_offset = r.argb_or_offset;
-    len = r.len;
-  }
-
-  const LiteralOrCopy &operator =(const LiteralOrCopy &r) {
-    mode = r.mode;
-    argb_or_offset = r.argb_or_offset;
-    len = r.len;
-    return *this;
-  }
-
   static LiteralOrCopy CreateCopy(uint32_t offset_arg, uint16_t len_arg) {
     LiteralOrCopy retval;
     retval.mode = kCopy;
