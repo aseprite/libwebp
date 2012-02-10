@@ -309,36 +309,35 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   free(huffman_tree_extra_bits);
 }
 
-void StoreImageToBitMask(
-    const int xsize,
-    const int ysize,
-    const int histobits,
-    const int palette_bits,
-    const LiteralOrCopy *literal,
-    const int n_literal_and_length,
-    const uint32_t *histogram_symbol,
-    uint8_t** bitdepth,
-    uint16_t** bit_symbols,
-    BitWriter *bw) {
-  int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
+inline int MetaSize(int size, int bits) {
+  return (size + (1 << bits) - 1) >> bits;
+}
+
+void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
+                         const LiteralOrCopy *literals, int literals_size,
+                         const uint32_t *histogram_symbols,
+                         uint8_t** const bitdepths,
+                         uint16_t** const bit_symbols,
+                         BitWriter* const bw) {
+  const int histo_xsize = histo_bits ? MetaSize(xsize, histo_bits) : 1;
   // x and y trace the position in the image.
   int x = 0;
   int y = 0;
-  for (int i = 0; i < n_literal_and_length; ++i) {
-    const LiteralOrCopy &v = literal[i];
-    int histogram_ix = histogram_symbol[histobits ?
-                                        (y >> histobits) * histo_xsize +
-                                        (x >> histobits) : 0];
+  for (int i = 0; i < literals_size; ++i) {
+    const LiteralOrCopy &v = literals[i];
+    int histogram_ix = histogram_symbols[histo_bits ?
+                                        (y >> histo_bits) * histo_xsize +
+                                        (x >> histo_bits) : 0];
     if (v.IsPaletteIx()) {
       const int code = v.PaletteIx();
       int literal_ix = 256 + code;
-      WriteBits(bitdepth[5 * histogram_ix][literal_ix],
+      WriteBits(bitdepths[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix], bw);
     } else if (v.IsLiteral()) {
       int order[] = {1, 2, 0, 3};
       for (int i = 0; i < 4; ++i) {
         const int code = v.Literal(order[i]);
-        WriteBits(bitdepth[5 * histogram_ix + i][code],
+        WriteBits(bitdepths[5 * histogram_ix + i][code],
                   bit_symbols[5 * histogram_ix + i][code], bw);
       }
     } else {
@@ -347,13 +346,13 @@ void StoreImageToBitMask(
       int bits;
       v.LengthCodeAndBits(&code, &n_bits, &bits);
       int len_ix = 256 + (1 << palette_bits) + code;
-      WriteBits(bitdepth[5 * histogram_ix][len_ix],
+      WriteBits(bitdepths[5 * histogram_ix][len_ix],
                 bit_symbols[5 * histogram_ix][len_ix], bw);
       WriteBits(n_bits, bits, bw);
 
       const int distance = v.Distance();
       BackwardDistance::Encode(distance, &code, &n_bits, &bits);
-      WriteBits(bitdepth[5 * histogram_ix + 4][code],
+      WriteBits(bitdepths[5 * histogram_ix + 4][code],
                 bit_symbols[5 * histogram_ix + 4][code], bw);
       WriteBits(n_bits, bits, bw);
     }
@@ -380,10 +379,6 @@ int NumberOfUsedRBAComponents(int image_size, uint32_t* argb) {
     if (((argb[i] >> 16) & 0xff) != 0 && num < 1) num = 1;
   }
   return num;
-}
-
-int MetaSize(int size, int bits) {
-  return (size + (1 << bits) - 1) >> bits;
 }
 
 static int Uint32Order(const void *p1, const void *p2) {
