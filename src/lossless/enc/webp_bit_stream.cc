@@ -464,7 +464,7 @@ int BundlePixels(int xsize, int ysize, int xbits,
 static void DeleteHistograms(int size, Histogram** histograms) {
   int i;
   for (i = 0; i < size; ++i) {
-    delete histograms[i];
+    free(histograms[i]);
   }
 }
 
@@ -480,7 +480,7 @@ static void GetBackwardReferences(int xsize, int ysize,
   int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
-  Histogram *histo_lz77 = new Histogram;
+  Histogram *histo_lz77 = (Histogram *)malloc(sizeof(Histogram));
   Histogram_Init(histo_lz77, palette_bits);
   Histogram_Build(histo_lz77, &backward_refs_lz77[0], backward_refs_lz77_size);
 
@@ -491,7 +491,7 @@ static void GetBackwardReferences(int xsize, int ysize,
   BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
                         &backward_refs_rle_only_size);
 
-  Histogram *histo_rle = new Histogram;
+  Histogram *histo_rle = (Histogram *)malloc(sizeof(Histogram));
   Histogram_Init(histo_rle, palette_bits);
   Histogram_Build(histo_rle,
                   &backward_refs_rle_only[0], backward_refs_rle_only_size);
@@ -499,8 +499,8 @@ static void GetBackwardReferences(int xsize, int ysize,
   // Check if LZ77 is useful.
   const bool lz77_is_useful =
       (Histogram_EstimateBits(histo_rle) > Histogram_EstimateBits(histo_lz77));
-  delete histo_rle;
-  delete histo_lz77;
+  free(histo_rle);
+  free(histo_lz77);
 
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
@@ -777,13 +777,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
-    Histogram *before = new Histogram;
+    Histogram *before = (Histogram *)malloc(sizeof(Histogram));
     Histogram_Init(before, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
-    Histogram *after = new Histogram;
+    Histogram *after = (Histogram *)malloc(sizeof(Histogram));
     Histogram_Init(after, 1);
     for (int i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
@@ -795,8 +795,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
       // Undo subtract green from blue and red -- rewrite with original data.
       memcpy(argb, argb_orig, xsize * ysize * sizeof(argb[0]));
     }
-    delete before;
-    delete after;
+    free(before);
+    free(after);
   }
 
   int palette_size;

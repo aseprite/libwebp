@@ -198,7 +198,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  VP8LHashChain *hash_chain = new VP8LHashChain;
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
   VP8LHashChain_Init(hash_chain, pix_count);
   *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
@@ -272,7 +272,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
     }
   }
   VP8LHashChain_Delete(hash_chain);
-  delete hash_chain;
+  free(hash_chain);
   VP8LPixelHasherLineDelete(&hashers);
 }
 
@@ -363,7 +363,7 @@ void BackwardReferencesHashChainDistanceOnly(
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  VP8LHashChain *hash_chain = new VP8LHashChain;
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
   VP8LHashChain_Init(hash_chain, pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
@@ -445,7 +445,7 @@ void BackwardReferencesHashChainDistanceOnly(
   // Last pixel still to do, it can only be a single step if not reached
   // through cheaper means already.
   VP8LHashChain_Delete(hash_chain);
-  delete hash_chain;
+  free(hash_chain);
   delete cost_model;
   free(cost);
   VP8LPixelHasherLineDelete(&hashers);
@@ -488,7 +488,7 @@ void BackwardReferencesHashChainFollowChosenPath(
   VP8LPixelHasherLine hashers;
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
-  VP8LHashChain *hash_chain = new VP8LHashChain;
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
   VP8LHashChain_Init(hash_chain, pix_count);
   int i = 0;
   *stream_size = 0;
@@ -528,7 +528,7 @@ void BackwardReferencesHashChainFollowChosenPath(
     }
   }
   VP8LHashChain_Delete(hash_chain);
-  delete hash_chain;
+  free(hash_chain);
   VP8LPixelHasherLineDelete(&hashers);
 }
 
