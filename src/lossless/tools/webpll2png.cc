@@ -130,9 +130,9 @@ int main(int argc, char **argv) {
     exit(1);
   }
   char *alternate_out_path = (char *)
-      malloc(strlen(in_path) + 1 + strlen(".png"));
+      malloc(strlen(in_path) + strlen(".png") + 1);  // + 1 is for '\0'.
   if (!out_path) {
-    memcpy(alternate_out_path, in_path, strlen(in_path) + 1);
+    strcpy(alternate_out_path, in_path);
     strcat(alternate_out_path, ".png");
     out_path = &alternate_out_path[0];
   }
