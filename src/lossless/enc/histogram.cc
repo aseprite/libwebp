@@ -157,15 +157,11 @@ void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v) {
     ++p->literal_[literal_ix];
   } else {
     int code, extra_bits_count, extra_bits_value;
-    BackwardLength::Encode(PixOrCopy_Length(&v),
-                           &code,
-                           &extra_bits_count,
-                           &extra_bits_value);
+    PrefixEncode(PixOrCopy_Length(&v),
+                 &code, &extra_bits_count, &extra_bits_value);
     ++p->literal_[256 + (1 << p->palette_code_bits_) + code];
-    BackwardDistance::Encode(PixOrCopy_Distance(&v),
-                             &code,
-                             &extra_bits_count,
-                             &extra_bits_value);
+    PrefixEncode(PixOrCopy_Distance(&v),
+                 &code, &extra_bits_count, &extra_bits_value);
     ++p->distance_[code];
   }
 }

@@ -324,20 +324,14 @@ struct CostModel {
 
   double LengthCost(uint32_t len) const {
     int code, extra_bits_count, extra_bits_value;
-    BackwardLength::Encode(len,
-                           &code,
-                           &extra_bits_count,
-                           &extra_bits_value);
+    PrefixEncode(len, &code, &extra_bits_count, &extra_bits_value);
     return literal_[VALUES_IN_BYTE + (1 << palette_bits_) + code] +
         extra_bits_count;
   }
 
   double DistanceCost(uint32_t distance) const {
     int code, extra_bits_count, extra_bits_value;
-    BackwardDistance::Encode(distance,
-                             &code,
-                             &extra_bits_count,
-                             &extra_bits_value);
+    PrefixEncode(distance, &code, &extra_bits_count, &extra_bits_value);
     return distance_[code] + extra_bits_count;
   }
 

@@ -351,7 +351,7 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
       WriteBits(n_bits, bits, bw);
 
       const int distance = PixOrCopy_Distance(&v);
-      BackwardDistance::Encode(distance, &code, &n_bits, &bits);
+      PrefixEncode(distance, &code, &n_bits, &bits);
       WriteBits(bitdepths[5 * histogram_ix + 4][code],
                 bit_symbols[5 * histogram_ix + 4][code], bw);
       WriteBits(n_bits, bits, bw);

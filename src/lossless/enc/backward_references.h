@@ -110,8 +110,7 @@ static inline uint32_t PixOrCopy_Distance(const PixOrCopy *p) {
 static inline void PixOrCopy_LengthCodeAndBits(
     const PixOrCopy *p, int *code, int *n_bits, int *bits) {
   assert(p->len >= 1 && p->len <= kMaxLength);
-  // Unlike flate, distance and length are encoded the same way.
-  BackwardLength::Encode(p->len, code, n_bits, bits);
+  PrefixEncode(p->len, code, n_bits, bits);
 }
 
 
@@ -146,7 +145,6 @@ void BackwardReferencesTraceBackwards(
     int palette_bits,
     PixOrCopy *stream,
     int *stream_size);
-
 
 // Convert backward references that are of linear distance along
 // the image scan lines to have a 2d locality indexing where

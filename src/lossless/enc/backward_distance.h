@@ -51,32 +51,25 @@ inline int BitsLog2Ceiling(uint32_t n) {
     return floor + 1;
 }
 
-
 // Splitting of distance and length codes into prefixes and
 // extra bits. The prefixes are encoded with an entropy code
 // while the extra bits are stored just as normal bits.
 //
 // This code allows for large window sizes, up to 32 bits
 // (16 GB for 4 byte pixels).
-class BackwardDistance {
- public:
-  static inline void Encode(
-      int distance,
-      int * __restrict code,
-      int * __restrict extra_bits_count,
-      int * __restrict extra_bits_value) {
-    const int highest_bit = BitsLog2Floor(--distance);
-    // & 0x3f is to make behavior well defined when highest_bit is -1 or 0.
-    const int second_highest_bit =
-        (distance >> ((highest_bit - 1) & 0x3f)) & 1;
-    *extra_bits_count = (highest_bit > 0) ? highest_bit - 1 : 0;
-    *extra_bits_value = distance & ((1 << *extra_bits_count) - 1);
-    *code = (highest_bit > 0) ? 2 * highest_bit + second_highest_bit :
-            (highest_bit == 0) ? 1 : 0;
-  }
-};
-
-// Same entropy code for length and distance.
-typedef BackwardDistance BackwardLength;
+static inline void PrefixEncode(
+    int distance,
+    int * __restrict code,
+    int * __restrict extra_bits_count,
+    int * __restrict extra_bits_value) {
+  const int highest_bit = BitsLog2Floor(--distance);
+  // & 0x3f is to make behavior well defined when highest_bit is -1 or 0.
+  const int second_highest_bit =
+      (distance >> ((highest_bit - 1) & 0x3f)) & 1;
+  *extra_bits_count = (highest_bit > 0) ? highest_bit - 1 : 0;
+  *extra_bits_value = distance & ((1 << *extra_bits_count) - 1);
+  *code = (highest_bit > 0) ? 2 * highest_bit + second_highest_bit :
+      (highest_bit == 0) ? 1 : 0;
+}
 
 #endif  // WEBP_BACKWARD_DISTANCE_H_
