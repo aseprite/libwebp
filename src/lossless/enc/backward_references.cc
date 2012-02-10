@@ -57,101 +57,104 @@ static const int kWindowSize = (1 << 20) - 120;  // A window with 1M pixels
                                                  // special codes for short
                                                  // distances.
 
+static inline uint64_t GetHash64(uint64_t num) {
+  num *= kHashMultiplier;
+  num >>= 64 - kHashBits;
+  return num;
+}
+
+static inline uint64_t GetPixPair(const uint32_t *argb) {
+  return ((uint64_t)(argb[1]) << 32) | argb[0];
+}
+
 typedef struct {
- public:
-  void Init(int size) {
-    chain_ = (int *)malloc(size * sizeof(*chain_));
-    for (int i = 0; i < size; ++i) {
-      chain_[i] = -1;
-    }
-    for (int i = 0; i < kHashSize; ++i) {
-      hash_to_first_index[i] = -1;
-    }
-  }
+  // Stores the most recently added position with the given hash value.
+  int32_t hash_to_first_index_[kHashSize];
+  // chain_[pos] stores the previous position with the same hash value
+  // for every pixel in the image.
+  int32_t *chain_;
+} VP8LHashChain;
 
-  void Delete() {
-    free(chain_);
+void VP8LHashChain_Init(VP8LHashChain *p, int size) {
+  p->chain_ = (int *)malloc(size * sizeof(*p->chain_));
+  for (int i = 0; i < size; ++i) {
+    p->chain_[i] = -1;
   }
-
-  void Insert(const uint32_t* argb, int32_t ix) {
-    // Insertion of two pixels at a time.
-    const uint64_t key = GetPixPair(argb);
-    const uint64_t hash_code = GetHash64(key);
-    chain_[ix] = hash_to_first_index[hash_code];
-    hash_to_first_index[hash_code] = ix;
+  for (int i = 0; i < kHashSize; ++i) {
+    p->hash_to_first_index_[i] = -1;
   }
+}
 
-  bool FindCopy(int index, int xsize, const uint32_t * __restrict argb,
-                int maxlen, int * __restrict offset, int * __restrict len) {
-    const uint64_t next_two_pixels = GetPixPair(&argb[index]);
-    const uint64_t hash_code = GetHash64(next_two_pixels);
-    *len = 0;
-    *offset = 0;
-    int prev_length = 0;
-    int64_t best_val = 0;
-    int give_up = 0;
-    const int min_pos = (index > kWindowSize) ? index - kWindowSize : 0;
-    for (int32_t pos = hash_to_first_index[hash_code];
-         pos >= min_pos;
-         pos = chain_[pos]) {
-      ++give_up;
-      if (give_up >= 101) {
-        if (give_up >= 1001 ||
-            best_val >= 0xff0000) {
-          break;
-        }
+void VP8LHashChain_Delete(VP8LHashChain *p) {
+  free(p->chain_);
+}
+
+void VP8LHashChain_Insert(VP8LHashChain *p, const uint32_t* argb, int32_t ix) {
+  // Insertion of two pixels at a time.
+  const uint64_t key = GetPixPair(argb);
+  const uint64_t hash_code = GetHash64(key);
+  p->chain_[ix] = p->hash_to_first_index_[hash_code];
+  p->hash_to_first_index_[hash_code] = ix;
+}
+
+bool VP8LHashChain_FindCopy(VP8LHashChain *p,
+                            int index, int xsize,
+                            const uint32_t * __restrict argb,
+                            int maxlen, int * __restrict offset,
+                            int * __restrict len) {
+  const uint64_t next_two_pixels = GetPixPair(&argb[index]);
+  const uint64_t hash_code = GetHash64(next_two_pixels);
+  int prev_length = 0;
+  int64_t best_val = 0;
+  int give_up = 0;
+  const int min_pos = (index > kWindowSize) ? index - kWindowSize : 0;
+  *len = 0;
+  *offset = 0;
+  for (int32_t pos = p->hash_to_first_index_[hash_code];
+       pos >= min_pos;
+       pos = p->chain_[pos]) {
+    ++give_up;
+    if (give_up >= 101) {
+      if (give_up >= 1001 ||
+          best_val >= 0xff0000) {
+        break;
       }
-      if (*len != 0 && argb[pos + *len - 1] != argb[index + *len - 1]) {
-        continue;
+    }
+    if (*len != 0 && argb[pos + *len - 1] != argb[index + *len - 1]) {
+      continue;
+    }
+    int64_t length = FindMatchLength(argb + pos, argb + index, maxlen);
+    int64_t val = 65536 * length;
+    int y = (index - pos) / xsize;
+    int x = (index - pos) % xsize;
+    // Favoring 2d locality here gives savings for certain images.
+    if (y < 8) {
+      if (x > xsize / 2) {
+        x = xsize - x;
       }
-      int64_t length = FindMatchLength(argb + pos, argb + index, maxlen);
-      int64_t val = 65536 * length;
-      int y = (index - pos) / xsize;
-      int x = (index - pos) % xsize;
-      // Favoring 2d locality here gives savings for certain images.
-      if (y < 8) {
-        if (x > xsize / 2) {
-          x = xsize - x;
-        }
-        if (x <= 7 && x >= -8) {
-          val -= y * y + x * x;
-        } else {
-          val -= 9 * 9 + 9 * 9;
-        }
+      if (x <= 7 && x >= -8) {
+        val -= y * y + x * x;
       } else {
         val -= 9 * 9 + 9 * 9;
       }
-      if (best_val < val) {
-        prev_length = length;
-        best_val = val;
-        *len = length;
-        *offset = index - pos;
-        if (length >= kMaxLength) {
-          return true;
-        }
-        if ((*offset == 1 || *offset == xsize) && *len >= 128) {
-          return true;
-        }
+    } else {
+      val -= 9 * 9 + 9 * 9;
+    }
+    if (best_val < val) {
+      prev_length = length;
+      best_val = val;
+      *len = length;
+      *offset = index - pos;
+      if (length >= kMaxLength) {
+        return true;
+      }
+      if ((*offset == 1 || *offset == xsize) && *len >= 128) {
+        return true;
       }
     }
-    return *len >= kMinLength;
   }
-
-  static inline uint64_t GetHash64(uint64_t num) {
-    num *= kHashMultiplier;
-    num >>= 64 - kHashBits;
-    return num;
-  }
-
-  static inline uint64_t GetPixPair(const uint32_t *argb) {
-    return ((uint64_t)(argb[1]) << 32) | argb[0];
-  }
-
-  int32_t hash_to_first_index[kHashSize];  // Stores the most recently added
-                                         // position with the given hash value.
-  int32_t *chain_;  // chain_[pos] stores the previous position with the same
-                    // hash value.
-} VP8LHashChain;
+  return *len >= kMinLength;
+}
 
 static inline void PushBackCopy(int distance, int length,
                                 LiteralOrCopy *stream,
@@ -193,7 +196,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   VP8LHashChain *hash_chain = new VP8LHashChain;
-  hash_chain->Init(pix_count);
+  VP8LHashChain_Init(hash_chain, pix_count);
   *stream_size = 0;
   for (int i = 0; i < pix_count; ) {
     // Alternative#1: Code the pixels starting at 'i' using backward reference.
@@ -205,10 +208,10 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       if (maxlen > kMaxLength) {
         maxlen = kMaxLength;
       }
-      hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
+      VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen, &offset, &len);
     }
     if (len >= kMinLength) {
-      hash_chain->Insert(&argb[i], i);
+      VP8LHashChain_Insert(hash_chain, &argb[i], i);
       // Alternative#2: Insert the pixel at 'i' as literal, and code the
       // pixels starting at 'i + 1' using backward reference.
       int offset2 = 0;
@@ -218,8 +221,8 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
         if (maxlen > kMaxLength) {
           maxlen = kMaxLength;
         }
-        hash_chain->FindCopy(i + 1, xsize, argb, maxlen, &offset2,
-                             &len2);
+        VP8LHashChain_FindCopy(hash_chain, i + 1, xsize, argb, maxlen, &offset2,
+                               &len2);
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
           if (use_palette &&
@@ -245,7 +248,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
         VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (k != 0 && i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
-          hash_chain->Insert(&argb[i + k], i + k);
+          VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
         }
       }
       i += len;
@@ -260,12 +263,12 @@ void BackwardReferencesHashChain(int xsize, int ysize, bool use_palette,
       ++(*stream_size);
       VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
       if (i + 1 < pix_count) {
-        hash_chain->Insert(&argb[i], i);
+        VP8LHashChain_Insert(hash_chain, &argb[i], i);
       }
       ++i;
     }
   }
-  hash_chain->Delete();
+  VP8LHashChain_Delete(hash_chain);
   delete hash_chain;
   VP8LPixelHasherLineDelete(&hashers);
 }
@@ -368,7 +371,7 @@ void BackwardReferencesHashChainDistanceOnly(
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   VP8LHashChain *hash_chain = new VP8LHashChain;
-  hash_chain->Init(pix_count);
+  VP8LHashChain_Init(hash_chain, pix_count);
   // We loop one pixel at a time, but store all currently best points to
   // non-processed locations from this point.
   dist_array[0] = 0;
@@ -386,7 +389,8 @@ void BackwardReferencesHashChainDistanceOnly(
         if (maxlen > pix_count - i) {
           maxlen = pix_count - i;
         }
-        hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
+        VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen,
+                               &offset, &len);
       }
       if (len >= kMinLength) {
         const int code = DistanceToPlaneCode(xsize, ysize, offset);
@@ -409,7 +413,7 @@ void BackwardReferencesHashChainDistanceOnly(
             VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
             if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
-              hash_chain->Insert(&argb[i + k], i + k);
+              VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
             }
           }
           // 2) jump.
@@ -419,7 +423,7 @@ void BackwardReferencesHashChainDistanceOnly(
       }
     }
     if (i < pix_count - 1) {
-      hash_chain->Insert(&argb[i], i);
+      VP8LHashChain_Insert(hash_chain, &argb[i], i);
     }
     {
       // inserting a literal pixel
@@ -447,7 +451,7 @@ void BackwardReferencesHashChainDistanceOnly(
   }
   // Last pixel still to do, it can only be a single step if not reached
   // through cheaper means already.
-  hash_chain->Delete();
+  VP8LHashChain_Delete(hash_chain);
   delete hash_chain;
   delete cost_model;
   free(cost);
@@ -492,7 +496,7 @@ void BackwardReferencesHashChainFollowChosenPath(
   VP8LPixelHasherLineInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   VP8LHashChain *hash_chain = new VP8LHashChain;
-  hash_chain->Init(pix_count);
+  VP8LHashChain_Init(hash_chain, pix_count);
   int i = 0;
   *stream_size = 0;
   for (int ix = 0; ix < chosen_path_size; ++ix) {
@@ -500,7 +504,7 @@ void BackwardReferencesHashChainFollowChosenPath(
     int len = 0;
     int maxlen = chosen_path[ix];
     if (maxlen != 1) {
-      hash_chain->FindCopy(i, xsize, argb, maxlen, &offset, &len);
+      VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen, &offset, &len);
       assert(len == maxlen);
       stream[*stream_size] = LiteralOrCopy::CreateCopy(offset, len);
       ++(*stream_size);
@@ -508,7 +512,7 @@ void BackwardReferencesHashChainFollowChosenPath(
         VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
-          hash_chain->Insert(&argb[i + k], i + k);
+          VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
         }
       }
       i += len;
@@ -525,12 +529,12 @@ void BackwardReferencesHashChainFollowChosenPath(
       ++(*stream_size);
       VP8LPixelHasherLineInsert(&hashers, i % xsize, argb[i]);
       if (i + 1 < pix_count) {
-        hash_chain->Insert(&argb[i], i);
+        VP8LHashChain_Insert(hash_chain, &argb[i], i);
       }
       ++i;
     }
   }
-  hash_chain->Delete();
+  VP8LHashChain_Delete(hash_chain);
   delete hash_chain;
   VP8LPixelHasherLineDelete(&hashers);
 }
