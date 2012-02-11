@@ -719,7 +719,7 @@ static void HelpLong(void) {
   printf("  -alpha_filter <string> . predictive filtering for alpha plane.\n");
   printf("                           One of: none, fast (default) or best.\n");
   printf("  -alpha_cleanup ......... Clean RGB values in transparent area.\n");
-  printf("  -noalpha ............... discard any transparency information.\n");
+  printf("  -alpha ................. preserve any transparency information.\n");
 
   printf("\n");
   printf("  -short ................. condense printed message\n");
@@ -768,7 +768,7 @@ int main(int argc, const char *argv[]) {
   int c;
   int short_output = 0;
   int quiet = 0;
-  int keep_alpha = 1;
+  int keep_alpha = 0;
   int crop = 0, crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
   int resize_w = 0, resize_h = 0;
   int show_progress = 0;
@@ -836,8 +836,8 @@ int main(int argc, const char *argv[]) {
         fprintf(stderr, "Error! Unrecognized alpha filter: %s\n", argv[c]);
         goto Error;
       }
-    } else if (!strcmp(argv[c], "-noalpha")) {
-      keep_alpha = 0;
+    } else if (!strcmp(argv[c], "-alpha")) {
+      keep_alpha = 1;
     } else if (!strcmp(argv[c], "-size") && c < argc - 1) {
       config.target_size = strtol(argv[++c], NULL, 0);
     } else if (!strcmp(argv[c], "-psnr") && c < argc - 1) {
