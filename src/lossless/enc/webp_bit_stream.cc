@@ -42,7 +42,7 @@ static void PutRiffHeader(uint8_t *bytes, size_t webpll_size) {
 }
 
 // Heuristics for selecting the stride ranges to collapse.
-bool ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
+int ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
   return abs(a - b) < 4;
 }
 
@@ -54,6 +54,7 @@ bool ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
 // data contains the population counts.
 void OptimizeHuffmanForRle(int length, int *counts) {
   // Let's make the Huffman code more compatible with rle encoding.
+  int i;
   for (; length >= 0; --length) {
     if (length == 0) {
       return;
@@ -73,12 +74,13 @@ void OptimizeHuffmanForRle(int length, int *counts) {
     // Mark any seq of non-0's that is longer as 7 as a good_for_rle.
     int symbol = counts[0];
     int stride = 0;
-    for (int i = 0; i < length + 1; ++i) {
+    for (i = 0; i < length + 1; ++i) {
       if (i == length || counts[i] != symbol) {
         if ((symbol == 0 && stride >= 5) ||
             (symbol != 0 && stride >= 7)) {
-          for (int k = 0; k < stride; ++k) {
-            good_for_rle[i - k - 1] = true;
+          int k;
+          for (k = 0; k < stride; ++k) {
+            good_for_rle[i - k - 1] = 1;
           }
         }
         stride = 1;
@@ -94,11 +96,12 @@ void OptimizeHuffmanForRle(int length, int *counts) {
   int stride = 0;
   int limit = counts[0];
   int sum = 0;
-  for (int i = 0; i < length + 1; ++i) {
+  for (i = 0; i < length + 1; ++i) {
     if (i == length || good_for_rle[i] ||
         (i != 0 && good_for_rle[i - 1]) ||
         !ValuesShouldBeCollapsedToStrideAverage(stride, counts[i], limit)) {
       if (stride >= 4 || (stride >= 3 && sum == 0)) {
+        int k;
         // The stride must end, collapse what we have, if we have enough (4).
         int count = (sum + stride / 2) / stride;
         if (count < 1) {
@@ -108,7 +111,7 @@ void OptimizeHuffmanForRle(int length, int *counts) {
           // Don't make an all zeros stride to be upgraded to ones.
           count = 0;
         }
-        for (int k = 0; k < stride; ++k) {
+        for (k = 0; k < stride; ++k) {
           // We don't want to change value at counts[i],
           // that is already belonging to the next stride. Thus - 1.
           counts[i - k - 1] = count;
@@ -142,11 +145,12 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
                                      uint8_t* lengths,
                                      uint16_t* symbols) {
   int count = 0;
-  for (int k = 0; k < num_symbols; ++k) {
+  int k;
+  for (k = 0; k < num_symbols; ++k) {
     if (lengths[k] != 0) ++count;
   }
   if (count == 1) {
-    for (int k = 0; k < num_symbols; ++k) {
+    for (k = 0; k < num_symbols; ++k) {
       lengths[k] = 0;
       symbols[k] = 0;
     }
@@ -154,25 +158,26 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
 }
 
 void PackLiteralBitLengths(const uint8_t* bit_lengths,
-                           int palette_bits, bool use_palette,
+                           int palette_bits, int use_palette,
                            int *new_length_size,
                            uint8_t** new_lengths) {
+  int i;
   *new_length_size = 256 + kLengthCodes;
   if (use_palette) {
     *new_length_size += 1 << palette_bits;
   }
   *new_lengths = (uint8_t*)malloc(*new_length_size);
-  for (int i = 0; i < 256; ++i) {
+  for (i = 0; i < 256; ++i) {
     (*new_lengths)[i] = bit_lengths[i];
   }
   int length_code_offset = 256;
   if (use_palette) {
-    for (int i = 0; i < (1 << palette_bits); ++i) {
+    for (i = 0; i < (1 << palette_bits); ++i) {
       (*new_lengths)[256 + i] = bit_lengths[256 + i];
     }
     length_code_offset += 1 << palette_bits;
   }
-  for (int i = 0; i < kLengthCodes; ++i) {
+  for (i = 0; i < kLengthCodes; ++i) {
     (*new_lengths)[length_code_offset + i] =
         bit_lengths[256 + (1 << palette_bits) + i];
   }
@@ -183,7 +188,8 @@ void StoreHuffmanTreeOfHuffmanTreeToBitMask(
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
   // and more spiking histograms.
-  static const uint8_t kStorageOrder[kCodeLengthCodes] = {
+  int i;
+  static const uint8_t kStorageOrder[CODE_LENGTH_CODES] = {
     17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
   };
   // Throw away trailing zeros:
@@ -195,7 +201,7 @@ void StoreHuffmanTreeOfHuffmanTreeToBitMask(
   }
   // How many code length codes we write above the first four (see RFC 1951).
   WriteBits(4, codes_to_store - 4, bw);
-  for (uint32_t i = 0; i < codes_to_store; ++i) {
+  for (i = 0; i < codes_to_store; ++i) {
     WriteBits(3, code_length_bitdepth[kStorageOrder[i]], bw);
   }
 }
@@ -207,7 +213,8 @@ void StoreHuffmanTreeToBitMask(
     const uint8_t *code_length_bitdepth,
     const uint16_t *code_length_bitdepth_symbols,
     BitWriter* const bw) {
-  for (uint32_t i = 0; i < num_symbols; ++i) {
+  int i;
+  for (i = 0; i < num_symbols; ++i) {
     int ix = huffman_tree[i];
     WriteBits(code_length_bitdepth[ix], code_length_bitdepth_symbols[ix], bw);
     switch (ix) {
@@ -227,8 +234,9 @@ void StoreHuffmanTreeToBitMask(
 void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                       BitWriter* const bw) {
   int count = 0;
-  int symbols[2] = { 0 };
-  for (int i = 0; i < bit_lengths_size; ++i) {
+  int symbols[2] = { 0, 0 };
+  int i;
+  for (i = 0; i < bit_lengths_size; ++i) {
     if (bit_lengths[i] != 0) {
       if (count < 2) symbols[count] = i;
       ++count;
@@ -245,7 +253,7 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     int num_bits = 4;
     while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
     WriteBits(3, (num_bits - 4) / 2 + 1, bw);
-    for (int i = 0; i < count; ++i) {
+    for (i = 0; i < count; ++i) {
       WriteBits(num_bits, symbols[i], bw);
     }
     return;
@@ -260,24 +268,28 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                               &huffman_tree[0],
                               &huffman_tree_extra_bits[0]);
 
-  int huffman_tree_histogram[kCodeLengthCodes] = { 0 };
-  for (int i = 0; i < huffman_tree_size; ++i) {
+  int huffman_tree_histogram[CODE_LENGTH_CODES];
+  memset(&huffman_tree_histogram[0], 0, sizeof(huffman_tree_histogram));
+  for (i = 0; i < huffman_tree_size; ++i) {
     ++huffman_tree_histogram[huffman_tree[i]];
   }
-  uint8_t code_length_bitdepth[kCodeLengthCodes] = { 0 };
-  uint16_t code_length_bitdepth_symbols[kCodeLengthCodes] = { 0 };
-  CreateHuffmanTree(&huffman_tree_histogram[0], kCodeLengthCodes,
+  uint8_t code_length_bitdepth[CODE_LENGTH_CODES];
+  memset(&code_length_bitdepth[0], 0, sizeof(code_length_bitdepth));
+  uint16_t code_length_bitdepth_symbols[CODE_LENGTH_CODES];
+  memset(&code_length_bitdepth_symbols[0], 0,
+         sizeof(code_length_bitdepth_symbols));
+  CreateHuffmanTree(&huffman_tree_histogram[0], CODE_LENGTH_CODES,
                     7, &code_length_bitdepth[0]);
-  ConvertBitDepthsToSymbols(&code_length_bitdepth[0], kCodeLengthCodes,
+  ConvertBitDepthsToSymbols(&code_length_bitdepth[0], CODE_LENGTH_CODES,
                             &code_length_bitdepth_symbols[0]);
   StoreHuffmanTreeOfHuffmanTreeToBitMask(code_length_bitdepth,
                                          bw);
-  ClearHuffmanTreeIfOnlyOneSymbol(kCodeLengthCodes,
+  ClearHuffmanTreeIfOnlyOneSymbol(CODE_LENGTH_CODES,
                                   &code_length_bitdepth[0],
                                   &code_length_bitdepth_symbols[0]);
   int num_trailing_zeros = 0;
   int trailing_zero_bits = 0;
-  for (int i = huffman_tree_size; i > 0; --i) {
+  for (i = huffman_tree_size; i > 0; --i) {
     int ix = huffman_tree[i - 1];
     if (ix == 0 || ix == 17 || ix == 18) {
       ++num_trailing_zeros;
@@ -289,7 +301,7 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     }
   }
   const int trimmed_length = huffman_tree_size - num_trailing_zeros;
-  const bool write_length = (trimmed_length > 1 && trailing_zero_bits > 12);
+  const int write_length = (trimmed_length > 1 && trailing_zero_bits > 12);
   const int length = write_length ? trimmed_length : huffman_tree_size;
   WriteBits(1, write_length, bw);
   if (write_length) {
@@ -322,8 +334,9 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
   // x and y trace the position in the image.
   int x = 0;
   int y = 0;
-  for (int i = 0; i < literals_size; ++i) {
-    const PixOrCopy &v = literals[i];
+  int i;
+  for (i = 0; i < literals_size; ++i) {
+    const PixOrCopy v = literals[i];
     int histogram_ix = histogram_symbols[histo_bits ?
                                         (y >> histo_bits) * histo_xsize +
                                         (x >> histo_bits) : 0];
@@ -333,11 +346,12 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
       WriteBits(bitdepths[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix], bw);
     } else if (PixOrCopy_IsLiteral(&v)) {
-      int order[] = {1, 2, 0, 3};
-      for (int i = 0; i < 4; ++i) {
-        const int code = PixOrCopy_Literal(&v, order[i]);
-        WriteBits(bitdepths[5 * histogram_ix + i][code],
-                  bit_symbols[5 * histogram_ix + i][code], bw);
+      static const int order[] = {1, 2, 0, 3};
+      int k;
+      for (k = 0; k < 4; ++k) {
+        const int code = PixOrCopy_Literal(&v, order[k]);
+        WriteBits(bitdepths[5 * histogram_ix + k][code],
+                  bit_symbols[5 * histogram_ix + k][code], bw);
       }
     } else {
       int code;
@@ -364,7 +378,8 @@ void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
 }
 
 void ShiftHistogramImage(int image_size, uint32_t* image) {
-  for (int i = 0; i < image_size; ++i) {
+  int i;
+  for (i = 0; i < image_size; ++i) {
     image[i] <<= 8;
     image[i] |= 0xff000000;
   }
@@ -372,7 +387,8 @@ void ShiftHistogramImage(int image_size, uint32_t* image) {
 
 int NumberOfUsedRBAComponents(int image_size, uint32_t* argb) {
   int num = 0;
-  for (int i = 0; i < image_size && num < 3; ++i) {
+  int i;
+  for (i = 0; i < image_size && num < 3; ++i) {
     if (((argb[i] >> 24) & 0xff) != 0xff) return 3;
     if ((argb[i] & 0xff) != 0 && num < 2) num = 2;
     if (((argb[i] >> 16) & 0xff) != 0 && num < 1) num = 1;
@@ -392,9 +408,9 @@ static int Uint32Order(const void *p1, const void *p2) {
   return 1;
 }
 
-bool CreatePalette256(int n, const uint32_t *argb,
-                      int* palette_size,
-                      uint32_t* palette) {
+int CreatePalette256(int n, const uint32_t *argb,
+                     int* palette_size,
+                     uint32_t* palette) {
   int i;
   const int max_palette_size = 256;
   int current_size = 0;
@@ -413,7 +429,7 @@ bool CreatePalette256(int n, const uint32_t *argb,
         in_use[addr] = 1;
         ++current_size;
         if (current_size > max_palette_size) {
-          return false;
+          return 0;
         }
         break;
       } else if (colors[addr] == argb[i]) {
@@ -435,7 +451,7 @@ bool CreatePalette256(int n, const uint32_t *argb,
     }
   }
   qsort(&palette[0], *palette_size, sizeof(palette[0]), Uint32Order);
-  return true;
+  return 1;
 }
 
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
@@ -445,10 +461,12 @@ int BundlePixels(int xsize, int ysize, int xbits,
                  uint32_t** to_argb) {
   const int bit_depth = 1 << (3 - xbits);
   const int xs = MetaSize(xsize, xbits);
+  int y;
+  int x;
   *to_argb = (uint32_t *)malloc(xs * ysize * sizeof((*to_argb)[0]));
-  for (int y = 0; y < ysize; ++y) {
+  for (y = 0; y < ysize; ++y) {
     uint32_t code;
-    for (int x = 0; x < xsize; ++x) {
+    for (x = 0; x < xsize; ++x) {
       const int xsub = x & ((1 << xbits) - 1);
       if (xsub == 0) {
         code = 0;
@@ -471,7 +489,7 @@ static void DeleteHistograms(int size, Histogram** histograms) {
 static void GetBackwardReferences(int xsize, int ysize,
                                   const uint32_t* argb,
                                   int quality, int use_palette,
-                                  int palette_bits, bool use_2d_locality,
+                                  int palette_bits, int use_2d_locality,
                                   int *backward_refs_size,
                                   PixOrCopy** backward_refs) {
   // Backward Reference using LZ77.
@@ -497,7 +515,7 @@ static void GetBackwardReferences(int xsize, int ysize,
                   &backward_refs_rle_only[0], backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
-  const bool lz77_is_useful =
+  const int lz77_is_useful =
       (Histogram_EstimateBits(histo_rle) > Histogram_EstimateBits(histo_lz77));
   free(histo_rle);
   free(histo_lz77);
@@ -539,7 +557,7 @@ static void GetHistImageSymbols(int xsize, int ysize,
                                 PixOrCopy* backward_refs,
                                 int backward_refs_size,
                                 int quality, int histogram_bits,
-                                int palette_bits, bool use_2d_locality,
+                                int palette_bits, int use_2d_locality,
                                 int *histogram_image_size,
                                 Histogram*** histogram_image,
                                 uint32_t* histogram_symbols) {
@@ -581,7 +599,9 @@ static void GetHuffBitLengthsAndCodes(
     int **bit_length_sizes,
     uint8_t*** bit_lengths,
     uint16_t*** bit_codes) {
-  for (int i = 0; i < histogram_image_size; ++i) {
+  int i;
+  int k;
+  for (i = 0; i < histogram_image_size; ++i) {
     const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
     (*bit_lengths)[5 * i] = (uint8_t *)calloc(lit_len, 1);
@@ -604,7 +624,7 @@ static void GetHuffBitLengthsAndCodes(
     // Create a Huffman tree (in the form of bit lengths) for each component.
     CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
                       (*bit_lengths)[5 * i]);
-    for (int k = 1; k < 5; ++k) {
+    for (k = 1; k < 5; ++k) {
       int val = 256;
       if (k == 4) {
         val = kDistanceCodes;
@@ -622,7 +642,7 @@ static void GetHuffBitLengthsAndCodes(
     CreateHuffmanTree(histogram_image[i]->distance_, kDistanceCodes, 15,
                       (*bit_lengths)[5 * i + 4]);
     // Create the actual bit codes for the bit lengths.
-    for (int k = 0; k < 5; ++k) {
+    for (k = 0; k < 5; ++k) {
       int ix = 5 * i + k;
       ConvertBitDepthsToSymbols((*bit_lengths)[ix], (*bit_length_sizes)[ix],
                                 (*bit_codes)[ix]);
@@ -633,7 +653,8 @@ static void GetHuffBitLengthsAndCodes(
 static void EncodeImageInternal(int xsize, int ysize,
                                 const uint32_t *argb, int quality,
                                 int palette_bits, int histogram_bits,
-                                bool use_2d_locality, BitWriter *bw) {
+                                int use_2d_locality, BitWriter *bw) {
+  int i;
   const int use_palette = palette_bits ? 1 : 0;
 
   // Calculate backward references from ARGB image.
@@ -673,7 +694,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   WriteBits(1, 0, bw);
 
   // Huffman image + meta huffman.
-  const bool write_histogram_image = (histogram_image_size > 1);
+  const int write_histogram_image = (histogram_image_size > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
     uint32_t* histogram_argb = (uint32_t*)
@@ -689,7 +710,7 @@ static void EncodeImageInternal(int xsize, int ysize,
                         quality,
                         0,
                         0,      // no histogram bits
-                        true,   // use_2d_locality
+                        1,   // use_2d_locality
                         bw);
     const int image_size_bits = BitsLog2Ceiling(histogram_image_size - 1);
     WriteBits(4, image_size_bits, bw);
@@ -697,7 +718,7 @@ static void EncodeImageInternal(int xsize, int ysize,
     const int num_histograms = 5 * histogram_image_size;
     int nbits = BitsLog2Ceiling(num_histograms);
     WriteBits(4, nbits, bw);
-    for (int i = 0; i < num_histograms; ++i) {
+    for (i = 0; i < num_histograms; ++i) {
       WriteBits(nbits, i, bw);
     }
   }
@@ -710,14 +731,15 @@ static void EncodeImageInternal(int xsize, int ysize,
   }
 
   // Store Huffman codes.
-  for (int i = 0; i < histogram_image_size; ++i) {
+  for (i = 0; i < histogram_image_size; ++i) {
+    int k;
     int literal_lengths_size;
     uint8_t* literal_lengths;
     PackLiteralBitLengths(&bit_lengths[5 * i][0], palette_bits, use_palette,
                           &literal_lengths_size, &literal_lengths);
     StoreHuffmanCode(literal_lengths, literal_lengths_size, bw);
     free(literal_lengths);
-    for (int k = 1; k < 5; ++k) {
+    for (k = 1; k < 5; ++k) {
       StoreHuffmanCode(&bit_lengths[5 * i + k][0],
                        bit_lengths_sizes[5 * i + k], bw);
     }
@@ -728,7 +750,7 @@ static void EncodeImageInternal(int xsize, int ysize,
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
-  for (int i = 0; i < 5 * histogram_image_size; ++i) {
+  for (i = 0; i < 5 * histogram_image_size; ++i) {
     ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths_sizes[i], &bit_lengths[i][0],
                                     &bit_codes[i][0]);
   }
@@ -736,7 +758,7 @@ static void EncodeImageInternal(int xsize, int ysize,
   StoreImageToBitMask(xsize, ysize, histogram_bits, palette_bits,
                       backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
-  for (int i = 0; i < 5 * histogram_image_size; ++i) {
+  for (i = 0; i < 5 * histogram_image_size; ++i) {
     free(bit_lengths[i]);
     free(bit_codes[i]);
   }
@@ -756,6 +778,7 @@ inline void WriteImageSize(uint32_t xsize, uint32_t ysize, BitWriter *bw) {
 int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                       EncodingStrategy *strategy,
                       size_t *num_bytes, uint8_t **bytes) {
+  int i;
   const int quality = strategy->quality;
   //  const int use_lz77 = strategy->use_lz77;
   int palette_bits = strategy->palette_bits;
@@ -765,13 +788,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   const int histogram_bits = strategy->histogram_bits;
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
-  bool use_emerging_palette = true;
+  int use_emerging_palette = 1;
   uint32_t* argb = (uint32_t *)malloc(xsize * ysize * sizeof(uint32_t));
   memcpy(argb, argb_orig, xsize * ysize * sizeof(uint32_t));
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
 
   BitWriter bw;
-  if (!BitWriterInit(&bw, kEstmatedEncodeSize)) return false;
+  if (!BitWriterInit(&bw, kEstmatedEncodeSize)) return 0;
 
   // Write image size.
   WriteImageSize(xsize, ysize, &bw);
@@ -779,13 +802,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   if (!use_small_palette) {
     Histogram *before = (Histogram *)malloc(sizeof(Histogram));
     Histogram_Init(before, 1);
-    for (int i = 0; i < xsize * ysize; ++i) {
+    for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
     Histogram *after = (Histogram *)malloc(sizeof(Histogram));
     Histogram_Init(after, 1);
-    for (int i = 0; i < xsize * ysize; ++i) {
+    for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
     }
     if (Histogram_EstimateBits(after) < Histogram_EstimateBits(before)) {
@@ -803,8 +826,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   uint32_t palette[256];
   if (use_small_palette &&
       CreatePalette256(xsize * ysize, &argb[0], &palette_size, &palette[0])) {
-    for (int i = 0; i < xsize * ysize; ++i) {
-      for (int k = 0; k < palette_size; ++k) {
+    for (i = 0; i < xsize * ysize; ++i) {
+      int k;
+      for (k = 0; k < palette_size; ++k) {
         if (argb[i] == palette[k]) {
           argb[i] = 0xff000000 | (k << 8);
           break;
@@ -814,11 +838,11 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     WriteBits(1, 1, &bw);
     WriteBits(3, 3, &bw);
     WriteBits(8, palette_size - 1, &bw);
-    for (int i = palette_size - 1; i >= 1; --i) {
+    for (i = palette_size - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
     }
-    EncodeImageInternal(palette_size, 1, &palette[0], quality, 0, 0, true, &bw);
-    use_emerging_palette = false;
+    EncodeImageInternal(palette_size, 1, &palette[0], quality, 0, 0, 1, &bw);
+    use_emerging_palette = 0;
     if (palette_size <= 16) {
       int xbits = 1;
       if (palette_size <= 2) {
@@ -858,7 +882,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                         quality,
                         0,
                         0,      // no histogram bits
-                        true,   // use_2d_locality
+                        1,   // use_2d_locality
                         &bw);
     free(from_argb);
     free(predictor_image);
@@ -884,7 +908,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                         quality,
                         0,
                         0,      // no histogram bits
-                        true,   // use_2d_locality
+                        1,   // use_2d_locality
                         &bw);
     free(color_space_image);
   }
@@ -902,7 +926,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                       quality,
                       palette_bits,
                       histogram_bits,
-                      true,   // use_2d_locality
+                      1,   // use_2d_locality
                       &bw);
 
   free(argb);
@@ -915,10 +939,10 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   // writen to BitWriter in the begining and BitWriter's buffer can be owned
   // and passed back instead.
   *bytes = (uint8_t *)malloc(*num_bytes);
-  if (*bytes == NULL) return false;
+  if (*bytes == NULL) return 0;
   PutRiffHeader(*bytes, webpll_size);
   memcpy(*bytes + HEADER_SIZE + SIGNATURE_SIZE, webpll_data, webpll_size);
   BitWriterDestroy(&bw);
 
-  return true;
+  return 1;
 }
