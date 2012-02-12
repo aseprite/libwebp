@@ -16,6 +16,10 @@
 #include "histogram.h"
 #include "../common/integral_types.h"
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 void BuildHistogramImage(int xsize, int ysize,
                          int histobits,
                          int palette_bits,
@@ -38,5 +42,9 @@ void RefineHistogramImage(Histogram **raw,
                           int out_size,
                           Histogram **out);
 
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_HISTOGRAM_IMAGE_H_

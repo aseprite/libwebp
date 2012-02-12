@@ -15,8 +15,6 @@
 #include "backward_references.h"
 #include "../common/integral_types.h"
 
-namespace {
-
 // A lookup table for small values of log(int) to be used in entropy
 // computation.
 //
@@ -111,21 +109,20 @@ static const float kLogTable[] = {
 };
 
 // Faster logarithm for small integers, with the property of log(0) == 0.
-inline double FastLog(int v) {
+static inline double FastLog(int v) {
   if (v < sizeof(kLogTable) / sizeof(kLogTable[0])) {
     return kLogTable[v];
   }
   return log(v);
 }
 
-}  // namespace
-
 void ConvertPopulationCountTableToBitEstimates(int num_symbols,
                                                const int *population_counts,
                                                double *output) {
   int sum = 0;
   int nonzeros = 0;
-  for (int i = 0; i < num_symbols; ++i) {
+  int i;
+  for (i = 0; i < num_symbols; ++i) {
     sum += population_counts[i];
     if (population_counts[i] > 0) {
       ++nonzeros;
@@ -136,7 +133,7 @@ void ConvertPopulationCountTableToBitEstimates(int num_symbols,
     return;
   }
   const double log2sum = log2(sum);
-  for (int i = 0; i < num_symbols; ++i) {
+  for (i = 0; i < num_symbols; ++i) {
     if (population_counts[i] == 0) {
       output[i] = log2sum;
     } else {
@@ -168,8 +165,9 @@ void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v) {
 void Histogram_Build(Histogram *p,
                      const PixOrCopy *literal_and_length,
                      int n_literal_and_length) {
+  int i;
   Histogram_Clear(p);
-  for (int i = 0; i < n_literal_and_length; ++i) {
+  for (i = 0; i < n_literal_and_length; ++i) {
     Histogram_AddSinglePixOrCopy(p, literal_and_length[i]);
   }
 }
@@ -179,7 +177,8 @@ double BitsEntropy(const int *array, int n) {
   int sum = 0;
   int nonzeros = 0;
   int max_val = 0;
-  for (int i = 0; i < n; ++i) {
+  int i;
+  for (i = 0; i < n; ++i) {
     if (array[i] != 0) {
       sum += array[i];
       ++nonzeros;
@@ -228,11 +227,12 @@ double Histogram_EstimateBitsBulk(const Histogram * const p) {
       BitsEntropy(&p->alpha_[0], 256) +
       BitsEntropy(&p->distance_[0], kDistanceCodes);
   // Compute the extra bits cost.
-  for (size_t i = 2; i < kLengthCodes - 2; ++i) {
+  size_t i;
+  for (i = 2; i < kLengthCodes - 2; ++i) {
     retval +=
         (i >> 1) * p->literal_[256 + (1 << p->palette_code_bits_) + i + 2];
   }
-  for (size_t i = 2; i < kDistanceCodes - 2; ++i) {
+  for (i = 2; i < kDistanceCodes - 2; ++i) {
     retval += (i >> 1) * p->distance_[i + 2];
   }
   return retval;
@@ -248,7 +248,7 @@ double Histogram_EstimateBits(const Histogram * const p) {
 double HuffmanCost(const int *population, int length) {
   // Small bias because Huffman code length is typically not stored in
   // full length.
-  static const int kHuffmanCodeOfHuffmanCodeSize = kCodeLengthCodes * 3;
+  static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
   static const double kSmallBias = 9.1;
   double retval = kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
   int streak = 0;

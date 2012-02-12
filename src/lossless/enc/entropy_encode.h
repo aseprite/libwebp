@@ -14,6 +14,10 @@
 
 #include <stdint.h>
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 // This function will create a Huffman tree.
 //
 // The (data,length) contains the population counts.
@@ -38,5 +42,9 @@ void CreateCompressedHuffmanTree(const uint8_t *depth, int len,
 
 // Get the actual bit values for a tree of bit depths.
 void ConvertBitDepthsToSymbols(const uint8_t *depth, int len, uint16_t *bits);
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_ENTROPY_ENCODE_H_

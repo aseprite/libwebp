@@ -15,17 +15,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-namespace {
-
-struct HuffmanTree {
+typedef struct {
   int total_count_;
   int value_;
   int pool_index_left_;
   int pool_index_right_;
-};
+} HuffmanTree;
 
 // Sort the root nodes, most popular first.
-int CompHuffmanTree(const void *vp0, const void *vp1) {
+static int CompHuffmanTree(const void *vp0, const void *vp1) {
   const HuffmanTree *v0 = (const HuffmanTree *)vp0;
   const HuffmanTree *v1 = (const HuffmanTree *)vp1;
   if (v0->total_count_ > v1->total_count_) {
@@ -43,19 +41,17 @@ int CompHuffmanTree(const void *vp0, const void *vp1) {
   }
 }
 
-void SetDepth(const HuffmanTree &p,
-              HuffmanTree *pool,
-              uint8_t *depth,
-              const int level) {
-  if (p.pool_index_left_ >= 0) {
-    SetDepth(pool[p.pool_index_left_], pool, depth, level + 1);
-    SetDepth(pool[p.pool_index_right_], pool, depth, level + 1);
+static void SetDepth(const HuffmanTree *p,
+                     HuffmanTree *pool,
+                     uint8_t *depth,
+                     const int level) {
+  if (p->pool_index_left_ >= 0) {
+    SetDepth(&pool[p->pool_index_left_], pool, depth, level + 1);
+    SetDepth(&pool[p->pool_index_right_], pool, depth, level + 1);
   } else {
-    depth[p.value_] = level;
+    depth[p->value_] = level;
   }
 }
-
-}  // namespace
 
 // This function will create a Huffman tree.
 //
@@ -79,9 +75,11 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
   // second iteration of this loop.
   // If we actually start running inside this loop a lot, we would perhaps
   // be better off with the Katajainen algorithm.
-  for (int count_limit = 1; ; count_limit *= 2) {
+  int count_limit;
+  for (count_limit = 1; ; count_limit *= 2) {
     int tree_size = 0;
-    for (int i = 0; i < histogram_size; ++i) {
+    int i;
+    for (i = 0; i < histogram_size; ++i) {
       if (histogram[i]) {
         ++tree_size;
       }
@@ -94,7 +92,8 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
         (HuffmanTree *)malloc(3 * tree_size * sizeof(HuffmanTree));
     {
       int j = 0;
-      for (int i = 0; i < histogram_size; ++i) {
+      int i;
+      for (i = 0; i < histogram_size; ++i) {
         if (histogram[i]) {
           const int count =
               (histogram[i] < count_limit) ? count_limit : histogram[i];
@@ -138,7 +137,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
           tree_size = tree_size + 1;
         }
       }
-      SetDepth(tree[0], tree_pool, bit_depths, 0);
+      SetDepth(&tree[0], tree_pool, bit_depths, 0);
     } else {
       if (tree_size == 1) {
         // Only one element.
@@ -151,7 +150,8 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
     // and retry.
     {
       int max_depth = bit_depths[0];
-      for (int j = 1; j < histogram_size; ++j) {
+      int j;
+      for (j = 1; j < histogram_size; ++j) {
         if (max_depth < bit_depths[j]) {
           max_depth = bit_depths[j];
         }
@@ -178,7 +178,8 @@ void WriteHuffmanTreeRepetitions(
   }
   while (repetitions >= 1) {
     if (repetitions < 3) {
-      for (int i = 0; i < repetitions; ++i) {
+      int i;
+      for (i = 0; i < repetitions; ++i) {
         tree[*num_symbols] = value;
         extra_bits_data[*num_symbols] = 0;
         ++(*num_symbols);
@@ -207,7 +208,8 @@ void WriteHuffmanTreeRepetitionsZeros(
     uint8_t *extra_bits_data) {
   while (repetitions >= 1) {
     if (repetitions < 3) {
-      for (int i = 0; i < repetitions; ++i) {
+      int i;
+      for (i = 0; i < repetitions; ++i) {
         tree[*num_symbols] = value;
         extra_bits_data[*num_symbols] = 0;
         ++(*num_symbols);
@@ -260,19 +262,16 @@ void CreateCompressedHuffmanTree(const uint8_t *depth,
   }
 }
 
-namespace {
-
-uint32_t ReverseBits(int num_bits, uint32_t bits) {
+static uint32_t ReverseBits(int num_bits, uint32_t bits) {
   uint32_t retval = 0;
-  for (int i = 0; i < num_bits; ++i) {
+  int i;
+  for (i = 0; i < num_bits; ++i) {
     retval <<= 1;
     retval |= bits & 1;
     bits >>= 1;
   }
   return retval;
 }
-
-}  // namespace
 
 void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
                                uint16_t *bits) {
@@ -281,12 +280,13 @@ void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
   // In deflate, all bit depths are [1..15]
   // 0 bit depth means that the symbol does not exist.
 
-  const int kMaxBits = 16;  // 0..15 are values for bits
-  uint32_t next_code[kMaxBits];
-  uint32_t bl_count[kMaxBits] = { 0 };
+  // 0..15 are values for bits
+#define MAX_BITS 16
+  uint32_t next_code[MAX_BITS];
+  uint32_t bl_count[MAX_BITS] = { 0 };
   uint32_t i;
   {
-    for (uint32_t i = 0; i < len; ++i) {
+    for (i = 0; i < len; ++i) {
       ++bl_count[depth[i]];
     }
     bl_count[0] = 0;
@@ -295,7 +295,7 @@ void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
   {
     int code = 0;
     int bits;
-    for (bits = 1; bits < kMaxBits; ++bits) {
+    for (bits = 1; bits < MAX_BITS; ++bits) {
       code = (code + bl_count[bits - 1]) << 1;
       next_code[bits] = code;
     }

@@ -13,26 +13,32 @@
 #include <assert.h>
 #include <stdint.h>
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 // Backward reference distance codes, for all 32-bit values.
-static const int kDistanceCodes = 40;
+#define DISTANCE_CODES_MAX 40
+static const int kDistanceCodes = DISTANCE_CODES_MAX;
 
 // Compression constants
-static const int kCodeLengthCodes = 19;
+#define CODE_LENGTH_CODES 19
+static const int kCodeLengthCodes = CODE_LENGTH_CODES;
 static const int kRowHasherXSubsampling = 7;
 static const int kLengthCodes = 24;
 static const int kPaletteCodeBitsMax = 11;
-static const int kPixOrCopyCodesMax =
-    256 + 24 /* kLengthCodes */ + (1 << 11 /* kPaletteCodeBitsMax */ );
+#define PIX_OR_COPY_CODES_MAX (256 + 24 + (1 << 11))
+static const int kPixOrCopyCodesMax = PIX_OR_COPY_CODES_MAX;
 static const int kMaxLength = 4096;
 
-// use GNU builtins where available
+// use GNU builtins where available.
 #if defined(__GNUC__) && \
     ((__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || __GNUC__ >= 4)
-inline int BitsLog2Floor(uint32_t n) {
+static inline int BitsLog2Floor(uint32_t n) {
   return n == 0 ? -1 : 31 ^ __builtin_clz(n);
 }
 #else
-inline int BitsLog2Floor(uint32_t n) {
+static inline int BitsLog2Floor(uint32_t n) {
   int log;
   uint32_t value;
   int i;
@@ -52,7 +58,7 @@ inline int BitsLog2Floor(uint32_t n) {
 }
 #endif
 
-inline int BitsLog2Ceiling(uint32_t n) {
+static inline int BitsLog2Ceiling(uint32_t n) {
   int floor = BitsLog2Floor(n);
   if (n == (n & ~(n - 1)))  // zero or a power of two.
     return floor;
@@ -220,5 +226,9 @@ int VerifyBackwardReferences(const uint32_t* argb,
 
 // Produce an estimate for a good emerging palette size for the image.
 int CalculateEstimateForPaletteSize(const uint32_t *argb, int xsize, int ysize);
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_BACKWARD_REFERENCES_H_

@@ -38,7 +38,7 @@ void BuildHistogramImage(int xsize, int ysize,
   int x = 0;
   int y = 0;
   for (i = 0; i < backward_refs_size; ++i) {
-    const PixOrCopy &v = backward_refs[i];
+    const PixOrCopy v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;
     Histogram_AddSinglePixOrCopy((*image)[ix], v);
@@ -126,7 +126,7 @@ void CombineHistogramImage(Histogram **in,
 
 // What is the bit cost of moving square_histogram from
 // cur_symbol to candidate_symbol.
-double HistogramDistance(const Histogram &square_histogram,
+double HistogramDistance(const Histogram * const square_histogram,
                          int cur_symbol,
                          int candidate_symbol,
                          Histogram **candidate_histograms) {
@@ -143,16 +143,16 @@ double HistogramDistance(const Histogram &square_histogram,
   }
 
   Histogram *tmp = (Histogram *)malloc(sizeof(Histogram));
-  Histogram_Init(tmp, square_histogram.palette_code_bits_);
+  Histogram_Init(tmp, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
   *tmp = *candidate_histograms[candidate_symbol];
-  Histogram_Add(tmp, &square_histogram);
+  Histogram_Add(tmp, square_histogram);
   new_bit_cost = Histogram_EstimateBits(tmp);
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
     *tmp = *candidate_histograms[cur_symbol];
-    Histogram_Remove(tmp, &square_histogram);
+    Histogram_Remove(tmp, square_histogram);
     new_bit_cost += Histogram_EstimateBits(tmp);
   }
   free(tmp);
@@ -168,10 +168,10 @@ void RefineHistogramImage(Histogram **raw,
   // Find the best 'out' histogram for each of the raw histograms
   for (i = 0; i < raw_size; ++i) {
     int best_out = 0;
-    double best_bits = HistogramDistance(*raw[i], symbols[i], 0, out);
+    double best_bits = HistogramDistance(raw[i], symbols[i], 0, out);
     int k;
     for (k = 1; k < out_size; ++k) {
-      double cur_bits = HistogramDistance(*raw[i], symbols[i], k, out);
+      double cur_bits = HistogramDistance(raw[i], symbols[i], k, out);
       if (cur_bits < best_bits) {
         best_bits = cur_bits;
         best_out = k;

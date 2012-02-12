@@ -21,16 +21,20 @@
 #include "../common/integral_types.h"
 #include "backward_references.h"
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 // A simple container for histograms of data.
 typedef struct {
   // literal_ contains green literal, palette-code and
   // copy-length-prefix histogram
-  int literal_[kPixOrCopyCodesMax];
+  int literal_[PIX_OR_COPY_CODES_MAX];
   int red_[256];
   int blue_[256];
   int alpha_[256];
   // Backward reference prefix-code histogram.
-  int distance_[kDistanceCodes];
+  int distance_[DISTANCE_CODES_MAX];
   int palette_code_bits_;
 } Histogram;
 
@@ -112,5 +116,9 @@ void ConvertPopulationCountTableToBitEstimates(
     double *output);
 
 double BitsEntropy(const int *array, int n);
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_HISTOGRAM_H_

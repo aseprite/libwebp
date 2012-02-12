@@ -25,8 +25,8 @@
 extern "C" {
 #endif
 
-#define UNALIGNED_LOAD32(_p) (*reinterpret_cast<const uint32_t *>(_p))
-#define UNALIGNED_STORE32(_p, _val) (*reinterpret_cast<uint32_t *>(_p) = (_val))
+#define UNALIGNED_LOAD32(_p) (*(const uint32_t *)(_p))
+#define UNALIGNED_STORE32(_p, _val) (*(uint32_t *)(_p) = (_val))
 
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8

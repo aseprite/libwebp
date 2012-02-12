@@ -1,9 +1,9 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
-libwebpllencode_la_SOURCES = backward_references.cc \
-                             bit_writer.h entropy_encode.cc entropy_encode.h \
-                             histogram.cc histogram.h \
-                             histogram_image.cc histogram_image.h \
+libwebpllencode_la_SOURCES = backward_references.c \
+                             bit_writer.h entropy_encode.c entropy_encode.h \
+                             histogram.c histogram.h \
+                             histogram_image.c histogram_image.h \
                              predictor.cc predictor.h \
                              webp_bit_stream.cc
 libwebpllencode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE)
