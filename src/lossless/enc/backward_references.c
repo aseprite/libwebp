@@ -322,7 +322,7 @@ static void CostModel_Build(CostModel *p, int xsize, int ysize,
   ConvertPopulationCountTableToBitEstimates(
       VALUES_IN_BYTE, &histo.alpha_[0], &p->alpha_[0]);
   ConvertPopulationCountTableToBitEstimates(
-      kDistanceCodes, &histo.distance_[0], &p->distance_[0]);
+      DISTANCE_CODES_MAX, &histo.distance_[0], &p->distance_[0]);
 }
 
 static inline double CostModel_LiteralCost(const CostModel *p, uint32_t v) {

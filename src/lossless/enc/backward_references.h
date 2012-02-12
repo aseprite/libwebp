@@ -17,18 +17,15 @@
 extern "C" {
 #endif
 
-// Backward reference distance codes, for all 32-bit values.
+// Backward reference distance prefix codes
 #define DISTANCE_CODES_MAX 40
-static const int kDistanceCodes = DISTANCE_CODES_MAX;
 
 // Compression constants
 #define CODE_LENGTH_CODES 19
-static const int kCodeLengthCodes = CODE_LENGTH_CODES;
 static const int kRowHasherXSubsampling = 7;
 static const int kLengthCodes = 24;
 static const int kPaletteCodeBitsMax = 11;
 #define PIX_OR_COPY_CODES_MAX (256 + 24 + (1 << 11))
-static const int kPixOrCopyCodesMax = PIX_OR_COPY_CODES_MAX;
 static const int kMaxLength = 4096;
 
 // use GNU builtins where available.

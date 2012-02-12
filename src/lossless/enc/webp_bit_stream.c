@@ -619,7 +619,8 @@ static void GetHuffBitLengthsAndCodes(
     OptimizeHuffmanForRle(256, &histogram_image[i]->red_[0]);
     OptimizeHuffmanForRle(256, &histogram_image[i]->blue_[0]);
     OptimizeHuffmanForRle(256, &histogram_image[i]->alpha_[0]);
-    OptimizeHuffmanForRle(kDistanceCodes, &histogram_image[i]->distance_[0]);
+    OptimizeHuffmanForRle(DISTANCE_CODES_MAX,
+                          &histogram_image[i]->distance_[0]);
 
     // Create a Huffman tree (in the form of bit lengths) for each component.
     CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
@@ -627,7 +628,7 @@ static void GetHuffBitLengthsAndCodes(
     for (k = 1; k < 5; ++k) {
       int val = 256;
       if (k == 4) {
-        val = kDistanceCodes;
+        val = DISTANCE_CODES_MAX;
       }
       (*bit_length_sizes)[5 * i + k] = val;
       (*bit_lengths)[5 * i + k] = (uint8_t *)calloc(val, 1);
@@ -639,7 +640,7 @@ static void GetHuffBitLengthsAndCodes(
                       (*bit_lengths)[5 * i + 2]);
     CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
                       (*bit_lengths)[5 * i + 3]);
-    CreateHuffmanTree(histogram_image[i]->distance_, kDistanceCodes, 15,
+    CreateHuffmanTree(histogram_image[i]->distance_, DISTANCE_CODES_MAX, 15,
                       (*bit_lengths)[5 * i + 4]);
     // Create the actual bit codes for the bit lengths.
     for (k = 0; k < 5; ++k) {

@@ -225,14 +225,14 @@ double Histogram_EstimateBitsBulk(const Histogram * const p) {
       BitsEntropy(&p->red_[0], 256) +
       BitsEntropy(&p->blue_[0], 256) +
       BitsEntropy(&p->alpha_[0], 256) +
-      BitsEntropy(&p->distance_[0], kDistanceCodes);
+      BitsEntropy(&p->distance_[0], DISTANCE_CODES_MAX);
   // Compute the extra bits cost.
   size_t i;
   for (i = 2; i < kLengthCodes - 2; ++i) {
     retval +=
         (i >> 1) * p->literal_[256 + (1 << p->palette_code_bits_) + i + 2];
   }
-  for (i = 2; i < kDistanceCodes - 2; ++i) {
+  for (i = 2; i < DISTANCE_CODES_MAX - 2; ++i) {
     retval += (i >> 1) * p->distance_[i + 2];
   }
   return retval;
@@ -287,5 +287,5 @@ double Histogram_EstimateBitsHeader(const Histogram * const p) {
       HuffmanCost(&p->red_[0], 256) +
       HuffmanCost(&p->literal_[0], Histogram_NumPixOrCopyCodes(p)) +
       HuffmanCost(&p->blue_[0], 256) +
-      HuffmanCost(&p->distance_[0], kDistanceCodes);
+      HuffmanCost(&p->distance_[0], DISTANCE_CODES_MAX);
 }

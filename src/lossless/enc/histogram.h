@@ -74,10 +74,10 @@ double Histogram_EstimateBitsBulk(const Histogram * const p);
 
 static inline void Histogram_Add(Histogram *p, const Histogram *a) {
   int i;
-  for (i = 0; i < kPixOrCopyCodesMax; ++i) {
+  for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
     p->literal_[i] += a->literal_[i];
   }
-  for (i = 0; i < kDistanceCodes; ++i) {
+  for (i = 0; i < DISTANCE_CODES_MAX; ++i) {
     p->distance_[i] += a->distance_[i];
   }
   for (i = 0; i < 256; ++i) {
@@ -89,11 +89,11 @@ static inline void Histogram_Add(Histogram *p, const Histogram *a) {
 
 static inline void Histogram_Remove(Histogram *p, const Histogram *a) {
   int i;
-  for (i = 0; i < kPixOrCopyCodesMax; ++i) {
+  for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
     p->literal_[i] -= a->literal_[i];
     assert(p->literal_[i] >= 0);
   }
-  for (i = 0; i < kDistanceCodes; ++i) {
+  for (i = 0; i < DISTANCE_CODES_MAX; ++i) {
     p->distance_[i] -= a->distance_[i];
     assert(p->distance_[i] >= 0);
   }
