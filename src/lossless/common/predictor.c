@@ -12,8 +12,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "integral_types.h"
-
 #define ARGB_BLACK 0xff000000
 
 static inline uint32_t Average2(uint32_t a0, uint32_t a1) {
@@ -46,12 +44,12 @@ uint32_t Subtract(uint32_t a, uint32_t b) {
 }
 
 static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
-  const int p0 = int(a >> 24) + int(b >> 24) - int(c >> 24);
-  const int p1 = int((a >> 16) & 0xff) + int((b >> 16) & 0xff) -
-      int((c >> 16) & 0xff);
-  const int p2 = int((a >> 8) & 0xff) + int((b >> 8) & 0xff) -
-      int((c >> 8) & 0xff);
-  const int p3 = int(a & 0xff) + int(b & 0xff) - int(c & 0xff);
+  const int p0 = (int)(a >> 24) + (int)(b >> 24) - (int)(c >> 24);
+  const int p1 = (int)((a >> 16) & 0xff) + (int)((b >> 16) & 0xff) -
+      (int)((c >> 16) & 0xff);
+  const int p2 = (int)((a >> 8) & 0xff) + (int)((b >> 8) & 0xff) -
+      (int)((c >> 8) & 0xff);
+  const int p3 = (int)(a & 0xff) + (int)(b & 0xff) - (int)(c & 0xff);
   const int pa = abs(p0 - (a >> 24)) +
       abs(p1 - ((a >> 16) & 0xff)) +
       abs(p2 - ((a >> 8) & 0xff)) +
@@ -67,7 +65,7 @@ static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
   }
 }
 
-inline uint32_t Clamp(uint32_t a) {
+static inline uint32_t Clamp(uint32_t a) {
   if (a <= 255) {
     return a;
   }
@@ -76,7 +74,7 @@ inline uint32_t Clamp(uint32_t a) {
   return ~a >> 24;
 }
 
-inline int AddSubtractComponentFull(int a, int b, int c) {
+static inline int AddSubtractComponentFull(int a, int b, int c) {
   return Clamp(a + b - c);
 }
 
@@ -94,7 +92,7 @@ static uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1, uint32_t c2) {
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-inline int AddSubtractComponentHalf(int a, int b) {
+static inline int AddSubtractComponentHalf(int a, int b) {
   return Clamp(a + (a - b) / 2);
 }
 
@@ -278,7 +276,7 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
       ColorSpaceTransformElementInitFromCode(&color_transform, image[tile_ix]);
       CopyTileWithColorTransform(xsize, ysize, from_argb,
                                  tile_x, tile_y, bits, color_transform,
-                                 true,  // inverse transform
+                                 1,  // inverse transform
                                  to_argb);
     }
   }

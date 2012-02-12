@@ -14,6 +14,10 @@
 
 #include <stdint.h>
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 static inline uint32_t ColorTransformDelta(signed char transform,
                                            signed char color) {
   return (uint32_t)((int)(transform) * color) >> 5;
@@ -115,5 +119,9 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
                                 uint32_t* to_argb);
 
 void AddGreenToBlueAndRed(int n, uint32_t *argb_array);
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_LOSSLESS_COMMON_PREDICTOR_H_

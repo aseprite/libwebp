@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 static const uint32_t kHashMul = 0x1e35a7bd;
 
 // kNotInitialized is a special value which can be inserted into the
@@ -168,5 +172,9 @@ static inline uint32_t VP8LPixelHasherLineLookup(VP8LPixelHasherLine *p,
   }
   return 0;
 }
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_PIXEL_HASHER_H_
