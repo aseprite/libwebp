@@ -172,7 +172,7 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
   return bits;
 }
 
-inline int SkipRepeatedPixels(const uint32_t *argb, int ix, int xsize) {
+static inline int SkipRepeatedPixels(const uint32_t *argb, int ix, int xsize) {
   const uint32_t v = argb[ix];
   if (ix >= xsize + 3) {
     if (v == argb[ix - xsize] &&
