@@ -42,7 +42,7 @@ static void PutRiffHeader(uint8_t *bytes, size_t webpll_size) {
 }
 
 // Heuristics for selecting the stride ranges to collapse.
-int ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
+static int ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
   return abs(a - b) < 4;
 }
 
@@ -52,7 +52,7 @@ int ValuesShouldBeCollapsedToStrideAverage(int stride, int a, int b) {
 //
 // length containts the size of the histogram.
 // data contains the population counts.
-void OptimizeHuffmanForRle(int length, int *counts) {
+static void OptimizeHuffmanForRle(int length, int *counts) {
   // Let's make the Huffman code more compatible with rle encoding.
   int i;
   for (; length >= 0; --length) {
@@ -141,9 +141,9 @@ void OptimizeHuffmanForRle(int length, int *counts) {
   free(good_for_rle);
 }
 
-void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
-                                     uint8_t* lengths,
-                                     uint16_t* symbols) {
+static void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
+                                            uint8_t* lengths,
+                                            uint16_t* symbols) {
   int count = 0;
   int k;
   for (k = 0; k < num_symbols; ++k) {
@@ -157,10 +157,10 @@ void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   }
 }
 
-void PackLiteralBitLengths(const uint8_t* bit_lengths,
-                           int palette_bits, int use_palette,
-                           int *new_length_size,
-                           uint8_t** new_lengths) {
+static void PackLiteralBitLengths(const uint8_t* bit_lengths,
+                                  int palette_bits, int use_palette,
+                                  int *new_length_size,
+                                  uint8_t** new_lengths) {
   int i;
   *new_length_size = 256 + kLengthCodes;
   if (use_palette) {
@@ -183,7 +183,7 @@ void PackLiteralBitLengths(const uint8_t* bit_lengths,
   }
 }
 
-void StoreHuffmanTreeOfHuffmanTreeToBitMask(
+static void StoreHuffmanTreeOfHuffmanTreeToBitMask(
     const uint8_t *code_length_bitdepth, BitWriter* const bw) {
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
@@ -320,16 +320,16 @@ void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   free(huffman_tree_extra_bits);
 }
 
-inline int MetaSize(int size, int bits) {
+static inline int MetaSize(int size, int bits) {
   return (size + (1 << bits) - 1) >> bits;
 }
 
-void StoreImageToBitMask(int xsize, int ysize, int histo_bits, int palette_bits,
-                         const PixOrCopy *literals, int literals_size,
-                         const uint32_t *histogram_symbols,
-                         uint8_t** const bitdepths,
-                         uint16_t** const bit_symbols,
-                         BitWriter* const bw) {
+static void StoreImageToBitMask(
+    int xsize, int ysize, int histo_bits, int palette_bits,
+    const PixOrCopy *literals, int literals_size,
+    const uint32_t *histogram_symbols,
+    uint8_t** const bitdepths, uint16_t** const bit_symbols,
+    BitWriter* const bw) {
   const int histo_xsize = histo_bits ? MetaSize(xsize, histo_bits) : 1;
   // x and y trace the position in the image.
   int x = 0;
@@ -767,7 +767,8 @@ static void EncodeImageInternal(int xsize, int ysize,
   free(bit_codes);
 }
 
-inline void WriteImageSize(uint32_t xsize, uint32_t ysize, BitWriter *bw) {
+static inline void WriteImageSize(uint32_t xsize, uint32_t ysize,
+                                  BitWriter *bw) {
   --xsize;
   --ysize;
   VERIFY(xsize < 0x4000 && ysize < 0x4000);

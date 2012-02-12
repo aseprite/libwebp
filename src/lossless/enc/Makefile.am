@@ -5,7 +5,7 @@ libwebpllencode_la_SOURCES = backward_references.c \
                              histogram.c histogram.h \
                              histogram_image.c histogram_image.h \
                              predictor.c predictor.h \
-                             webp_bit_stream.cc
+                             webp_bit_stream.c
 libwebpllencode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE)
 
 noinst_HEADERS = backward_references.h

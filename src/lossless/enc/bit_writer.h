@@ -41,7 +41,7 @@ struct BitWriter {
   size_t max_bytes_;
 };
 
-inline size_t BitWriterNumBytes(BitWriter* const bw) {
+static inline size_t BitWriterNumBytes(BitWriter* const bw) {
   return (bw->bit_pos_ + 7) >> 3;
 }
 
@@ -99,7 +99,7 @@ void BitWriterDestroy(BitWriter* const bw) {
 //
 // For n bits, we take the last 5 bytes, OR that with high bits in BYTE-0,
 // and locate the rest in BYTE+1 and BYTE+2.
-inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
+static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
   if (n_bits < 1) return;
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
