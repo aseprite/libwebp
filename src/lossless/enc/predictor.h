@@ -14,6 +14,10 @@
 
 #include <stdint.h>
 
+#if defined(__cplusplus) || defined(c_plusplus)
+extern "C" {
+#endif
+
 void PredictorImage(int xsize, int ysize, int bits,
                     const uint32_t *original_argb,
                     uint32_t *to_argb,
@@ -29,5 +33,9 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
                          uint32_t *image);
 
 void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array);
+
+#if defined(__cplusplus) || defined(c_plusplus)
+}
+#endif
 
 #endif  // WEBP_PREDICTOR_H_
