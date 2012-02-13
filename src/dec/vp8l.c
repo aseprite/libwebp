@@ -31,6 +31,7 @@ static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
 
 #define NUM_LENGTH_CODES    24
 #define NUM_DISTANCE_CODES  40
+#define NUM_CODES_PER_BYTE 256
 // -----------------------------------------------------------------------------
 //  Five Huffman codes are used at each meta code:
 //  1. green + length prefix codes + palette codes,
@@ -48,7 +49,9 @@ typedef enum {
 } HuffIndex;
 
 static const uint16_t kAlphabetSize[HUFFMAN_CODES_PER_META_CODE] = {
-  256 + NUM_LENGTH_CODES, 256, 256, 256, NUM_DISTANCE_CODES};
+  NUM_CODES_PER_BYTE + NUM_LENGTH_CODES,
+  NUM_CODES_PER_BYTE, NUM_CODES_PER_BYTE, NUM_CODES_PER_BYTE,
+  NUM_DISTANCE_CODES};
 
 
 #define NUM_CODE_LENGTH_CODES       19
@@ -57,7 +60,7 @@ static const uint8_t kCodeLengthCodeOrder[NUM_CODE_LENGTH_CODES] = {
 };
 
 #define CODE_TO_PLANE_CODES        120
-static const unsigned char code_to_plane_lut[CODE_TO_PLANE_CODES] = {
+static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
    0x18, 0x07, 0x17, 0x19, 0x28, 0x06, 0x27, 0x29, 0x16, 0x1a,
    0x26, 0x2a, 0x38, 0x05, 0x37, 0x39, 0x15, 0x1b, 0x36, 0x3a,
    0x25, 0x2b, 0x48, 0x04, 0x47, 0x49, 0x14, 0x1c, 0x35, 0x3b,
@@ -79,7 +82,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec, uint32_t** decoded_data);
 
 static int ReadImageSize(BitReader* const br,
-                         uint32_t* width, uint32_t* height) {
+                         uint32_t* const width, uint32_t* const height) {
   const int signature = VP8LReadBits(br, 8);
   if (signature != LOSSLESS_MAGIC_BYTE) return 0;
   *width = VP8LReadBits(br, kImageSizeBits) + 1;
@@ -248,10 +251,10 @@ static int ReadHuffmanCode(int num_symbols, VP8LDecoder* const dec,
 
 static int ReadHuffmanCodes(
     int xsize, int ysize, VP8LDecoder* const dec,
-    uint32_t* palette_size,
-    uint32_t** huffman_image, uint32_t* huffman_subsample_bits,
-    uint32_t** meta_codes, uint32_t* meta_code_size,
-    HuffmanTreeNode** htrees, uint32_t* num_huffman_trees) {
+    uint32_t* const palette_size,
+    uint32_t** const huffman_image, uint32_t* const huffman_subsample_bits,
+    uint32_t** const meta_codes, uint32_t* const meta_code_size,
+    HuffmanTreeNode** htrees, uint32_t* const num_huffman_trees) {
   int ok = 1;
   int use_palette, palette_x_subsample_bits, palette_code_bits;
   uint32_t tree_idx;
@@ -275,7 +278,7 @@ static int ReadHuffmanCodes(
     huffman_pixs = huffman_xsize * huffman_ysize;
     DecodeImageStream(huffman_xsize, huffman_ysize, dec, &huffman_image_lcl);
     for (hpc = 0; hpc < huffman_pixs; ++hpc) {
-      // The huffman data is stored in R & G bytes.
+      // The huffman data is stored in red and green bytes.
       huffman_image_lcl[hpc] >>= 8;
       huffman_image_lcl[hpc] &= 0xffff;
     }
@@ -343,7 +346,7 @@ static int ReadHuffmanCodes(
 }
 
 static inline int GetMetaIndex(
-    const uint32_t* image, uint32_t xsize, uint32_t bits, int x, int y) {
+    const uint32_t* const image, uint32_t xsize, uint32_t bits, int x, int y) {
   if (bits == 0) return 0;
   return image[xsize * (y >> bits) + (x >> bits)];
 }
@@ -354,12 +357,12 @@ static void UpdateHuffmanSet(
     const uint32_t* const huffman_image, const uint32_t* const meta_codes,
     HuffmanTreeNode* const htrees, uint32_t huffman_xsize,
     uint32_t huffman_subsample_bits, uint32_t x, uint32_t y,
-    int* orig_meta_ix, HuffmanTreeNodeArray* huffs) {
+    int* const orig_meta_ix, HuffmanTreeNodeArray* const huffs) {
   const int meta_index = HUFFMAN_CODES_PER_META_CODE *
       GetMetaIndex(huffman_image, huffman_xsize, huffman_subsample_bits, x, y);
 
   if (*orig_meta_ix != meta_index) {
-    HuffmanTreeNode** huffs_lcl = *huffs;
+    HuffmanTreeNode** const huffs_lcl = *huffs;
     huffs_lcl[GREEN] = &htrees[meta_codes[meta_index + GREEN]];
     huffs_lcl[RED] = &htrees[meta_codes[meta_index + RED]];
     huffs_lcl[BLUE] = &htrees[meta_codes[meta_index + BLUE]];
@@ -369,12 +372,23 @@ static void UpdateHuffmanSet(
   }
 }
 
+// TODO: Implement Hash Lookup and insert.
+static argb_t VP8LHashLookUp(int palette_idx) {
+  (void) palette_idx;
+  return 0;
+}
+
+static void VP8LHashInsert(argb_t argb) {
+  (void)argb;
+}
+
+
 static int DecodeBackwardRefs(
     VP8LDecoder* const dec,
     uint32_t xsize, uint32_t ysize, uint32_t palette_size,
     const uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
     const uint32_t* const meta_codes, HuffmanTreeNode* htrees,
-    uint32_t** decoded_data) {
+    uint32_t** const decoded_data) {
   int ok = 1;
   int red, green, blue;
   int alpha = 0xff000000;
@@ -384,10 +398,11 @@ static int DecodeBackwardRefs(
   uint32_t y = 0;
   uint32_t* data = *decoded_data;
   BitReader* const br = dec->br_;
-  HuffmanTreeNode* huffs[HUFFMAN_CODES_PER_META_CODE] = { 0 };
+  // Collection of HUFFMAN_CODES_PER_META_CODE huffman codes.
+  HuffmanTreeNode* huffs[HUFFMAN_CODES_PER_META_CODE] = { NULL };
 
-  // Green values >= 256 but < palette_limit are from the palette.
-  const int palette_limit = 256 + palette_size;
+  // Values in range [NUM_CODES_PER_BYTE .. palette_limit[ are palettes.
+  const int palette_limit = NUM_CODES_PER_BYTE + palette_size;
   const int huffman_mask = (huffman_subsample_bits == 0) ?
       ~0 : (1 << huffman_subsample_bits) - 1;
   const uint32_t huffman_xsize = SubSampleSize(xsize, huffman_subsample_bits);
@@ -396,7 +411,6 @@ static int DecodeBackwardRefs(
   if (data == NULL) return 0;
 
   for (pos = 0; pos < xsize * ysize; ) {
-    int length_sym;
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
@@ -406,38 +420,49 @@ static int DecodeBackwardRefs(
     }
 
     green = ReadSymbol(huffs[GREEN], br);
-    // Literal
-    if (green < 256) {
+    // Literal.
+    if (green < NUM_CODES_PER_BYTE) {
+      // Decode and save this pixel.
       red = ReadSymbol(huffs[RED], br);
       VP8LFillBitWindow(br);
       blue = ReadSymbol(huffs[BLUE], br);
       alpha = ReadSymbol(huffs[ALPHA], br);
 
       data[pos] = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      ++x;
-      if (x >= xsize) {
-        x = 0;
-        ++y;
+      // Update pos, x & y.
+      ++pos; ++x;
+      if (x == xsize) {
+        ++y; x = 0;
       }
-      ++pos;
-      continue;
-    }
-    // Backward reference
-    length_sym = green - palette_limit;
-    if (length_sym < NUM_LENGTH_CODES) {
+    } else if (green < palette_limit) {
+      // Palette.
+      int palette_index = green - NUM_CODES_PER_BYTE;
+      // TODO: Add handling of Palete code here.
+      const argb_t argb = VP8LHashLookUp(palette_index);
+      VP8LHashInsert(argb);
+
+      // Update pos, x & y.
+      ++pos; ++x;
+      if (x == xsize) {
+        ++y; x = 0;
+      }
+    } else if (green - palette_limit < NUM_LENGTH_CODES) {
+      // Backward reference
       int dist_symbol;
-      uint32_t i, dist;
+      uint32_t i, dist_code, dist;
+      int length_sym = green - palette_limit;
       const uint32_t length = GetCopyLength(length_sym, br);
       // Here, we have read the length code prefix + extra bits for the length,
       // so reading the next 15 bits can exhaust the bit window.
       // We must fill the window before the next read.
       VP8LFillBitWindow(br);
       dist_symbol = ReadSymbol(huffs[DIST], br);
-      dist = GetCopyDistance(dist_symbol, br);
-      dist = PlaneCodeToDistance(xsize, dist);
+      dist_code = GetCopyDistance(dist_symbol, br);
+      dist = PlaneCodeToDistance(xsize, dist_code);
       assert(dist <= pos);
       assert(pos + length <= xsize * ysize);
 
+      // Fill data for specified (backward-ref) length and update pos, x & y.
       for (i = 0; i < length; ++i) {
         data[pos] = data[pos - dist];
         ++pos;
@@ -456,33 +481,39 @@ static int DecodeBackwardRefs(
                        huffman_subsample_bits, x, y, &meta_ix, &huffs);
 
       continue;
+    } else {
+      // Code flow should not come here.
+      assert(0);
     }
-    assert(0);
   }
   return ok;
 }
 
-static int ApplyInverseImageTransform(VP8LTransform* transform) {
+static int ApplyInverseImageTransform(const VP8LTransform* const transform,
+                                      uint32_t** const decoded_data) {
   int ok = 1;
   (void)transform;
+  (void)decoded_data;
 
   return ok;
 }
 
-static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx) {
+static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
+                                  uint32_t** const decoded_data) {
   int ok = 1;
-
-  if (dec->next_transform_ == 0) return ok;
-  while(ok && dec->next_transform_ > start_idx) {
-    VP8LTransform* transform = &(dec->transforms_[dec->next_transform_ - 1]);
-    ok = ApplyInverseImageTransform(transform);
-    --dec->next_transform_;
+  int n = dec->next_transform_;
+  while(ok && n-- > start_idx) {
+    const VP8LTransform* const transform = &(dec->transforms_[n]);
+    ok = ApplyInverseImageTransform(transform, decoded_data);
   }
 
+  dec->next_transform_ = n;
+
   return ok;
 }
 
-static int ReadTransform(int* xsize, int* ysize, VP8LDecoder* const dec) {
+static int ReadTransform(int* const xsize, int* const ysize,
+                         VP8LDecoder* const dec) {
   int ok = 1;
   BitReader* const br = dec->br_;
   VP8LTransform* transform = &(dec->transforms_[dec->next_transform_]);
@@ -524,7 +555,8 @@ static int ReadTransform(int* xsize, int* ysize, VP8LDecoder* const dec) {
 }
 
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
-                             VP8LDecoder* const dec, uint32_t** decoded_data) {
+                             VP8LDecoder* const dec,
+                             uint32_t** const decoded_data) {
   int transform_xsize = xsize;
   int transform_ysize = ysize;
   int ok = 1;
@@ -566,7 +598,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   free(htrees);
 
   // Step#4: Appply transforms on the decoded data.
-  ok = ApplyInverseTransforms(dec, transform_start_idx);
+  ok = ApplyInverseTransforms(dec, transform_start_idx, decoded_data);
 
   return ok;
 }
