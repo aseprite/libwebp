@@ -110,7 +110,7 @@ static const float kLogTable[] = {
 
 // Faster logarithm for small integers, with the property of log(0) == 0.
 static inline double FastLog(int v) {
-  if (v < sizeof(kLogTable) / sizeof(kLogTable[0])) {
+  if (v < (int)(sizeof(kLogTable) / sizeof(kLogTable[0]))) {
     return kLogTable[v];
   }
   return log(v);
@@ -132,12 +132,14 @@ void ConvertPopulationCountTableToBitEstimates(int num_symbols,
     memset(output, 0, num_symbols * sizeof(*output));
     return;
   }
-  const double log2sum = log2(sum);
-  for (i = 0; i < num_symbols; ++i) {
-    if (population_counts[i] == 0) {
-      output[i] = log2sum;
-    } else {
-      output[i] = log2sum - log2(population_counts[i]);
+  {
+    const double log2sum = log2(sum);
+    for (i = 0; i < num_symbols; ++i) {
+      if (population_counts[i] == 0) {
+        output[i] = log2sum;
+      } else {
+        output[i] = log2sum - log2(population_counts[i]);
+      }
     }
   }
 }
@@ -178,6 +180,7 @@ double BitsEntropy(const int *array, int n) {
   int nonzeros = 0;
   int max_val = 0;
   int i;
+  double mix;
   for (i = 0; i < n; ++i) {
     if (array[i] != 0) {
       sum += array[i];
@@ -190,7 +193,7 @@ double BitsEntropy(const int *array, int n) {
   }
   retval -= sum * FastLog(sum);
   retval *= -1.4426950408889634;  // 1.0 / -FastLog(2);
-  double mix = 0.627;
+  mix = 0.627;
   if (nonzeros < 5) {
     if (nonzeros <= 1) {
       return 0;
@@ -211,10 +214,12 @@ double BitsEntropy(const int *array, int n) {
       mix = 0.7;  // nonzeros == 4.
     }
   }
-  double min_limit = 2 * sum - max_val;
-  min_limit = mix * min_limit + (1.0 - mix) * retval;
-  if (retval < min_limit) {
-    return min_limit;
+  {
+    double min_limit = 2 * sum - max_val;
+    min_limit = mix * min_limit + (1.0 - mix) * retval;
+    if (retval < min_limit) {
+      return min_limit;
+    }
   }
   return retval;
 }
@@ -245,7 +250,7 @@ double Histogram_EstimateBits(const Histogram * const p) {
 
 // Returns the cost encode the rle-encoded entropy code.
 // The constants in this function are experimental.
-double HuffmanCost(const int *population, int length) {
+static double HuffmanCost(const int *population, int length) {
   // Small bias because Huffman code length is typically not stored in
   // full length.
   static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;

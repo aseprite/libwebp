@@ -71,6 +71,9 @@ static void SetDepth(const HuffmanTree *p,
 void CreateHuffmanTree(const int* const histogram, int histogram_size,
                        int tree_depth_limit,
                        uint8_t* const bit_depths) {
+  HuffmanTree *tree;
+  HuffmanTree *tree_pool;
+  int tree_pool_size;
   // For block sizes with less than 64k symbols we never need to do a
   // second iteration of this loop.
   // If we actually start running inside this loop a lot, we would perhaps
@@ -88,8 +91,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
     // population and all the inserted nodes combining two existing nodes.
     // The tree pool needs 2 * (tree_size - 1) entities, and the
     // tree needs exactly tree_size entities.
-    HuffmanTree *tree =
-        (HuffmanTree *)malloc(3 * tree_size * sizeof(HuffmanTree));
+    tree = (HuffmanTree *)malloc(3 * tree_size * sizeof(*tree));
     {
       int j = 0;
       int i;
@@ -106,15 +108,16 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
       }
     }
     qsort((void *)tree, tree_size, sizeof(HuffmanTree), CompHuffmanTree);
-    HuffmanTree *tree_pool = tree + tree_size;
-    int tree_pool_size = 0;
+    tree_pool = tree + tree_size;
+    tree_pool_size = 0;
     if (tree_size >= 2) {
       while (tree_size >= 2) {  // Finish when we have only one root.
+        int count;
         tree_pool[tree_pool_size] = tree[tree_size - 1];
         ++tree_pool_size;
         tree_pool[tree_pool_size] = tree[tree_size - 2];
         ++tree_pool_size;
-        int count =
+        count =
             tree_pool[tree_pool_size - 1].total_count_ +
             tree_pool[tree_pool_size - 2].total_count_;
         tree_size -= 2;
@@ -163,7 +166,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
   }
 }
 
-void WriteHuffmanTreeRepetitions(
+static void WriteHuffmanTreeRepetitions(
     const int value,
     const int prev_value,
     int repetitions,
@@ -200,7 +203,7 @@ void WriteHuffmanTreeRepetitions(
   }
 }
 
-void WriteHuffmanTreeRepetitionsZeros(
+static void WriteHuffmanTreeRepetitionsZeros(
     const int value,
     int repetitions,
     int *num_symbols,
@@ -240,11 +243,11 @@ void CreateCompressedHuffmanTree(const uint8_t *depth,
                                  uint8_t *tree,
                                  uint8_t *extra_bits_data) {
   int prev_value = 8;  // 8 is the initial value for rle.
-  uint32_t i;
+  int i;
   for (i = 0; i < depth_size;) {
     const int value = depth[i];
     int reps = 1;
-    uint32_t k;
+    int k;
     for (k = i + 1; k < depth_size && depth[k] == value; ++k) {
       ++reps;
     }
@@ -284,7 +287,7 @@ void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
 #define MAX_BITS 16
   uint32_t next_code[MAX_BITS];
   uint32_t bl_count[MAX_BITS] = { 0 };
-  uint32_t i;
+  int i;
   {
     for (i = 0; i < len; ++i) {
       ++bl_count[depth[i]];

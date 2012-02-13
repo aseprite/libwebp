@@ -34,12 +34,11 @@ extern "C" {
 #define HEADER_SIZE      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE)
 #define SIGNATURE_SIZE   1
 
-typedef struct BitWriter BitWriter;
-struct BitWriter {
+typedef struct {
   uint8_t* buf_;
   size_t bit_pos_;
   size_t max_bytes_;
-};
+} BitWriter;
 
 static inline size_t BitWriterNumBytes(BitWriter* const bw) {
   return (bw->bit_pos_ + 7) >> 3;
@@ -68,16 +67,16 @@ static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
   return 1;
 }
 
-int BitWriterInit(BitWriter* const bw, size_t expected_size) {
+static int BitWriterInit(BitWriter* const bw, size_t expected_size) {
   memset(bw, 0, sizeof(*bw));
   return BitWriterResize(bw, expected_size);
 }
 
-uint8_t* BitWriterFinish(BitWriter* const bw) {
+static inline uint8_t* BitWriterFinish(BitWriter* const bw) {
   return bw->buf_;
 }
 
-void BitWriterDestroy(BitWriter* const bw) {
+static void BitWriterDestroy(BitWriter* const bw) {
   if (bw) {
     free(bw->buf_);
     memset(bw, 0, sizeof(*bw));

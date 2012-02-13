@@ -91,8 +91,7 @@ enum Mode {
 };
 
 typedef struct {
-  // mode as uint 8, and not as type Mode, to make the memory layout
-  // of this class to be exactly 8 bytes.
+  // mode as uint8_t to make the memory layout to be exactly 8 bytes.
   uint8_t mode;
   uint16_t len;
   uint32_t argb_or_offset;
@@ -108,9 +107,9 @@ static inline PixOrCopy PixOrCopy_CreateCopy(uint32_t offset_arg,
 }
 
 static inline PixOrCopy PixOrCopy_CreatePaletteIx(int ix) {
+  PixOrCopy retval;
   assert(ix >= 0);
   assert(ix < (1 << kPaletteCodeBitsMax));
-  PixOrCopy retval;
   retval.mode = kPaletteIx;
   retval.argb_or_offset = ix;
   retval.len = 1;
@@ -205,13 +204,11 @@ void BackwardReferencesTraceBackwards(
 // Convert backward references that are of linear distance along
 // the image scan lines to have a 2d locality indexing where
 // smaller values are used for backward references that are close by.
-void BackwardReferences2DLocality(int xsize,
-                                  int ysize,
-                                  int data_size,
+void BackwardReferences2DLocality(int xsize, int data_size,
                                   PixOrCopy *data);
 
 // Internals of locality transform exposed for testing use.
-int DistanceToPlaneCode(int xsize, int ysize, int distance);
+int DistanceToPlaneCode(int xsize, int distance);
 
 // Returns true if the given backward references actually produce
 // the image given in tuple (argb, xsize, ysize).

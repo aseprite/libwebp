@@ -28,6 +28,8 @@ void BuildHistogramImage(int xsize, int ysize,
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
   int i;
+  int x = 0;
+  int y = 0;
   *image_size = histo_xsize * histo_ysize;
   *image = (Histogram **)malloc(*image_size * sizeof(Histogram *));
   for (i = 0; i < *image_size; ++i) {
@@ -35,8 +37,6 @@ void BuildHistogramImage(int xsize, int ysize,
     Histogram_Init((*image)[i], palettebits);
   }
   // x and y trace the position in the image.
-  int x = 0;
-  int y = 0;
   for (i = 0; i < backward_refs_size; ++i) {
     const PixOrCopy v = backward_refs[i];
     const int ix =
@@ -61,11 +61,11 @@ void CombineHistogramImage(Histogram **in,
   int tries_with_no_success = 0;
   int inner_iters = 10 + quality / 2;
   int iter;
-  // Copy
-  *out_size = in_size;
+  double *bit_costs = (double *)malloc(in_size * sizeof(double));
   Histogram **out = (Histogram **)malloc(in_size * sizeof(Histogram *));
   *out_arg = out;
-  double *bit_costs = (double *)malloc(in_size * sizeof(double));
+  *out_size = in_size;
+  // Copy
   for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = (Histogram *)malloc(sizeof(Histogram));
     Histogram_Init(new_histo, palettebits);
@@ -81,24 +81,27 @@ void CombineHistogramImage(Histogram **in,
     // Try a few times.
     int k;
     for (k = 0; k < inner_iters; ++k) {
-      // Choose two.
+      // Choose two, build a combo out of them.
+      double cost_val;
+      Histogram *combo;
       int ix0 = rand_r(&seed) % *out_size;
+      int ix1;
       int diff = ((k & 7) + 1) % (*out_size - 1);
       if (diff >= 3) {
         diff = rand_r(&seed) % (*out_size - 1);
       }
-      const int ix1 = (ix0 + diff + 1) % *out_size;
+      ix1 = (ix0 + diff + 1) % *out_size;
       if (ix0 == ix1) {
         continue;
       }
-      Histogram *combo = (Histogram *)malloc(sizeof(Histogram));
+      combo = (Histogram *)malloc(sizeof(Histogram));
       Histogram_Init(combo, palettebits);
       *combo = *out[ix0];
       Histogram_Add(combo, out[ix1]);
-      const double val = Histogram_EstimateBits(combo) -
-          bit_costs[ix0] - bit_costs[ix1];
-      if (best_val > val) {
-        best_val = val;
+      cost_val =
+          Histogram_EstimateBits(combo) - bit_costs[ix0] - bit_costs[ix1];
+      if (best_val > cost_val) {
+        best_val = cost_val;
         best_ix0 = ix0;
         best_ix1 = ix1;
       }
@@ -126,14 +129,15 @@ void CombineHistogramImage(Histogram **in,
 
 // What is the bit cost of moving square_histogram from
 // cur_symbol to candidate_symbol.
-double HistogramDistance(const Histogram * const square_histogram,
-                         int cur_symbol,
-                         int candidate_symbol,
-                         Histogram **candidate_histograms) {
+static double HistogramDistance(const Histogram * const square_histogram,
+                                int cur_symbol,
+                                int candidate_symbol,
+                                Histogram **candidate_histograms) {
   double new_bit_cost;
   double previous_bit_cost;
+  Histogram *tmp;
   if (cur_symbol == candidate_symbol) {
-    return 0;  // going nowhere. no savings.
+    return 0;  // Going nowhere. No savings.
   }
   previous_bit_cost =
       Histogram_EstimateBits(candidate_histograms[candidate_symbol]);
@@ -142,7 +146,7 @@ double HistogramDistance(const Histogram * const square_histogram,
         Histogram_EstimateBits(candidate_histograms[cur_symbol]);
   }
 
-  Histogram *tmp = (Histogram *)malloc(sizeof(Histogram));
+  tmp = (Histogram *)malloc(sizeof(Histogram));
   Histogram_Init(tmp, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
   *tmp = *candidate_histograms[candidate_symbol];

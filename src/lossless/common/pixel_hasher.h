@@ -32,7 +32,7 @@ typedef struct {
 } PixelHasher;
 
 static void VP8LPixelHasherInit(PixelHasher *p, int hash_bits) {
-  int i;
+  uint32_t i;
   p->hash_shift_ = 32 - hash_bits;
   p->hash_size_ = 1 << hash_bits;
   p->data_ = (uint32_t *)malloc(p->hash_size_ * sizeof(p->data_[0]));
