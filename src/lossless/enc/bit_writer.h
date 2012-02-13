@@ -103,28 +103,32 @@ static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
-  uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
-  uint32_t v = UNALIGNED_LOAD32(p);
-  v |= bits << (bw->bit_pos_ & 7);
-  UNALIGNED_STORE32(p, v);  // Set some bits.
-  bw->bit_pos_ += n_bits;
+  {
+    uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
+    uint32_t v = UNALIGNED_LOAD32(p);
+    v |= bits << (bw->bit_pos_ & 7);
+    UNALIGNED_STORE32(p, v);  // Set some bits.
+    bw->bit_pos_ += n_bits;
+  }
 #else
   // implicit & 0xff is assumed for uint8_t arithmetics
-  uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
-  const int bits_reserved_in_first_byte = (bw->bit_pos_ & 7);
-  *p++ |= (bits << bits_reserved_in_first_byte);
-  const int bits_left_to_write = n_bits - 8 + bits_reserved_in_first_byte;
-  if (bits_left_to_write >= 1) {
-    *p++ = bits >> (8 - bits_reserved_in_first_byte);
-    if (bits_left_to_write >= 9) {
-      *p++ = bits >> (16 - bits_reserved_in_first_byte);
+  {
+    uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
+    const int bits_reserved_in_first_byte = (bw->bit_pos_ & 7);
+    *p++ |= (bits << bits_reserved_in_first_byte);
+    const int bits_left_to_write = n_bits - 8 + bits_reserved_in_first_byte;
+    if (bits_left_to_write >= 1) {
+      *p++ = bits >> (8 - bits_reserved_in_first_byte);
+      if (bits_left_to_write >= 9) {
+        *p++ = bits >> (16 - bits_reserved_in_first_byte);
+      }
     }
+    *p = 0;
+    bw->bit_pos_ += n_bits;
   }
-  *p = 0;
-  bw->bit_pos_ += n_bits;
 #endif
   if ((bw->bit_pos_ >> 3) > (bw->max_bytes_ - 8)) {
-    const size_t kAdditionalBuffer = 1024;
+    const size_t kAdditionalBuffer = 32768 + bw->max_bytes_;
     BitWriterResize(bw, kAdditionalBuffer);
   }
 }

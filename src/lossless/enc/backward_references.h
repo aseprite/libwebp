@@ -152,7 +152,6 @@ static inline uint32_t PixOrCopy_Argb(const PixOrCopy *p) {
 
 static inline uint32_t PixOrCopy_PaletteIx(const PixOrCopy *p) {
   assert(p->mode == kPaletteIx);
-  assert(p->argb_or_offset >= 0);
   assert(p->argb_or_offset < (1 << kPaletteCodeBitsMax));
   return p->argb_or_offset;
 }
