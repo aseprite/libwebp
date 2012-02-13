@@ -330,10 +330,9 @@ static int DecodeImageInternal(int original_xsize,
   const int palette_x_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
   const int palette_size = use_palette ? 1 << palette_code_bits : 0;
-  VP8LPixelHasherLine* hashers =
-      use_palette ? new VP8LPixelHasherLine : NULL;
+  VP8LColorCache* hashers = use_palette ? new VP8LColorCache : NULL;
   if (hashers) {
-    VP8LPixelHasherLineInit(hashers, xsize, palette_x_bits, palette_code_bits);
+    VP8LColorCacheInit(hashers, xsize, palette_x_bits, palette_code_bits);
   }
 
   HuffmanTreeNode *htrees = (HuffmanTreeNode *)
@@ -392,7 +391,7 @@ static int DecodeImageInternal(int original_xsize,
 
       uint32_t argb = alpha + red + (green << 8) + blue;
       image[pos] = argb;
-      if (hashers) VP8LPixelHasherLineInsert(hashers, x, argb);
+      if (hashers) VP8LColorCacheInsert(hashers, x, argb);
       ++x;
       if (x >= xsize) {
         x = 0;
@@ -405,9 +404,9 @@ static int DecodeImageInternal(int original_xsize,
     if (green < palette_limit) {
       int palette_symbol = green - 256;
       const uint32_t argb =
-          VP8LPixelHasherLineLookup(hashers, x, palette_symbol);
+          VP8LColorCacheLookup(hashers, x, palette_symbol);
       image[pos] = argb;
-      VP8LPixelHasherLineInsert(hashers, x, argb);
+      VP8LColorCacheInsert(hashers, x, argb);
       ++x;
       if (x >= xsize) {
         x = 0;
@@ -443,7 +442,7 @@ static int DecodeImageInternal(int original_xsize,
       } else {
         for (int i = 0; i < length; ++i) {
           image[pos] = image[pos - dist];
-          VP8LPixelHasherLineInsert(hashers, x, image[pos]);
+          VP8LColorCacheInsert(hashers, x, image[pos]);
           ++pos;
           ++x;
           if (x >= xsize) {
@@ -471,7 +470,7 @@ static int DecodeImageInternal(int original_xsize,
     abort();
   }
   if (hashers) {
-    VP8LPixelHasherLineDelete(hashers);
+    VP8LColorCacheDelete(hashers);
     delete hashers;
   }
   if (use_meta_codes) {

@@ -204,9 +204,9 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
   const int pix_count = xsize * ysize;
   int i;
   VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
-  VP8LPixelHasherLine hashers;
-  VP8LPixelHasherLineInit(&hashers, xsize,
-                          kRowHasherXSubsampling, palette_bits);
+  VP8LColorCache hashers;
+  VP8LColorCacheInit(&hashers, xsize,
+                     kRowHasherXSubsampling, palette_bits);
   VP8LHashChain_Init(hash_chain, pix_count);
   *stream_size = 0;
   for (i = 0; i < pix_count; ) {
@@ -238,14 +238,14 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
           if (use_palette &&
-              VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
-            const int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
+              VP8LColorCacheContains(&hashers, x, argb[i])) {
+            const int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
             stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
           } else {
             stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
           }
           ++(*stream_size);
-          VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
+          VP8LColorCacheInsert(&hashers, x, argb[i]);
           i++;  // Backward reference to be done for next pixel.
           len = len2;
           offset = offset2;
@@ -257,7 +257,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       stream[*stream_size] = PixOrCopy_CreateCopy(offset, len);
       ++(*stream_size);
       for (k = 0; k < len; ++k) {
-        VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
+        VP8LColorCacheInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (k != 0 && i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
@@ -265,15 +265,15 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       }
       i += len;
     } else {
-      if (use_palette && VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
+      if (use_palette && VP8LColorCacheContains(&hashers, x, argb[i])) {
         // push pixel as a palette pixel
-        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
+        int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
         stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
       } else {
         stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
       }
       ++(*stream_size);
-      VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
+      VP8LColorCacheInsert(&hashers, x, argb[i]);
       if (i + 1 < pix_count) {
         VP8LHashChain_Insert(hash_chain, &argb[i], i);
       }
@@ -282,7 +282,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
   }
   VP8LHashChain_Delete(hash_chain);
   free(hash_chain);
-  VP8LPixelHasherLineDelete(&hashers);
+  VP8LColorCacheDelete(&hashers);
 }
 
 typedef struct {
@@ -367,9 +367,9 @@ static void BackwardReferencesHashChainDistanceOnly(
   int i;
   CostModel *cost_model = (CostModel *)malloc(sizeof(CostModel));
 
-  VP8LPixelHasherLine hashers;
+  VP8LColorCache hashers;
   VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
-  VP8LPixelHasherLineInit(&hashers, xsize,
+  VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   VP8LHashChain_Init(hash_chain, pix_count);
   CostModel_Build(cost_model, xsize, ysize, recursive_cost_model,
@@ -417,7 +417,7 @@ static void BackwardReferencesHashChainDistanceOnly(
           // lookups for better copies.
           // 1) insert the hashes.
           for (k = 0; k < len; ++k) {
-            VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
+            VP8LColorCacheInsert(&hashers, (i + k) % xsize, argb[i + k]);
             if (i + k + 1 < pix_count) {
               // Add to the hash_chain (but cannot add the last pixel).
               VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
@@ -442,8 +442,8 @@ static void BackwardReferencesHashChainDistanceOnly(
         mul0 = 0.68;
         mul1 = 0.82;
       }
-      if (use_palette && VP8LPixelHasherLineContains(&hashers, x, argb[i])) {
-        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
+      if (use_palette && VP8LColorCacheContains(&hashers, x, argb[i])) {
+        int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
         cost_val += CostModel_PaletteCost(cost_model, ix) * mul0;
       } else {
         cost_val += CostModel_LiteralCost(cost_model, argb[i]) * mul1;
@@ -452,7 +452,7 @@ static void BackwardReferencesHashChainDistanceOnly(
         cost[i] = cost_val;
         dist_array[i] = 1;  // only one is inserted.
       }
-      VP8LPixelHasherLineInsert(&hashers, x, argb[i]);
+      VP8LColorCacheInsert(&hashers, x, argb[i]);
     }
  next_symbol: ;
   }
@@ -462,7 +462,7 @@ static void BackwardReferencesHashChainDistanceOnly(
   free(hash_chain);
   free(cost_model);
   free(cost);
-  VP8LPixelHasherLineDelete(&hashers);
+  VP8LColorCacheDelete(&hashers);
 }
 
 static void TraceBackwards(const uint32_t *dist_array, int dist_array_size,
@@ -502,10 +502,10 @@ static void BackwardReferencesHashChainFollowChosenPath(
   int i = 0;
   int k;
   int ix;
-  VP8LPixelHasherLine hashers;
+  VP8LColorCache hashers;
   VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
   VP8LHashChain_Init(hash_chain, pix_count);
-  VP8LPixelHasherLineInit(&hashers, xsize,
+  VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   *stream_size = 0;
   for (ix = 0; ix < chosen_path_size; ++ix) {
@@ -518,7 +518,7 @@ static void BackwardReferencesHashChainFollowChosenPath(
       stream[*stream_size] = PixOrCopy_CreateCopy(offset, len);
       ++(*stream_size);
       for (k = 0; k < len; ++k) {
-        VP8LPixelHasherLineInsert(&hashers, (i + k) % xsize, argb[i + k]);
+        VP8LColorCacheInsert(&hashers, (i + k) % xsize, argb[i + k]);
         if (i + k + 1 < pix_count) {
           // Add to the hash_chain (but cannot add the last pixel).
           VP8LHashChain_Insert(hash_chain, &argb[i + k], i + k);
@@ -527,16 +527,16 @@ static void BackwardReferencesHashChainFollowChosenPath(
       i += len;
     } else {
       if (use_palette &&
-          VP8LPixelHasherLineContains(&hashers, i % xsize, argb[i])) {
+          VP8LColorCacheContains(&hashers, i % xsize, argb[i])) {
         // push pixel as a palette pixel
-        int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[i]);
-        VERIFY(VP8LPixelHasherLineLookup(&hashers, i % xsize, ix) == argb[i]);
+        int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
+        VERIFY(VP8LColorCacheLookup(&hashers, i % xsize, ix) == argb[i]);
         stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
       } else {
         stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
       }
       ++(*stream_size);
-      VP8LPixelHasherLineInsert(&hashers, i % xsize, argb[i]);
+      VP8LColorCacheInsert(&hashers, i % xsize, argb[i]);
       if (i + 1 < pix_count) {
         VP8LHashChain_Insert(hash_chain, &argb[i], i);
       }
@@ -545,7 +545,7 @@ static void BackwardReferencesHashChainFollowChosenPath(
   }
   VP8LHashChain_Delete(hash_chain);
   free(hash_chain);
-  VP8LPixelHasherLineDelete(&hashers);
+  VP8LColorCacheDelete(&hashers);
 }
 
 
@@ -591,38 +591,38 @@ int VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                              int lit_size) {
   int num_pixels = 0;
   int i;
-  VP8LPixelHasherLine hashers;
-  VP8LPixelHasherLineInit(&hashers, xsize,
+  VP8LColorCache hashers;
+  VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   for (i = 0; i < lit_size; ++i) {
     if (PixOrCopy_IsLiteral(&lit[i])) {
       if (argb[num_pixels] != PixOrCopy_Argb(&lit[i])) {
         printf("i %d, pixel %d, original: 0x%08x, literal: 0x%08x\n",
                i, num_pixels, argb[num_pixels], PixOrCopy_Argb(&lit[i]));
-        VP8LPixelHasherLineDelete(&hashers);
+        VP8LColorCacheDelete(&hashers);
         return 0;
       }
-      VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
+      VP8LColorCacheInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
     } else if (PixOrCopy_IsPaletteIx(&lit[i])) {
       uint32_t palette_entry =
-          VP8LPixelHasherLineLookup(&hashers, num_pixels % xsize,
+          VP8LColorCacheLookup(&hashers, num_pixels % xsize,
                                     PixOrCopy_PaletteIx(&lit[i]));
       if (argb[num_pixels] != palette_entry) {
         printf("i %d, pixel %d, original: 0x%08x, palette_ix: %d, "
                "palette_entry: 0x%08x\n",
                i, num_pixels, argb[num_pixels], PixOrCopy_PaletteIx(&lit[i]),
                palette_entry);
-        VP8LPixelHasherLineDelete(&hashers);
+        VP8LColorCacheDelete(&hashers);
         return 0;
       }
-      VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
+      VP8LColorCacheInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
     } else if (PixOrCopy_IsCopy(&lit[i])) {
       int k;
       if (PixOrCopy_Distance(&lit[i]) == 0) {
         printf("Bw reference with zero distance.\n");
-        VP8LPixelHasherLineDelete(&hashers);
+        VP8LColorCacheDelete(&hashers);
         return 0;
       }
       for (k = 0; k < lit[i].len; ++k) {
@@ -632,10 +632,10 @@ int VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
                  i, num_pixels, argb[num_pixels],
                  argb[num_pixels - PixOrCopy_Distance(&lit[i])],
                  PixOrCopy_Distance(&lit[i]));
-          VP8LPixelHasherLineDelete(&hashers);
+          VP8LColorCacheDelete(&hashers);
           return 0;
         }
-        VP8LPixelHasherLineInsert(&hashers, num_pixels % xsize,
+        VP8LColorCacheInsert(&hashers, num_pixels % xsize,
                                   argb[num_pixels]);
         ++num_pixels;
       }
@@ -645,11 +645,11 @@ int VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
     const int pix_count = xsize * ysize;
     if (num_pixels != pix_count) {
       printf("verify failure: %d != %d\n", num_pixels, pix_count);
-      VP8LPixelHasherLineDelete(&hashers);
+      VP8LColorCacheDelete(&hashers);
       return 0;
     }
   }
-  VP8LPixelHasherLineDelete(&hashers);
+  VP8LColorCacheDelete(&hashers);
   return 1;
 }
 
@@ -660,17 +660,17 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
   int pixel_index = 0;
   int i;
   uint32_t k;
-  VP8LPixelHasherLine hashers;
-  VP8LPixelHasherLineInit(&hashers, xsize,
+  VP8LColorCache hashers;
+  VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   for (i = 0; i < stream_size; ++i) {
     const PixOrCopy v = stream[i];
     if (PixOrCopy_IsLiteral(&v)) {
       const int x = pixel_index % xsize;
       if (palette_bits != 0 &&
-          VP8LPixelHasherLineContains(&hashers, x, argb[pixel_index])) {
+          VP8LColorCacheContains(&hashers, x, argb[pixel_index])) {
         // push pixel as a palette pixel
-        const int ix = VP8LPixelHasherLineGetIndex(&hashers, argb[pixel_index]);
+        const int ix = VP8LColorCacheGetIndex(&hashers, argb[pixel_index]);
         Histogram_AddSinglePixOrCopy(histo, PixOrCopy_CreatePaletteIx(ix));
       } else {
         Histogram_AddSinglePixOrCopy(histo, v);
@@ -679,13 +679,13 @@ static void ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
       Histogram_AddSinglePixOrCopy(histo, v);
     }
     for (k = 0; k < PixOrCopy_Length(&v); ++k) {
-      VP8LPixelHasherLineInsert(&hashers, pixel_index % xsize,
+      VP8LColorCacheInsert(&hashers, pixel_index % xsize,
                                 argb[pixel_index]);
       ++pixel_index;
     }
   }
   VERIFY(pixel_index == xsize * ysize);
-  VP8LPixelHasherLineDelete(&hashers);
+  VP8LColorCacheDelete(&hashers);
 }
 
 // Returns how many bits are to be used for a palette.

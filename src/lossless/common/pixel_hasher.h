@@ -22,16 +22,16 @@ extern "C" {
 static const uint32_t kHashMul = 0x1e35a7bd;
 
 // kNotInitialized is a special value which can be inserted into the
-// PixelHasher, but is never recalled as a value.
+// VP8LColorCacheColumn, but is never recalled as a value.
 static const uint32_t kNotInitialized = 0x1e35a7bd;
 
 typedef struct {
   uint32_t *data_;
   uint32_t hash_shift_;
   uint32_t hash_size_;
-} PixelHasher;
+} VP8LColorCacheColumn;
 
-static void VP8LPixelHasherInit(PixelHasher *p, int hash_bits) {
+static void VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
   uint32_t i;
   p->hash_shift_ = 32 - hash_bits;
   p->hash_size_ = 1 << hash_bits;
@@ -41,21 +41,23 @@ static void VP8LPixelHasherInit(PixelHasher *p, int hash_bits) {
   }
 }
 
-static void VP8LPixelHasherDelete(PixelHasher *p) {
+static void VP8LColorCacheColumnDelete(VP8LColorCacheColumn *p) {
   free(p->data_);
 }
 
-static void VP8LPixelHasherInsert(PixelHasher *p, uint32_t argb) {
+static void VP8LColorCacheColumnInsert(VP8LColorCacheColumn *p, uint32_t argb) {
   const uint32_t key = (kHashMul * argb) >> p->hash_shift_;
   p->data_[key] = argb;
 }
 
-static int VP8LPixelHasherIsInitialized(const PixelHasher *p, uint32_t argb) {
+static int VP8LColorCacheColumnIsInitialized(const VP8LColorCacheColumn *p,
+                                             uint32_t argb) {
   const uint32_t key = (kHashMul * argb) >> p->hash_shift_;
   return p->data_[key] != kNotInitialized;
 }
 
-static int VP8LPixelHasherContains(const PixelHasher *p, uint32_t argb) {
+static int VP8LColorCacheColumnContains(const VP8LColorCacheColumn *p,
+                                        uint32_t argb) {
   uint32_t key;
   if (argb == kNotInitialized) {
     return 0;
@@ -64,8 +66,8 @@ static int VP8LPixelHasherContains(const PixelHasher *p, uint32_t argb) {
   return p->data_[key] == argb;
 }
 
-static int VP8LPixelHasherLookup(PixelHasher *p,
-                                 uint32_t key, uint32_t* argb) {
+static int VP8LColorCacheColumnLookup(VP8LColorCacheColumn *p,
+                                      uint32_t key, uint32_t* argb) {
   assert(key < p->hash_size_);
   if (p->data_[key] != kNotInitialized) {
     *argb = p->data_[key];
@@ -75,16 +77,16 @@ static int VP8LPixelHasherLookup(PixelHasher *p,
 }
 
 typedef struct {
-  PixelHasher* hashers_;
+  VP8LColorCacheColumn* hashers_;
   int hash_bits_;
   int x_downsample_bits_;
   int hashers_size_;
-} VP8LPixelHasherLine;
+} VP8LColorCache;
 
-static inline void VP8LPixelHasherLineInit(VP8LPixelHasherLine *p,
-                                           int xsize,
-                                           int x_downsample_bits,
-                                           int hash_bits) {
+static inline void VP8LColorCacheInit(VP8LColorCache *p,
+                                      int xsize,
+                                      int x_downsample_bits,
+                                      int hash_bits) {
   int i;
   if (hash_bits == 0) {
     hash_bits = 1;
@@ -94,57 +96,57 @@ static inline void VP8LPixelHasherLineInit(VP8LPixelHasherLine *p,
   p->hashers_size_ =
       (xsize + (1 << x_downsample_bits) - 1) >> x_downsample_bits;
 
-  p->hashers_ = (PixelHasher *)
+  p->hashers_ = (VP8LColorCacheColumn *)
       malloc(p->hashers_size_ * sizeof(p->hashers_[0]));
   for (i = 0; i < p->hashers_size_; ++i) {
-    VP8LPixelHasherInit(&p->hashers_[i], hash_bits);
+    VP8LColorCacheColumnInit(&p->hashers_[i], hash_bits);
   }
 }
 
-static inline void VP8LPixelHasherLineDelete(VP8LPixelHasherLine *p) {
+static inline void VP8LColorCacheDelete(VP8LColorCache *p) {
   int i;
   for (i = 0; i < p->hashers_size_; ++i) {
-    VP8LPixelHasherDelete(&p->hashers_[i]);
+    VP8LColorCacheColumnDelete(&p->hashers_[i]);
   }
   free(p->hashers_);
 }
 
-static inline void VP8LPixelHasherLineInsert(VP8LPixelHasherLine *p,
-                                             int x, uint32_t argb) {
-  VP8LPixelHasherInsert(&p->hashers_[x >> p->x_downsample_bits_], argb);
+static inline void VP8LColorCacheInsert(VP8LColorCache *p,
+                                        int x, uint32_t argb) {
+  VP8LColorCacheColumnInsert(&p->hashers_[x >> p->x_downsample_bits_], argb);
 }
 
-static inline uint32_t VP8LPixelHasherLineGetIndex(const VP8LPixelHasherLine *p,
-                                                   uint32_t argb) {
+static inline uint32_t VP8LColorCacheGetIndex(const VP8LColorCache *p,
+                                              uint32_t argb) {
   uint32_t val = kHashMul * argb;
   val >>= 32 - p->hash_bits_;
   return val;
 }
 
-static inline int VP8LPixelHasherLineContains(VP8LPixelHasherLine *p,
-                                              int x, uint32_t argb) {
+static inline int VP8LColorCacheContains(VP8LColorCache *p,
+                                         int x, uint32_t argb) {
   int i;
   int ix = x >> p->x_downsample_bits_;
-  if (VP8LPixelHasherContains(&p->hashers_[ix], argb)) {
+  if (VP8LColorCacheColumnContains(&p->hashers_[ix], argb)) {
     return 1;
   }
-  if (VP8LPixelHasherIsInitialized(&p->hashers_[ix], argb)) {
+  if (VP8LColorCacheColumnIsInitialized(&p->hashers_[ix], argb)) {
     return 0;
   }
   for (i = 1; i < p->hashers_size_; ++i) {
     if (ix - i >= 0) {
-      if (VP8LPixelHasherContains(&p->hashers_[ix - i], argb)) {
+      if (VP8LColorCacheColumnContains(&p->hashers_[ix - i], argb)) {
         return 1;
       }
-      if (VP8LPixelHasherIsInitialized(&p->hashers_[ix - i], argb)) {
+      if (VP8LColorCacheColumnIsInitialized(&p->hashers_[ix - i], argb)) {
         return 0;
       }
     }
     if (ix + i < p->hashers_size_) {
-      if (VP8LPixelHasherContains(&p->hashers_[ix + i], argb)) {
+      if (VP8LColorCacheColumnContains(&p->hashers_[ix + i], argb)) {
         return 1;
       }
-      if (VP8LPixelHasherIsInitialized(&p->hashers_[ix + i], argb)) {
+      if (VP8LColorCacheColumnIsInitialized(&p->hashers_[ix + i], argb)) {
         return 0;
       }
     }
@@ -152,21 +154,21 @@ static inline int VP8LPixelHasherLineContains(VP8LPixelHasherLine *p,
   return 0;
 }
 
-static inline uint32_t VP8LPixelHasherLineLookup(VP8LPixelHasherLine *p,
-                                                 int x, uint32_t hash) {
+static inline uint32_t VP8LColorCacheLookup(VP8LColorCache *p,
+                                            int x, uint32_t hash) {
   int i;
   int ix = x >> p->x_downsample_bits_;
   uint32_t argb;
-  if (VP8LPixelHasherLookup(&p->hashers_[ix], hash, &argb)) {
+  if (VP8LColorCacheColumnLookup(&p->hashers_[ix], hash, &argb)) {
     return argb;
   }
   for (i = 1; i < p->hashers_size_; ++i) {
     if (ix - i >= 0 &&
-        VP8LPixelHasherLookup(&p->hashers_[ix - i], hash, &argb)) {
+        VP8LColorCacheColumnLookup(&p->hashers_[ix - i], hash, &argb)) {
       return argb;
     }
     if (ix + i < p->hashers_size_ &&
-        VP8LPixelHasherLookup(&p->hashers_[ix + i], hash, &argb)) {
+        VP8LColorCacheColumnLookup(&p->hashers_[ix + i], hash, &argb)) {
       return argb;
     }
   }
