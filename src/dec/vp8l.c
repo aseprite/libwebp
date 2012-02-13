@@ -8,6 +8,7 @@
 // main entry for the decoder
 //
 // Author: Vikas Arora (vikaas.arora@gmail.com)
+//         jyrki@google.com (Jyrki Alakuijala)
 
 #include <stdlib.h>
 
@@ -79,7 +80,7 @@ static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
 //------------------------------------------------------------------------------
 
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
-                             VP8LDecoder* const dec, uint32_t** decoded_data);
+                             VP8LDecoder* const dec, argb_t** const decoded_data);
 
 static int ReadImageSize(BitReader* const br,
                          uint32_t* const width, uint32_t* const height) {
@@ -489,9 +490,187 @@ static int DecodeBackwardRefs(
   return ok;
 }
 
-static int ApplyInverseImageTransform(const VP8LTransform* const transform,
-                                      uint32_t** const decoded_data) {
+static inline uint32_t Average2(uint32_t a0, uint32_t a1) {
+  return (((a0 ^ a1) & 0xfefefefeL) >> 1) + (a0 & a1);
+}
+
+static inline uint32_t Average3(uint32_t a0, uint32_t a1, uint32_t a2) {
+  return Average2(Average2(a0, a2), a1);
+}
+
+static inline uint32_t Average4(uint32_t a0, uint32_t a1,
+                                uint32_t a2, uint32_t a3) {
+  return Average2(Average2(a0, a1), Average2(a2, a3));
+}
+
+static uint32_t Add(uint32_t a, uint32_t b) {
+  // This computes the sum of each component with mod 256.
+  const uint32_t alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
+  const uint32_t red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
+  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
+}
+
+static inline uint32_t Clip255(uint32_t a) {
+  if (a < NUM_CODES_PER_BYTE) {
+    return a;
+  }
+  // return 0, when a is a negative integer.
+  // return 255, when a is positive.
+  return ~a >> 24;
+}
+
+static inline int AddSubtractComponentFull(int a, int b, int c) {
+  return Clip255(a + b - c);
+}
+
+static uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1, uint32_t c2) {
+  const int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
+  const int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
+                                         (c1 >> 16) & 0xff,
+                                         (c2 >> 16) & 0xff);
+  const int g = AddSubtractComponentFull((c0 >> 8) & 0xff,
+                                         (c1 >> 8) & 0xff,
+                                         (c2 >> 8) & 0xff);
+  const int b = AddSubtractComponentFull(c0 & 0xff, c1 & 0xff, c2 & 0xff);
+  return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+static inline int AddSubtractComponentHalf(int a, int b) {
+  return Clip255(a + (a - b) / 2);
+}
+
+static uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1, uint32_t c2) {
+  const uint32_t ave = Average2(c0, c1);
+  const int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
+  const int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
+  const int g = AddSubtractComponentHalf((ave >> 8) & 0xff, (c2 >> 8) & 0xff);
+  const int b = AddSubtractComponentHalf((ave >> 0) & 0xff, (c2 >> 0) & 0xff);
+  return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
+  const int p0 = (int)(a >> 24) + (int)(b >> 24) - (int)(c >> 24);
+  const int p1 = (int)((a >> 16) & 0xff) + (int)((b >> 16) & 0xff) -
+      (int)((c >> 16) & 0xff);
+  const int p2 = (int)((a >> 8) & 0xff) + (int)((b >> 8) & 0xff) -
+      (int)((c >> 8) & 0xff);
+  const int p3 = (int)(a & 0xff) + (int)(b & 0xff) - (int)(c & 0xff);
+  const int pa = abs(p0 - (a >> 24)) +
+      abs(p1 - ((a >> 16) & 0xff)) +
+      abs(p2 - ((a >> 8) & 0xff)) +
+      abs(p3 - (a & 0xff));
+  const int pb = abs(p0 - (b >> 24)) +
+      abs(p1 - ((b >> 16) & 0xff)) +
+      abs(p2 - ((b >> 8) & 0xff)) +
+      abs(p3 - (b & 0xff));
+  if (pa <= pb) {
+    return a;
+  } else {
+    return b;
+  }
+}
+
+#define ARGB_BLACK 0xff000000
+
+static argb_t PredictValue(uint32_t pred_mode, uint32_t xsize,
+                           const argb_t* const argb) {
+  switch(pred_mode) {
+    case 0: return ARGB_BLACK;
+    case 1: return argb[-1];
+    case 2: return argb[-xsize];
+    case 3: return argb[-xsize + 1];
+    case 4: return argb[-xsize - 1];
+    case 5: return Average3(argb[-1], argb[-xsize], argb[-xsize + 1]);
+    case 6: return Average2(argb[-1], argb[-xsize - 1]);
+    case 7: return Average2(argb[-1], argb[-xsize]);
+    case 8: return Average2(argb[-xsize - 1], argb[-xsize]);
+    case 9: return Average2(argb[-xsize], argb[-xsize + 1]);
+    case 10: return Average4(argb[-1], argb[-xsize - 1],
+                             argb[-xsize], argb[-xsize + 1]);
+    case 11: return Select(argb[-xsize], argb[-1], argb[-xsize - 1]);
+    case 12:
+      return ClampedAddSubtractFull(argb[-1], argb[-xsize], argb[-xsize - 1]);
+    case 13:
+      return ClampedAddSubtractHalf(argb[-1], argb[-xsize], argb[-xsize - 1]);
+  }
+  return 0;
+}
+
+static int PredictorInverseTransform(const VP8LTransform* const transform,
+                                     argb_t* const decoded_data) {
   int ok = 1;
+  size_t row, col;
+  uint32_t image_ix = 0;
+  uint32_t tile_ix = 0;
+  const uint32_t tile_mask = (1 << transform->bits_) - 1;
+  uint32_t pred_mode = (transform->data_[tile_ix] >> 8) & 0xff;
+  argb_t pred = 0;
+
+  // First Row follows the L (mode=1) mode.
+  for (col = 1; col < transform->xsize_; ++col) {
+    decoded_data[col] = Add(decoded_data[col], decoded_data[col - 1]);
+  }
+  image_ix += transform->xsize_;
+
+  for (row = 1; row < transform->ysize_; ++row) {
+    int row_tile_mask = row & tile_mask;
+    for (col = 0; col < transform->xsize_; ++col, ++image_ix) {
+      // Pick the appropriate predictor mode (at start of every tile).
+      // (0, 0) of
+      if (!row_tile_mask && !(col & tile_mask)) {
+        ++tile_ix;
+        pred_mode = (transform->data_[tile_ix] >> 8) & 0xff;
+      }
+      // First col follows the T (mode=2) mode.
+      pred = (col == 0) ? decoded_data[image_ix - transform->xsize_] :
+          PredictValue(pred_mode, transform->xsize_, decoded_data + image_ix);
+      decoded_data[image_ix] = Add(decoded_data[image_ix], pred);
+    }
+  }
+
+  return ok;
+}
+
+static int AddGreenToBlueAndRed(const VP8LTransform* const transform,
+                                argb_t* const decoded_data) {
+  int i;
+  int num_pixs = transform->xsize_ * transform->ysize_;
+  for (i = 0; i < num_pixs; ++i) {
+    const argb_t argb = decoded_data[i];
+    argb_t green = (argb >> 8) & 0xff;
+    argb_t red_blue = argb & 0x00ff00ff;
+    red_blue += ((green << 16) + green);
+    red_blue &= 0x00ff00ff;
+    decoded_data[i] = (argb & 0xff00ff00) + red_blue;
+  }
+
+  return 1;
+}
+
+// TODO: Implement this Inverse Transform.
+static int ColorSpaceInverseTransform(const VP8LTransform* const transform,
+                                      argb_t* const decoded_data) {
+  int ok = 0;
+  (void)transform;
+  (void)decoded_data;
+
+  return ok;
+}
+
+// TODO: Implement this Inverse Transform.
+static int ColorIndexingInverseTransform(const VP8LTransform* const transform,
+                                         argb_t* const decoded_data) {
+  int ok = 0;
+  (void)transform;
+  (void)decoded_data;
+
+  return ok;
+}
+
+// TODO: Implement this Inverse Transform.
+static int PixelBundleInverseTransform(const VP8LTransform* const transform,
+                                       argb_t* const decoded_data) {
+  int ok = 0;
   (void)transform;
   (void)decoded_data;
 
@@ -499,14 +678,32 @@ static int ApplyInverseImageTransform(const VP8LTransform* const transform,
 }
 
 static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
-                                  uint32_t** const decoded_data) {
+                                  argb_t* const decoded_data) {
   int ok = 1;
   int n = dec->next_transform_;
   while(ok && n-- > start_idx) {
     const VP8LTransform* const transform = &(dec->transforms_[n]);
-    ok = ApplyInverseImageTransform(transform, decoded_data);
+    switch (transform->type_) {
+      case SUBTRACT_GREEN:
+        AddGreenToBlueAndRed(transform, decoded_data);
+        break;
+      case PREDICTOR_TRANSFORM:
+        PredictorInverseTransform(transform, decoded_data);
+        break;
+      case CROSS_COLOR_TRANSFORM:
+        ColorSpaceInverseTransform(transform, decoded_data);
+        break;
+      case COLOR_INDEXING_TRANSFORM:
+        ColorIndexingInverseTransform(transform, decoded_data);
+        break;
+      case PIXEL_BUNDLE_TRANSFORM:
+        PixelBundleInverseTransform(transform, decoded_data);
+        break;
+      default:
+        ok = 0;
+        break;
+    }
   }
-
   dec->next_transform_ = n;
 
   return ok;
@@ -556,7 +753,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
 
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec,
-                             uint32_t** const decoded_data) {
+                             argb_t** const decoded_data) {
   int transform_xsize = xsize;
   int transform_ysize = ysize;
   int ok = 1;
@@ -598,7 +795,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   free(htrees);
 
   // Step#4: Appply transforms on the decoded data.
-  ok = ApplyInverseTransforms(dec, transform_start_idx, decoded_data);
+  ok = ApplyInverseTransforms(dec, transform_start_idx, *decoded_data);
 
   return ok;
 }
