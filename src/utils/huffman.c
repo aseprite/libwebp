@@ -33,11 +33,17 @@ HuffmanTreeNode* HuffmanTreeNodeNew(void) {
   return node;
 }
 
+static void HuffmanTreeDelete(HuffmanTreeNode* const root) {
+  if (root == NULL) return;
+  HuffmanTreeDelete(root->child_[0]);
+  HuffmanTreeDelete(root->child_[1]);
+  free(root);
+}
+
 void HuffmanTreeRelease(HuffmanTreeNode* const root) {
   if (root == NULL) return;
-  HuffmanTreeRelease(root->child_[0]);
-  HuffmanTreeRelease(root->child_[1]);
-  free(root);
+  HuffmanTreeDelete(root->child_[0]);
+  HuffmanTreeDelete(root->child_[1]);
 }
 
 // This internal version does NOT check if node is NULL for performance reasons.
@@ -195,11 +201,6 @@ int HuffmanTreeBuild(HuffmanTreeNode* const root,
     ok = 1;
  End:
     free(codes);
-    if (!ok) {  // Reset children.
-      HuffmanTreeRelease(root->child_[0]);
-      HuffmanTreeRelease(root->child_[1]);
-      HuffmanTreeNodeInit(root);
-    }
     return ok;
   }
 }

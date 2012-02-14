@@ -831,8 +831,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   free(huffman_image);
   free(meta_codes);
   for (tree_idx = 0; tree_idx < num_huffman_trees; ++tree_idx) {
-    HuffmanTreeRelease(htrees[tree_idx].child_[0]);
-    HuffmanTreeRelease(htrees[tree_idx].child_[1]);
+    HuffmanTreeRelease(&htrees[tree_idx]);
   }
   free(htrees);
 

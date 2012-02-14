@@ -35,6 +35,7 @@ void HuffmanTreeNodeInit(HuffmanTreeNode* const node);
 HuffmanTreeNode* HuffmanTreeNodeNew(void);
 
 // Frees up a complete Huffman tree rooted at 'root'.
+// Note: It does NOT free 'root' itself.
 void HuffmanTreeRelease(HuffmanTreeNode* const root);
 
 // Returns 1 if the given node is a leaf of the Huffman tree.
