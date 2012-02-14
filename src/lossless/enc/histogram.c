@@ -116,9 +116,10 @@ static inline double FastLog(int v) {
   return log(v);
 }
 
-void ConvertPopulationCountTableToBitEstimates(int num_symbols,
-                                               const int *population_counts,
-                                               double *output) {
+void ConvertPopulationCountTableToBitEstimates(
+    int num_symbols,
+    const int * const population_counts,
+    double * const output) {
   int sum = 0;
   int nonzeros = 0;
   int i;
@@ -144,7 +145,7 @@ void ConvertPopulationCountTableToBitEstimates(int num_symbols,
   }
 }
 
-void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v) {
+void Histogram_AddSinglePixOrCopy(Histogram * const p, const PixOrCopy v) {
   if (PixOrCopy_IsLiteral(&v)) {
     ++p->alpha_[PixOrCopy_Literal(&v, 3)];
     ++p->red_[PixOrCopy_Literal(&v, 2)];
@@ -164,8 +165,8 @@ void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v) {
   }
 }
 
-void Histogram_Build(Histogram *p,
-                     const PixOrCopy *literal_and_length,
+void Histogram_Build(Histogram * const p,
+                     const PixOrCopy * const literal_and_length,
                      int n_literal_and_length) {
   int i;
   Histogram_Clear(p);
@@ -174,7 +175,7 @@ void Histogram_Build(Histogram *p,
   }
 }
 
-double BitsEntropy(const int *array, int n) {
+double BitsEntropy(const int * const array, int n) {
   double retval = 0;
   int sum = 0;
   int nonzeros = 0;
@@ -244,13 +245,12 @@ double Histogram_EstimateBitsBulk(const Histogram * const p) {
 }
 
 double Histogram_EstimateBits(const Histogram * const p) {
-  return Histogram_EstimateBitsHeader(p) +
-      Histogram_EstimateBitsBulk(p);
+  return Histogram_EstimateBitsHeader(p) + Histogram_EstimateBitsBulk(p);
 }
 
 // Returns the cost encode the rle-encoded entropy code.
 // The constants in this function are experimental.
-static double HuffmanCost(const int *population, int length) {
+static double HuffmanCost(const int * const population, int length) {
   // Small bias because Huffman code length is typically not stored in
   // full length.
   static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;

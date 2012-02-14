@@ -38,7 +38,7 @@ typedef struct {
   int palette_code_bits_;
 } Histogram;
 
-static inline void Histogram_Clear(Histogram *p) {
+static inline void Histogram_Clear(Histogram * const p) {
   memset(&p->literal_[0], 0, sizeof(p->literal_));
   memset(&p->red_[0], 0, sizeof(p->red_));
   memset(&p->blue_[0], 0, sizeof(p->blue_));
@@ -46,7 +46,7 @@ static inline void Histogram_Clear(Histogram *p) {
   memset(&p->distance_[0], 0, sizeof(p->distance_));
 }
 
-static inline void Histogram_Init(Histogram *p, int palette_code_bits) {
+static inline void Histogram_Init(Histogram * const p, int palette_code_bits) {
   p->palette_code_bits_ = palette_code_bits;
   Histogram_Clear(p);
 }
@@ -55,10 +55,10 @@ static inline void Histogram_Init(Histogram *p, int palette_code_bits) {
 //
 // The input data is the PixOrCopy data, which models the
 // literals, stop codes and backward references (both distances and lengths)
-void Histogram_Build(Histogram *p,
-                     const PixOrCopy *literal_and_length,
+void Histogram_Build(Histogram * const p,
+                     const PixOrCopy * const literal_and_length,
                      int n_literal_and_length);
-void Histogram_AddSinglePixOrCopy(Histogram *p, const PixOrCopy v);
+void Histogram_AddSinglePixOrCopy(Histogram * const p, const PixOrCopy v);
 
 // Estimate how many bits the combined entropy of literals and distance
 // approximately maps to.
@@ -72,7 +72,8 @@ double Histogram_EstimateBitsHeader(const Histogram * const p);
 // represent the entropy code itself.
 double Histogram_EstimateBitsBulk(const Histogram * const p);
 
-static inline void Histogram_Add(Histogram *p, const Histogram *a) {
+static inline void Histogram_Add(Histogram * const p,
+                                 const Histogram * const a) {
   int i;
   for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
     p->literal_[i] += a->literal_[i];
@@ -87,7 +88,8 @@ static inline void Histogram_Add(Histogram *p, const Histogram *a) {
   }
 }
 
-static inline void Histogram_Remove(Histogram *p, const Histogram *a) {
+static inline void Histogram_Remove(Histogram * const p,
+                                    const Histogram * const a) {
   int i;
   for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
     p->literal_[i] -= a->literal_[i];
@@ -107,15 +109,14 @@ static inline void Histogram_Remove(Histogram *p, const Histogram *a) {
   }
 }
 
-static inline int Histogram_NumPixOrCopyCodes(const Histogram *p) {
+static inline int Histogram_NumPixOrCopyCodes(const Histogram * const p) {
   return 256 + kLengthCodes + (1 << p->palette_code_bits_);
 }
 
 void ConvertPopulationCountTableToBitEstimates(
-    int n, const int *population_counts,
-    double *output);
+    int n, const int * const population_counts, double * const output);
 
-double BitsEntropy(const int *array, int n);
+double BitsEntropy(const int * const array, int n);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }
