@@ -39,6 +39,7 @@ LOCAL_SRC_FILES := \
 	src/utils/alpha.c \
 	src/utils/bit_reader.c \
 	src/utils/bit_writer.c \
+	src/utils/color_cache.c \
 	src/utils/filters.c \
 	src/utils/huffman.c \
 	src/utils/quant_levels.c \
