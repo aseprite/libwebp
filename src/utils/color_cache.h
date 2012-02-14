@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+// TODO(urvang): Evaluate if inlining VP8LColorCacheInsert() and/or
+// VP8LColorCacheLookup() gives a better performance.
+
 // Represents cache for colors in a vertical stripe of an image.
 typedef struct ColorCacheColumn ColorCacheColumn;
 

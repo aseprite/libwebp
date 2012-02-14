@@ -26,11 +26,12 @@ static const uint32_t kNotInitialized = 0x1e35a7bd;
 // Helper functions.
 
 // TODO: This function is static in vp8l.c as well. Move to a common header.
-static inline uint32_t SubSampleSize(uint32_t size, uint32_t sampling_bits) {
+static WEBP_INLINE uint32_t SubSampleSize(uint32_t size,
+                                          uint32_t sampling_bits) {
   return (size + (1 << sampling_bits) - 1) >> sampling_bits;
 }
 
-static inline uint32_t GetKey(uint32_t argb, uint32_t hash_shift) {
+static WEBP_INLINE uint32_t GetKey(uint32_t argb, uint32_t hash_shift) {
   return (kHashMul * argb) >> hash_shift;
 }
 
@@ -43,7 +44,8 @@ struct ColorCacheColumn {
   uint32_t hash_size_;
 };
 
-static void ColorCacheColumnInit(ColorCacheColumn* const cc, int hash_bits) {
+static WEBP_INLINE void ColorCacheColumnInit(ColorCacheColumn* const cc,
+                                             int hash_bits) {
   uint32_t i;
   assert(cc != NULL);
   cc->hash_shift_ = 32 - hash_bits;
@@ -54,25 +56,26 @@ static void ColorCacheColumnInit(ColorCacheColumn* const cc, int hash_bits) {
   }
 }
 
-static void ColorCacheColumnRelease(ColorCacheColumn* const cc) {
+static WEBP_INLINE void ColorCacheColumnRelease(ColorCacheColumn* const cc) {
   free(cc->data_);
 }
 
-static void ColorCacheColumnInsert(ColorCacheColumn* const cc, uint32_t argb) {
+static WEBP_INLINE void ColorCacheColumnInsert(ColorCacheColumn* const cc,
+                                               uint32_t argb) {
   const uint32_t key = GetKey(argb, cc->hash_shift_);
   assert(cc != NULL);
   cc->data_[key] = argb;
 }
 
-static int ColorCacheColumnIsInitialized(const ColorCacheColumn* const cc,
-                                         uint32_t argb) {
+static WEBP_INLINE int ColorCacheColumnIsInitialized(
+    const ColorCacheColumn* const cc, uint32_t argb) {
     const uint32_t key = GetKey(argb, cc->hash_shift_);
     assert(cc != NULL);
     return cc->data_[key] != kNotInitialized;
 }
 
-static int ColorCacheColumnContains(const ColorCacheColumn* const cc,
-                                    uint32_t argb) {
+static WEBP_INLINE int ColorCacheColumnContains(
+    const ColorCacheColumn* const cc, uint32_t argb) {
   assert(cc != NULL);
   if (argb == kNotInitialized) {
     return 0;
@@ -82,8 +85,9 @@ static int ColorCacheColumnContains(const ColorCacheColumn* const cc,
   }
 }
 
-static int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
-                                  uint32_t key, uint32_t* const argb) {
+static WEBP_INLINE int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
+                                              uint32_t key,
+                                              uint32_t* const argb) {
   assert(key < cc->hash_size_);
   if (cc->data_[key] != kNotInitialized) {
     *argb = cc->data_[key];
@@ -95,18 +99,19 @@ static int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
 //------------------------------------------------------------------------------
 // Helper functions for VP8LColorCache.
 
-static inline int ColorCacheGetColumn(const VP8LColorCache* const color_cache,
-                                      uint32_t x_pos) {
+static WEBP_INLINE int ColorCacheGetColumn(
+    const VP8LColorCache* const color_cache, uint32_t x_pos) {
+  assert(color_cache != NULL);
   return x_pos >> color_cache->x_downsample_bits_;
 }
 
-static inline uint32_t ColorCacheGetIndex(
+static WEBP_INLINE uint32_t ColorCacheGetIndex(
     const VP8LColorCache* const color_cache, uint32_t argb) {
   return GetKey(argb, 32 - color_cache->hash_bits_);
 }
 
-static int ColorCacheContains(const VP8LColorCache* const color_cache,
-                              uint32_t x_pos, uint32_t argb) {
+static WEBP_INLINE int ColorCacheContains(
+    const VP8LColorCache* const color_cache, uint32_t x_pos, uint32_t argb) {
   int i;
   int col = ColorCacheGetColumn(color_cache, x_pos);
   if (ColorCacheColumnContains(&color_cache->cache_columns_[col], argb)) {
@@ -172,11 +177,9 @@ void VP8LColorCacheRelease(VP8LColorCache* const color_cache) {
 
 void VP8LColorCacheInsert(VP8LColorCache* const color_cache, uint32_t x_pos,
                           uint32_t argb) {
+  const int col = ColorCacheGetColumn(color_cache, x_pos);
   assert(color_cache != NULL);
-  {
-    const int col = ColorCacheGetColumn(color_cache, x_pos);
-    ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb);
-  }
+  ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb);
 }
 
 int VP8LColorCacheLookup(const VP8LColorCache* const color_cache,
