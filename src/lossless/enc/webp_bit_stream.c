@@ -796,6 +796,7 @@ static inline void WriteImageSize(uint32_t xsize, uint32_t ysize,
   WriteBits(14, ysize, bw);
 }
 
+// Returns 1 on success.
 int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
                       EncodingStrategy *strategy,
                       size_t *num_bytes, uint8_t **bytes) {

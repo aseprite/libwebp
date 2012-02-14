@@ -44,6 +44,7 @@ static inline size_t BitWriterNumBytes(BitWriter* const bw) {
   return (bw->bit_pos_ + 7) >> 3;
 }
 
+// Returns 1 on success.
 static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
   uint8_t* allocated_buf;
   size_t allocated_size;
@@ -67,6 +68,7 @@ static int BitWriterResize(BitWriter* const bw, size_t extra_size) {
   return 1;
 }
 
+// Returns 1 on success.
 static int BitWriterInit(BitWriter* const bw, size_t expected_size) {
   memset(bw, 0, sizeof(*bw));
   return BitWriterResize(bw, expected_size);
@@ -98,8 +100,10 @@ static void BitWriterDestroy(BitWriter* const bw) {
 //
 // For n bits, we take the last 5 bytes, OR that with high bits in BYTE-0,
 // and locate the rest in BYTE+1 and BYTE+2.
-static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
-  if (n_bits < 1) return;
+//
+// returns 1 on success.
+static inline int WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
+  if (n_bits < 1) return 1;
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
@@ -129,8 +133,9 @@ static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
 #endif
   if ((bw->bit_pos_ >> 3) > (bw->max_bytes_ - 8)) {
     const size_t kAdditionalBuffer = 32768 + bw->max_bytes_;
-    BitWriterResize(bw, kAdditionalBuffer);
+    return BitWriterResize(bw, kAdditionalBuffer);
   }
+  return 1;
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)
