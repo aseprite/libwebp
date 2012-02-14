@@ -31,18 +31,24 @@ typedef struct {
   uint32_t hash_size_;
 } VP8LColorCacheColumn;
 
-static void VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
+static int VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
   uint32_t i;
   p->hash_shift_ = 32 - hash_bits;
   p->hash_size_ = 1 << hash_bits;
   p->data_ = (uint32_t *)malloc(p->hash_size_ * sizeof(p->data_[0]));
+  if (p->data_ == NULL) {
+    return 1;
+  }
   for (i = 0; i < p->hash_size_; ++i) {
     p->data_[i] = kNotInitialized;
   }
+  return 0;
 }
 
 static void VP8LColorCacheColumnDelete(VP8LColorCacheColumn *p) {
-  free(p->data_);
+  if (p->data_) {
+    free(p->data_);
+  }
 }
 
 static void VP8LColorCacheColumnInsert(VP8LColorCacheColumn *p, uint32_t argb) {
@@ -83,7 +89,7 @@ typedef struct {
   int hashers_size_;
 } VP8LColorCache;
 
-static inline void VP8LColorCacheInit(VP8LColorCache *p,
+static inline int VP8LColorCacheInit(VP8LColorCache *p,
                                       int xsize,
                                       int x_downsample_bits,
                                       int hash_bits) {
@@ -98,17 +104,23 @@ static inline void VP8LColorCacheInit(VP8LColorCache *p,
 
   p->hashers_ = (VP8LColorCacheColumn *)
       malloc(p->hashers_size_ * sizeof(p->hashers_[0]));
+  if (p->hashers_ == NULL) {
+    return 1;
+  }
   for (i = 0; i < p->hashers_size_; ++i) {
     VP8LColorCacheColumnInit(&p->hashers_[i], hash_bits);
   }
+  return 0;
 }
 
 static inline void VP8LColorCacheDelete(VP8LColorCache *p) {
   int i;
-  for (i = 0; i < p->hashers_size_; ++i) {
-    VP8LColorCacheColumnDelete(&p->hashers_[i]);
+  if (p->hashers_) {
+    for (i = 0; i < p->hashers_size_; ++i) {
+      VP8LColorCacheColumnDelete(&p->hashers_[i]);
+    }
+    free(p->hashers_);
   }
-  free(p->hashers_);
 }
 
 static inline void VP8LColorCacheInsert(VP8LColorCache *p,
