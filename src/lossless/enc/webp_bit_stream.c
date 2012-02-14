@@ -235,8 +235,9 @@ static void StoreHuffmanTreeToBitMask(
   }
 }
 
-static void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
-                             BitWriter* const bw) {
+static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
+                            BitWriter* const bw) {
+  int error = 0;
   int count = 0;
   int symbols[2] = { 0, 0 };
   int i;
@@ -258,7 +259,7 @@ static void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     WriteBits(1, 1, bw);
     if (count == 0) {
       WriteBits(4, 0, bw);
-      return;
+      return 0;
     }
     WriteBits(1, count - 1, bw);
     while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
@@ -266,7 +267,7 @@ static void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     for (i = 0; i < count; ++i) {
       WriteBits(num_bits, symbols[i], bw);
     }
-    return;
+    return 0;
   }
   WriteBits(1, 0, bw);
   CreateCompressedHuffmanTree(bit_lengths,
@@ -281,8 +282,12 @@ static void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   memset(&code_length_bitdepth[0], 0, sizeof(code_length_bitdepth));
   memset(&code_length_bitdepth_symbols[0], 0,
          sizeof(code_length_bitdepth_symbols));
-  CreateHuffmanTree(&huffman_tree_histogram[0], CODE_LENGTH_CODES,
-                    7, &code_length_bitdepth[0]);
+  error = error ||
+      CreateHuffmanTree(&huffman_tree_histogram[0], CODE_LENGTH_CODES,
+                        7, &code_length_bitdepth[0]);
+  if (error) {
+    goto exit_label;
+  }
   ConvertBitDepthsToSymbols(&code_length_bitdepth[0], CODE_LENGTH_CODES,
                             &code_length_bitdepth_symbols[0]);
   StoreHuffmanTreeOfHuffmanTreeToBitMask(code_length_bitdepth,
@@ -324,8 +329,10 @@ static void StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                               &code_length_bitdepth_symbols[0],
                               bw);
   }
+exit_label:
   free(huffman_tree);
   free(huffman_tree_extra_bits);
+  return error;
 }
 
 static inline int MetaSize(int size, int bits) {
@@ -591,7 +598,8 @@ static void GetHistImageSymbols(int xsize, int ysize,
   free(histogram_image_raw);
 }
 
-static void GetHuffBitLengthsAndCodes(
+// Returns 0 when no error has occured.
+static int GetHuffBitLengthsAndCodes(
     int histogram_image_size,
     Histogram** histogram_image,
     int use_palette,
@@ -600,6 +608,7 @@ static void GetHuffBitLengthsAndCodes(
     uint16_t*** bit_codes) {
   int i;
   int k;
+  int error = 0;
   for (i = 0; i < histogram_image_size; ++i) {
     const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
@@ -623,8 +632,9 @@ static void GetHuffBitLengthsAndCodes(
                           &histogram_image[i]->distance_[0]);
 
     // Create a Huffman tree (in the form of bit lengths) for each component.
-    CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
-                      (*bit_lengths)[5 * i]);
+    error = error ||
+        CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
+                          (*bit_lengths)[5 * i]);
     for (k = 1; k < 5; ++k) {
       int val = 256;
       if (k == 4) {
@@ -634,14 +644,15 @@ static void GetHuffBitLengthsAndCodes(
       (*bit_lengths)[5 * i + k] = (uint8_t *)calloc(val, 1);
       (*bit_codes)[5 * i + k] = (uint16_t *)calloc(val, sizeof(bit_codes[0]));
     }
-    CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
-                      (*bit_lengths)[5 * i + 1]);
-    CreateHuffmanTree(histogram_image[i]->blue_, 256, 15,
-                      (*bit_lengths)[5 * i + 2]);
-    CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
-                      (*bit_lengths)[5 * i + 3]);
-    CreateHuffmanTree(histogram_image[i]->distance_, DISTANCE_CODES_MAX, 15,
-                      (*bit_lengths)[5 * i + 4]);
+    error = error ||
+        CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
+                          (*bit_lengths)[5 * i + 1]) ||
+        CreateHuffmanTree(histogram_image[i]->blue_, 256, 15,
+                          (*bit_lengths)[5 * i + 2]) ||
+        CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
+                          (*bit_lengths)[5 * i + 3]) ||
+        CreateHuffmanTree(histogram_image[i]->distance_, DISTANCE_CODES_MAX, 15,
+                          (*bit_lengths)[5 * i + 4]);
     // Create the actual bit codes for the bit lengths.
     for (k = 0; k < 5; ++k) {
       int ix = 5 * i + k;
@@ -649,6 +660,7 @@ static void GetHuffBitLengthsAndCodes(
                                 (*bit_codes)[ix]);
     }
   }
+  return error;
 }
 
 static void EncodeImageInternal(int xsize, int ysize,

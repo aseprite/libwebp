@@ -27,10 +27,12 @@ extern "C" {
 // the symbol.
 //
 // See http://en.wikipedia.org/wiki/Huffman_coding
-void CreateHuffmanTree(const int *data,
-                       const int length,
-                       const int tree_limit,
-                       uint8_t *depth);
+//
+// Returns 1 when an error has occured, 0 otherwise.
+int CreateHuffmanTree(const int *data,
+                      const int length,
+                      const int tree_limit,
+                      uint8_t *depth);
 
 // Write a huffman tree from bit depths into the deflate representation
 // of a Huffman tree. In deflate, the generated Huffman tree is to be

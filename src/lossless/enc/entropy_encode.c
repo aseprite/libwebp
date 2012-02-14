@@ -68,9 +68,9 @@ static void SetDepth(const HuffmanTree *p,
 // we are not planning to use this with extremely long blocks.
 //
 // See http://en.wikipedia.org/wiki/Huffman_coding
-void CreateHuffmanTree(const int* const histogram, int histogram_size,
-                       int tree_depth_limit,
-                       uint8_t* const bit_depths) {
+int CreateHuffmanTree(const int* const histogram, int histogram_size,
+                      int tree_depth_limit,
+                      uint8_t* const bit_depths) {
   HuffmanTree *tree;
   HuffmanTree *tree_pool;
   int tree_pool_size;
@@ -92,6 +92,9 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
     // The tree pool needs 2 * (tree_size - 1) entities, and the
     // tree needs exactly tree_size entities.
     tree = (HuffmanTree *)malloc(3 * tree_size * sizeof(*tree));
+    if (tree == NULL) {
+      return 1;
+    }
     {
       int j = 0;
       int i;
@@ -162,6 +165,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
       }
     }
   }
+  return 0;
 }
 
 static void WriteHuffmanTreeRepetitions(
