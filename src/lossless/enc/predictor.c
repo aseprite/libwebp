@@ -109,9 +109,11 @@ void PredictorImage(int xsize, int ysize, int bits,
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   int tile_y;
   Histogram histo;
+#ifndef NDEBUG
   uint32_t *argb_orig = (uint32_t *)
       malloc(sizeof(from_argb[0]) * xsize * ysize);
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
+#endif
   Histogram_Init(&histo, 0);
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     const int tile_y_offset = tile_y * max_tile_size;
@@ -157,8 +159,8 @@ void PredictorImage(int xsize, int ysize, int bits,
     }
     free(argb);
   }
-#endif
   free(argb_orig);
+#endif
 }
 
 static double PredictionCostCrossColor(int *accumulated, int *counts) {
@@ -310,8 +312,6 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
 void ColorSpaceTransform(int xsize, int ysize, int bits,
                          const uint32_t *from_argb, int quality,
                          uint32_t *to_argb, uint32_t *image) {
-  uint32_t *argb_orig = (uint32_t *)
-      malloc(sizeof(from_argb[0]) * xsize * ysize);
   const int max_tile_size = 1 << bits;
   int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   int tile_ysize = (ysize + max_tile_size - 1) >> bits;
@@ -321,9 +321,13 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
   int tile_x;
   ColorSpaceTransformElement prevX;
   ColorSpaceTransformElement prevY;
+#ifndef NDEBUG
+  uint32_t *argb_orig = (uint32_t *)
+      malloc(sizeof(from_argb[0]) * xsize * ysize);
+  memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
+#endif
   ColorSpaceTransformElementClear(&prevY);
   ColorSpaceTransformElementClear(&prevX);
-  memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     for (tile_x = 0; tile_x < tile_xsize; ++tile_x) {
       ColorSpaceTransformElement color_transform;
@@ -396,8 +400,8 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
     }
     free(argb);
   }
-#endif
   free(argb_orig);
+#endif
 }
 
 void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array) {
