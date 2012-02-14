@@ -601,9 +601,11 @@ static int PredictorInverseTransform(const VP8LTransform* const transform,
   int ok = 1;
   size_t row, col;
   uint32_t image_ix = 0;
-  uint32_t tile_ix = 0;
   const uint32_t tile_mask = (1 << transform->bits_) - 1;
-  uint32_t pred_mode = (transform->data_[tile_ix] >> 8) & 0xff;
+  const uint32_t tile_xsize =
+      (transform->xsize_ + tile_mask) >> transform->bits_;
+
+  uint32_t pred_mode = 0;
   argb_t pred = 0;
 
   // First Row follows the L (mode=1) mode.
@@ -613,13 +615,14 @@ static int PredictorInverseTransform(const VP8LTransform* const transform,
   image_ix += transform->xsize_;
 
   for (row = 1; row < transform->ysize_; ++row) {
-    int row_tile_mask = row & tile_mask;
+    const uint32_t tile_y = row >> transform->bits_;
+    uint32_t tile_x = 0;
     for (col = 0; col < transform->xsize_; ++col, ++image_ix) {
       // Pick the appropriate predictor mode (at start of every tile).
-      // (0, 0) of
-      if (!row_tile_mask && !(col & tile_mask)) {
-        ++tile_ix;
+      if (!(col & tile_mask)) {
+        const int tile_ix = tile_y * tile_xsize + tile_x;
         pred_mode = (transform->data_[tile_ix] >> 8) & 0xff;
+        ++tile_x;
       }
       // First col follows the T (mode=2) mode.
       pred = (col == 0) ? decoded_data[image_ix - transform->xsize_] :
@@ -647,13 +650,52 @@ static int AddGreenToBlueAndRed(const VP8LTransform* const transform,
   return 1;
 }
 
-// TODO: Implement this Inverse Transform.
+static inline uint32_t ColorTransformDelta(signed char color_pred,
+                                           signed char color) {
+  return (uint32_t)((int)(color_pred) * color) >> 5;
+}
+
+static argb_t TransformColor(uint32_t color_pred, argb_t argb) {
+  const uint32_t green_to_red = color_pred & 0xff;
+  const uint32_t green_to_blue = (color_pred >> 8) & 0xff;
+  const uint32_t red_to_blue = (color_pred >> 16) & 0xff;
+
+  const uint32_t green = argb >> 8;
+  const uint32_t red = argb >> 16;
+  uint32_t new_red = red;
+  uint32_t new_blue = argb;
+  new_red += ColorTransformDelta(green_to_red, green);
+  new_red &= 0xff;
+  new_blue += ColorTransformDelta(green_to_blue, green);
+  new_blue += ColorTransformDelta(red_to_blue, new_red);
+  new_blue &= 0xff;
+  return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
+}
+
 static int ColorSpaceInverseTransform(const VP8LTransform* const transform,
                                       argb_t* const decoded_data) {
-  int ok = 0;
-  (void)transform;
-  (void)decoded_data;
+  int ok = 1;
+  size_t row, col;
+  uint32_t image_ix = 0;
+  const uint32_t tile_mask = (1 << transform->bits_) - 1;
+  const uint32_t tile_xsize =
+      (transform->xsize_ + tile_mask) >> transform->bits_;
+  argb_t color_pred = 0;
 
+  for (row = 0; row < transform->ysize_; ++row) {
+    const uint32_t tile_y = row >> transform->bits_;
+    uint32_t tile_x = 0;
+    for (col = 0; col < transform->xsize_; ++col, ++image_ix) {
+      // Pick the appropriate color predictor mode (at start of every tile).
+      if (!(col & tile_mask)) {
+        const int tile_ix = tile_y * tile_xsize + tile_x;
+        color_pred = transform->data_[tile_ix];
+        ++tile_x;
+      }
+      decoded_data[image_ix] = TransformColor(color_pred,
+                                              decoded_data[image_ix]);
+    }
+  }
   return ok;
 }
 
