@@ -31,9 +31,9 @@ void BuildHistogramImage(int xsize, int ysize,
   int x = 0;
   int y = 0;
   *image_size = histo_xsize * histo_ysize;
-  *image = (Histogram **)malloc(*image_size * sizeof(Histogram *));
+  *image = (Histogram **)malloc(*image_size * sizeof(**image));
   for (i = 0; i < *image_size; ++i) {
-    (*image)[i] = (Histogram *)malloc(sizeof(Histogram));
+    (*image)[i] = (Histogram *)malloc(sizeof(*(*image)[i]));
     Histogram_Init((*image)[i], palettebits);
   }
   // x and y trace the position in the image.
@@ -61,13 +61,13 @@ void CombineHistogramImage(Histogram **in,
   int tries_with_no_success = 0;
   int inner_iters = 10 + quality / 2;
   int iter;
-  double *bit_costs = (double *)malloc(in_size * sizeof(double));
-  Histogram **out = (Histogram **)malloc(in_size * sizeof(Histogram *));
+  double *bit_costs = (double *)malloc(in_size * sizeof(*bit_costs));
+  Histogram **out = (Histogram **)malloc(in_size * sizeof(*out));
   *out_arg = out;
   *out_size = in_size;
   // Copy
   for (i = 0; i < in_size; ++i) {
-    Histogram *new_histo = (Histogram *)malloc(sizeof(Histogram));
+    Histogram *new_histo = (Histogram *)malloc(sizeof(*new_histo));
     Histogram_Init(new_histo, palettebits);
     *new_histo = *(in[i]);
     out[i] = new_histo;
@@ -94,7 +94,7 @@ void CombineHistogramImage(Histogram **in,
       if (ix0 == ix1) {
         continue;
       }
-      combo = (Histogram *)malloc(sizeof(Histogram));
+      combo = (Histogram *)malloc(sizeof(*combo));
       Histogram_Init(combo, palettebits);
       *combo = *out[ix0];
       Histogram_Add(combo, out[ix1]);
@@ -135,7 +135,7 @@ static double HistogramDistance(const Histogram * const square_histogram,
                                 Histogram **candidate_histograms) {
   double new_bit_cost;
   double previous_bit_cost;
-  Histogram *tmp;
+  Histogram *modified;
   if (cur_symbol == candidate_symbol) {
     return 0;  // Going nowhere. No savings.
   }
@@ -146,20 +146,20 @@ static double HistogramDistance(const Histogram * const square_histogram,
         Histogram_EstimateBits(candidate_histograms[cur_symbol]);
   }
 
-  tmp = (Histogram *)malloc(sizeof(Histogram));
-  Histogram_Init(tmp, square_histogram->palette_code_bits_);
+  modified = (Histogram *)malloc(sizeof(*modified));
+  Histogram_Init(modified, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
-  *tmp = *candidate_histograms[candidate_symbol];
-  Histogram_Add(tmp, square_histogram);
-  new_bit_cost = Histogram_EstimateBits(tmp);
+  *modified = *candidate_histograms[candidate_symbol];
+  Histogram_Add(modified, square_histogram);
+  new_bit_cost = Histogram_EstimateBits(modified);
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
-    *tmp = *candidate_histograms[cur_symbol];
-    Histogram_Remove(tmp, square_histogram);
-    new_bit_cost += Histogram_EstimateBits(tmp);
+    *modified = *candidate_histograms[cur_symbol];
+    Histogram_Remove(modified, square_histogram);
+    new_bit_cost += Histogram_EstimateBits(modified);
   }
-  free(tmp);
+  free(modified);
   return new_bit_cost - previous_bit_cost;
 }
 

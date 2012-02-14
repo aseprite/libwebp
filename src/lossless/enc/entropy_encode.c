@@ -107,7 +107,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
         }
       }
     }
-    qsort((void *)tree, tree_size, sizeof(HuffmanTree), CompHuffmanTree);
+    qsort((void *)tree, tree_size, sizeof(*tree), CompHuffmanTree);
     tree_pool = tree + tree_size;
     tree_pool_size = 0;
     if (tree_size >= 2) {
@@ -129,9 +129,7 @@ void CreateHuffmanTree(const int* const histogram, int histogram_size,
               break;
             }
           }
-          memmove(tree + (k + 1),
-                  tree + k,
-                  (tree_size - k) * sizeof(HuffmanTree));
+          memmove(tree + (k + 1), tree + k, (tree_size - k) * sizeof(*tree));
           tree[k].total_count_ = count;
           tree[k].value_ = -1;
 

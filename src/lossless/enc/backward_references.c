@@ -203,7 +203,7 @@ void BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
                                  PixOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
   int i;
-  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LColorCache hashers;
   VP8LColorCacheInit(&hashers, xsize,
                      kRowHasherXSubsampling, palette_bits);
@@ -300,8 +300,7 @@ static void CostModel_Build(CostModel *p, int xsize, int ysize,
   int stream_size;
   Histogram histo;
   int i;
-  PixOrCopy *stream =
-      (PixOrCopy *)malloc(xsize * ysize * sizeof(PixOrCopy));
+  PixOrCopy *stream = (PixOrCopy *)malloc(xsize * ysize * sizeof(*stream));
   p->palette_bits_ = palette_bits;
   if (recursion_level > 0) {
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
@@ -363,12 +362,12 @@ static void BackwardReferencesHashChainDistanceOnly(
     int palette_bits,
     uint32_t *dist_array) {
   const int pix_count = xsize * ysize;
-  double *cost = (double *)malloc(pix_count * sizeof(double));
+  double *cost = (double *)malloc(pix_count * sizeof(*cost));
   int i;
-  CostModel *cost_model = (CostModel *)malloc(sizeof(CostModel));
+  CostModel *cost_model = (CostModel *)malloc(sizeof(*cost_model));
 
   VP8LColorCache hashers;
-  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);
   VP8LHashChain_Init(hash_chain, pix_count);
@@ -503,7 +502,7 @@ static void BackwardReferencesHashChainFollowChosenPath(
   int k;
   int ix;
   VP8LColorCache hashers;
-  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(VP8LHashChain));
+  VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LHashChain_Init(hash_chain, pix_count);
   VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits);

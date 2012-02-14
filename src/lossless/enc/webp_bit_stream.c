@@ -494,12 +494,12 @@ static void GetBackwardReferences(int xsize, int ysize,
   // Backward Reference using LZ77.
   int lz77_is_useful;
   int backward_refs_rle_only_size;
-  Histogram *histo_rle = (Histogram *)malloc(sizeof(Histogram));
-  Histogram *histo_lz77 = (Histogram *)malloc(sizeof(Histogram));
+  Histogram *histo_rle = (Histogram *)malloc(sizeof(*histo_rle));
+  Histogram *histo_lz77 = (Histogram *)malloc(sizeof(*histo_lz77));
   PixOrCopy *backward_refs_lz77 = (PixOrCopy *)
-      malloc(xsize * ysize * sizeof(PixOrCopy));
+      malloc(xsize * ysize * sizeof(*backward_refs_lz77));
   PixOrCopy *backward_refs_rle_only = (PixOrCopy *)
-      malloc(xsize * ysize * sizeof(PixOrCopy));
+      malloc(xsize * ysize * sizeof(*backward_refs_rle_only));
   int backward_refs_lz77_size;
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
@@ -526,7 +526,7 @@ static void GetBackwardReferences(int xsize, int ysize,
     free(backward_refs_rle_only);
     free(backward_refs_lz77);
     *backward_refs = (PixOrCopy *)
-        malloc(xsize * ysize * sizeof(PixOrCopy));
+        malloc(xsize * ysize * sizeof(*backward_refs));
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
                                      &argb[0], palette_bits, *backward_refs,
                                      backward_refs_size);
@@ -604,7 +604,8 @@ static void GetHuffBitLengthsAndCodes(
     const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
     (*bit_lengths)[5 * i] = (uint8_t *)calloc(lit_len, 1);
-    (*bit_codes)[5 * i] = (uint16_t *)malloc(lit_len * sizeof(uint16_t));
+    (*bit_codes)[5 * i] = (uint16_t *)
+        malloc(lit_len * sizeof(*(*bit_codes)[5 * i]));
 
     // For each component, optimize histogram for Huffman with RLE compression.
     OptimizeHuffmanForRle(lit_len, &histogram_image[i]->literal_[0]);
@@ -670,15 +671,12 @@ static void EncodeImageInternal(int xsize, int ysize,
   const int histogram_image_xysize = MetaSize(xsize, histogram_bits) *
       MetaSize(ysize, histogram_bits);
   uint32_t *histogram_symbols = (uint32_t *)
-      malloc(histogram_image_xysize * sizeof(uint32_t));
-  // Build histogram image & symbols from backward references.
-  memset(histogram_symbols, 0, histogram_image_xysize * sizeof(uint32_t));
-
-
+      calloc(histogram_image_xysize, sizeof(*histogram_symbols));
   // Calculate backward references from ARGB image.
   GetBackwardReferences(xsize, ysize, argb, quality, use_palette, palette_bits,
                         use_2d_locality, &backward_refs_size, &backward_refs);
 
+  // Build histogram image & symbols from backward references.
   GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
                       quality, histogram_bits,
                       palette_bits,
@@ -687,9 +685,12 @@ static void EncodeImageInternal(int xsize, int ysize,
                       histogram_symbols);
 
   // Create Huffman bit lengths & codes for each histogram image.
-  bit_lengths_sizes = (int *)calloc(5 * histogram_image_size, sizeof(int));
-  bit_lengths = (uint8_t**)calloc(5 * histogram_image_size, sizeof(uint8_t*));
-  bit_codes = (uint16_t**)calloc(5 * histogram_image_size, sizeof(uint16_t*));
+  bit_lengths_sizes = (int *)calloc(5 * histogram_image_size,
+                                    sizeof(*bit_lengths_sizes));
+  bit_lengths = (uint8_t**)calloc(5 * histogram_image_size,
+                                  sizeof(*bit_lengths));
+  bit_codes = (uint16_t**)calloc(5 * histogram_image_size,
+                                 sizeof(*bit_codes));
   GetHuffBitLengthsAndCodes(histogram_image_size, histogram_image,
                             use_palette, &bit_lengths_sizes,
                             &bit_lengths, &bit_codes);
@@ -705,9 +706,9 @@ static void EncodeImageInternal(int xsize, int ysize,
     int image_size_bits;
     int num_histograms;
     uint32_t* histogram_argb = (uint32_t*)
-        malloc(histogram_image_xysize * sizeof(uint32_t));
+        malloc(histogram_image_xysize * sizeof(*histogram_argb));
     memcpy(histogram_argb, histogram_symbols,
-           histogram_image_xysize * sizeof(uint32_t));
+           histogram_image_xysize * sizeof(*histogram_argb));
 
     ShiftHistogramImage(histogram_image_xysize, &histogram_argb[0]);
     WriteBits(4, histogram_bits, bw);
@@ -797,7 +798,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   int use_emerging_palette = 1;
-  uint32_t* argb = (uint32_t *)malloc(xsize * ysize * sizeof(uint32_t));
+  uint32_t* argb = (uint32_t *)malloc(xsize * ysize * sizeof(*argb));
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
   int palette_size;
   uint32_t palette[256];
@@ -805,20 +806,20 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   BitWriter bw;
   if (!BitWriterInit(&bw, kEstmatedEncodeSize)) return 0;
 
-  memcpy(argb, argb_orig, xsize * ysize * sizeof(uint32_t));
+  memcpy(argb, argb_orig, xsize * ysize * sizeof(*argb));
 
   // Write image size.
   WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
     Histogram *after;
-    Histogram *before = (Histogram *)malloc(sizeof(Histogram));
+    Histogram *before = (Histogram *)malloc(sizeof(*before));
     Histogram_Init(before, 1);
     for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
-    after = (Histogram *)malloc(sizeof(Histogram));
+    after = (Histogram *)malloc(sizeof(*after));
     Histogram_Init(after, 1);
     for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
@@ -876,9 +877,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
         MetaSize(xsize, predict_bits) *
         MetaSize(ysize, predict_bits);
     uint32_t* predictor_image = (uint32_t*)
-        malloc(predictor_image_size * sizeof(uint32_t));
-    uint32_t* from_argb = (uint32_t*)malloc(xsize * ysize * sizeof(uint32_t));
-    memcpy(from_argb, &argb[0], xsize * ysize * sizeof(argb[0]));
+        malloc(predictor_image_size * sizeof(*predictor_image));
+    uint32_t* from_argb = (uint32_t*)malloc(xsize * ysize * sizeof(*from_argb));
+    memcpy(from_argb, &argb[0], xsize * ysize * sizeof(*argb));
     PredictorImage(xsize, ysize, predict_bits,
                    &from_argb[0],
                    &argb[0],
@@ -903,7 +904,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
         MetaSize(xsize, cross_color_transform_bits) *
         MetaSize(ysize, cross_color_transform_bits);
     uint32_t* color_space_image = (uint32_t *)
-        malloc(color_space_image_size * sizeof(uint32_t));
+        malloc(color_space_image_size * sizeof(*color_space_image));
     ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
                         &argb[0],
                         quality,

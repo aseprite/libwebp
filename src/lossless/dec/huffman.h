@@ -81,16 +81,14 @@ class HuffmanTreeNode {
     if (num_symbols < 2) {
       return AddSymbol(root_symbol, 0, 0);
     }
-    int *bl_count = (int *)malloc((max_code_length + 1) * sizeof(int));
-    memset(bl_count, 0, (max_code_length + 1) * sizeof(bl_count[0]));
+    int *bl_count = (int *)calloc((max_code_length + 1), sizeof(*bl_count));
     for (int i = 0; i < size; ++i) {
       ++bl_count[code_lengths[i]];
     }
     unsigned int code = 0;
     bl_count[0] = 0;
     unsigned int *next_code = (unsigned int *)
-        malloc((max_code_length + 1) * sizeof(unsigned int));
-    memset(next_code, 0, (max_code_length + 1) * sizeof(next_code[0]));
+        calloc((max_code_length + 1), sizeof(*next_code));
     for (int l = 1; l <= max_code_length; ++l) {
       code = (code + bl_count[l - 1]) << 1;
       next_code[l] = code;
