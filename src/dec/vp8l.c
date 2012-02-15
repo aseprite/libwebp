@@ -597,7 +597,7 @@ static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
 
 #define ARGB_BLACK 0xff000000
 
-static argb_t PredictValue(uint32_t pred_mode, uint32_t xsize,
+static argb_t PredictValue(uint32_t pred_mode, int xsize,
                            const argb_t* const argb) {
   switch(pred_mode) {
     case 0: return ARGB_BLACK;
