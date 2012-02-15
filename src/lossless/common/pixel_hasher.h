@@ -37,12 +37,12 @@ static int VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
   p->hash_size_ = 1 << hash_bits;
   p->data_ = (uint32_t *)malloc(p->hash_size_ * sizeof(p->data_[0]));
   if (p->data_ == NULL) {
-    return 1;
+    return 0;
   }
   for (i = 0; i < p->hash_size_; ++i) {
     p->data_[i] = kNotInitialized;
   }
-  return 0;
+  return 1;
 }
 
 static void VP8LColorCacheColumnDelete(VP8LColorCacheColumn *p) {
@@ -105,12 +105,12 @@ static inline int VP8LColorCacheInit(VP8LColorCache *p,
   p->hashers_ = (VP8LColorCacheColumn *)
       malloc(p->hashers_size_ * sizeof(p->hashers_[0]));
   if (p->hashers_ == NULL) {
-    return 1;
+    return 0;
   }
   for (i = 0; i < p->hashers_size_; ++i) {
     VP8LColorCacheColumnInit(&p->hashers_[i], hash_bits);
   }
-  return 0;
+  return 1;
 }
 
 static inline void VP8LColorCacheDelete(VP8LColorCache *p) {

@@ -77,15 +77,19 @@ typedef struct {
   int32_t *chain_;
 } VP8LHashChain;
 
-static void VP8LHashChain_Init(VP8LHashChain *p, int size) {
+static int VP8LHashChain_Init(VP8LHashChain *p, int size) {
   int i;
   p->chain_ = (int *)malloc(size * sizeof(*p->chain_));
+  if (!p->chain_) {
+    return 0;
+  }
   for (i = 0; i < size; ++i) {
     p->chain_[i] = -1;
   }
   for (i = 0; i < HASH_SIZE; ++i) {
     p->hash_to_first_index_[i] = -1;
   }
+  return 1;
 }
 
 static void VP8LHashChain_Delete(VP8LHashChain *p) {
@@ -200,19 +204,22 @@ void BackwardReferencesRle(int xsize, int ysize, const uint32_t *argb,
   PushBackCopy(streak, stream, stream_size);
 }
 
-// Returns 0 when successful.
+// Returns 1 when successful.
 int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
                                  const uint32_t *argb, int palette_bits,
                                  PixOrCopy *stream, int *stream_size) {
   const int pix_count = xsize * ysize;
   int i;
+  int ok = 1;
   VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LColorCache hashers;
-  if (VP8LColorCacheInit(&hashers, xsize,
-                         kRowHasherXSubsampling, palette_bits)) {
-    return 1;
+  if (!hash_chain ||
+      !VP8LColorCacheInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits) ||
+      !VP8LHashChain_Init(hash_chain, pix_count)) {
+    ok = 0;
+    goto exit_label;
   }
-  VP8LHashChain_Init(hash_chain, pix_count);
   *stream_size = 0;
   for (i = 0; i < pix_count; ) {
     // Alternative#1: Code the pixels starting at 'i' using backward reference.
@@ -285,10 +292,13 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       ++i;
     }
   }
-  VP8LHashChain_Delete(hash_chain);
-  free(hash_chain);
+exit_label:
+  if (hash_chain) {
+    VP8LHashChain_Delete(hash_chain);
+    free(hash_chain);
+  }
   VP8LColorCacheDelete(&hashers);
-  return 0;
+  return ok;
 }
 
 typedef struct {
@@ -378,8 +388,8 @@ static int BackwardReferencesHashChainDistanceOnly(
   if (cost == NULL ||
       cost_model == NULL ||
       hash_chain == NULL ||
-      VP8LColorCacheInit(&hashers, xsize,
-                         kRowHasherXSubsampling, palette_bits)) {
+      !VP8LColorCacheInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits)) {
     retval = 1;
     goto exit_label;
   }
@@ -527,8 +537,8 @@ static void BackwardReferencesHashChainFollowChosenPath(
   VP8LHashChain *hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LHashChain_Init(hash_chain, pix_count);
   if (hash_chain == NULL ||
-      VP8LColorCacheInit(&hashers, xsize,
-                         kRowHasherXSubsampling, palette_bits)) {
+      !VP8LColorCacheInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits)) {
     error = 1;
     goto exit_label;
   }
@@ -688,7 +698,7 @@ int VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
   return 1;
 }
 
-// Returns zero on success, non-zero on error.
+// Returns 1 on success.
 static int ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
                                    PixOrCopy *stream, int stream_size,
                                    int palette_bits, Histogram *histo) {
@@ -696,8 +706,8 @@ static int ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
   int i;
   uint32_t k;
   VP8LColorCache hashers;
-  if (VP8LColorCacheInit(&hashers, xsize,
-                         kRowHasherXSubsampling, palette_bits)) {
+  if (!VP8LColorCacheInit(&hashers, xsize,
+                          kRowHasherXSubsampling, palette_bits)) {
     return 1;
   }
   for (i = 0; i < stream_size; ++i) {
