@@ -408,7 +408,7 @@ static int DecodePixels(
   }
 
   data = (uint32_t*)calloc(xsize * ysize,sizeof(uint32_t));
-  ok = (data == NULL);
+  ok = (data != NULL);
   if (!ok) goto End;
 
   for (pos = 0; pos < xsize * ysize; ) {
@@ -844,17 +844,17 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   }
 
   // Step#2: Read the Huffman codes.
-  ok = ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
-                        &color_cache_bits, &color_cache_x_subsample_bits,
-                        &huffman_image, &huffman_subsample_bits,
-                        &meta_codes, &num_meta_codes,
-                        &htrees, &num_huffman_trees);
+  ok = ok && ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
+                              &color_cache_bits, &color_cache_x_subsample_bits,
+                              &huffman_image, &huffman_subsample_bits,
+                              &meta_codes, &num_meta_codes,
+                              &htrees, &num_huffman_trees);
 
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  ok = DecodePixels(dec, xsize, ysize,
-                    color_cache_bits, color_cache_x_subsample_bits,
-                    huffman_image, huffman_subsample_bits, meta_codes, htrees,
-                    decoded_data);
+  ok = ok && DecodePixels(dec, xsize, ysize,
+                          color_cache_bits, color_cache_x_subsample_bits,
+                          huffman_image, huffman_subsample_bits, meta_codes,
+                          htrees, decoded_data);
 
   free(huffman_image);
   free(meta_codes);
@@ -864,7 +864,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   free(htrees);
 
   // Step#4: Apply transforms on the decoded data.
-  ok = ApplyInverseTransforms(dec, transform_start_idx, *decoded_data);
+  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, *decoded_data);
 
   return ok;
 }
