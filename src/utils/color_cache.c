@@ -44,8 +44,7 @@ struct ColorCacheColumn {
   uint32_t hash_size_;
 };
 
-static WEBP_INLINE void ColorCacheColumnInit(ColorCacheColumn* const cc,
-                                             int hash_bits) {
+static WEBP_INLINE void ColumnInit(ColorCacheColumn* const cc, int hash_bits) {
   uint32_t i;
   assert(cc != NULL);
   cc->hash_shift_ = 32 - hash_bits;
@@ -56,38 +55,37 @@ static WEBP_INLINE void ColorCacheColumnInit(ColorCacheColumn* const cc,
   }
 }
 
-static WEBP_INLINE void ColorCacheColumnRelease(ColorCacheColumn* const cc) {
+static WEBP_INLINE void ColumnRelease(ColorCacheColumn* const cc) {
   free(cc->data_);
+  cc->data_ = NULL;
 }
 
-static WEBP_INLINE void ColorCacheColumnInsert(ColorCacheColumn* const cc,
-                                               uint32_t argb) {
+static WEBP_INLINE void ColumnInsert(ColorCacheColumn* const cc,
+                                     uint32_t argb) {
   const uint32_t key = GetKey(argb, cc->hash_shift_);
-  assert(cc != NULL);
   cc->data_[key] = argb;
 }
 
-static WEBP_INLINE int ColorCacheColumnIsInitialized(
-    const ColorCacheColumn* const cc, uint32_t argb) {
-    const uint32_t key = GetKey(argb, cc->hash_shift_);
-    assert(cc != NULL);
-    return cc->data_[key] != kNotInitialized;
-}
-
-static WEBP_INLINE int ColorCacheColumnContains(
-    const ColorCacheColumn* const cc, uint32_t argb) {
+// Returns 1 if the key location in the column contains this ARGB value,
+//         0 if the key contains a different ARGB value and
+//        -1 if the key is uninitialized.
+static WEBP_INLINE int ColumnContains(const ColorCacheColumn* const cc,
+                                      uint32_t argb) {
   assert(cc != NULL);
   if (argb == kNotInitialized) {
     return 0;
   } else {
-    const uint32_t key = GetKey(argb, cc->hash_shift_);;
-    return cc->data_[key] == argb;
+    const uint32_t key = GetKey(argb, cc->hash_shift_);
+    if (cc->data_[key] == kNotInitialized) {
+      return -1;
+    } else {
+      return (cc->data_[key] == argb);
+    }
   }
 }
 
-static WEBP_INLINE int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
-                                              uint32_t key,
-                                              uint32_t* const argb) {
+static WEBP_INLINE int ColumnLookup(const ColorCacheColumn* const cc,
+                                    uint32_t key, uint32_t* const argb) {
   assert(key < cc->hash_size_);
   if (cc->data_[key] != kNotInitialized) {
     *argb = cc->data_[key];
@@ -107,41 +105,34 @@ static WEBP_INLINE int ColorCacheGetColumn(
 
 static WEBP_INLINE uint32_t ColorCacheGetIndex(
     const VP8LColorCache* const color_cache, uint32_t argb) {
+  assert(color_cache != NULL);
   return GetKey(argb, 32 - color_cache->hash_bits_);
 }
 
 static WEBP_INLINE int ColorCacheContains(
     const VP8LColorCache* const color_cache, uint32_t x_pos, uint32_t argb) {
   int i;
-  int col = ColorCacheGetColumn(color_cache, x_pos);
-  if (ColorCacheColumnContains(&color_cache->cache_columns_[col], argb)) {
-    return 1;
-  }
-  if (ColorCacheColumnIsInitialized(&color_cache->cache_columns_[col], argb)) {
-    return 0;
-  }
+  int ret;
+  const int col = ColorCacheGetColumn(color_cache, x_pos);
+  const ColorCacheColumn* const columns = &color_cache->cache_columns_[col];
+
+  // Search in current column.
+  ret = ColumnContains(&columns[0], argb);
+  if (ret != -1) return ret;
+
+  // Search in nearby columns one-by-one.
   for (i = 1; i < color_cache->num_cache_columns_; ++i) {
     if (col - i >= 0) {
-      if (ColorCacheColumnContains(&color_cache->cache_columns_[col - i],
-                                   argb)) {
-        return 1;
-      }
-      if (ColorCacheColumnIsInitialized(&color_cache->cache_columns_[col - i],
-                                        argb)) {
-        return 0;
-      }
+      ret = ColumnContains(&columns[-i], argb);
+      if (ret != -1) return ret;
     }
     if (col + i < color_cache->num_cache_columns_) {
-      if (ColorCacheColumnContains(&color_cache->cache_columns_[col + i],
-                                   argb)) {
-        return 1;
-      }
-      if (ColorCacheColumnIsInitialized(&color_cache->cache_columns_[col + i],
-                                        argb)) {
-        return 0;
-      }
+      ret = ColumnContains(&columns[i], argb);
+      if (ret != -1) return ret;
     }
   }
+
+  // No match.
   return 0;
 }
 
@@ -162,7 +153,7 @@ void VP8LColorCacheInit(VP8LColorCache* const color_cache, uint32_t xsize,
       (ColorCacheColumn*)malloc(color_cache->num_cache_columns_ *
                                 sizeof(color_cache->cache_columns_[0]));
   for (i = 0; i < color_cache->num_cache_columns_; ++i) {
-    ColorCacheColumnInit(&color_cache->cache_columns_[i], hash_bits);
+    ColumnInit(&color_cache->cache_columns_[i], hash_bits);
   }
 }
 
@@ -170,16 +161,18 @@ void VP8LColorCacheRelease(VP8LColorCache* const color_cache) {
   int i;
   assert(color_cache != NULL);
   for (i = 0; i < color_cache->num_cache_columns_; ++i) {
-    ColorCacheColumnRelease(&color_cache->cache_columns_[i]);
+    ColumnRelease(&color_cache->cache_columns_[i]);
   }
   free(color_cache->cache_columns_);
 }
 
 void VP8LColorCacheInsert(VP8LColorCache* const color_cache, uint32_t x_pos,
                           uint32_t argb) {
-  const int col = ColorCacheGetColumn(color_cache, x_pos);
-  assert(color_cache != NULL);
-  ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb);
+  assert(color_cache);
+  {
+    const int col = ColorCacheGetColumn(color_cache, x_pos);
+    ColumnInsert(&color_cache->cache_columns_[col], argb);
+  }
 }
 
 int VP8LColorCacheLookup(const VP8LColorCache* const color_cache,
@@ -188,18 +181,16 @@ int VP8LColorCacheLookup(const VP8LColorCache* const color_cache,
   assert(color_cache != NULL);
   assert(argb != NULL);
   col = ColorCacheGetColumn(color_cache, x_pos);
-  if (ColorCacheColumnLookup(&color_cache->cache_columns_[col], key, argb)) {
+  if (ColumnLookup(&color_cache->cache_columns_[col], key, argb)) {
     return 1;
   }
   for (i = 1; i < color_cache->num_cache_columns_; ++i) {
     if (col - i >= 0 &&
-        ColorCacheColumnLookup(&color_cache->cache_columns_[col - i], key,
-                               argb)) {
+        ColumnLookup(&color_cache->cache_columns_[col - i], key, argb)) {
       return 1;
     }
     if (col + i < color_cache->num_cache_columns_ &&
-        ColorCacheColumnLookup(&color_cache->cache_columns_[col + i], key,
-                               argb)) {
+        ColumnLookup(&color_cache->cache_columns_[col + i], key, argb)) {
       return 1;
     }
   }
