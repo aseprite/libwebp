@@ -165,10 +165,10 @@ static void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
   }
 }
 
-static void PackLiteralBitLengths(const uint8_t* bit_lengths,
-                                  int palette_bits, int use_palette,
-                                  int *new_length_size,
-                                  uint8_t** new_lengths) {
+static int PackLiteralBitLengths(const uint8_t* bit_lengths,
+                                 int palette_bits, int use_palette,
+                                 int *new_length_size,
+                                 uint8_t** new_lengths) {
   int i;
   int length_code_offset = 256;
   *new_length_size = 256 + kLengthCodes;
@@ -176,6 +176,9 @@ static void PackLiteralBitLengths(const uint8_t* bit_lengths,
     *new_length_size += 1 << palette_bits;
   }
   *new_lengths = (uint8_t*)malloc(*new_length_size);
+  if (*new_lengths == NULL) {
+    return 0;
+  }
   for (i = 0; i < 256; ++i) {
     (*new_lengths)[i] = bit_lengths[i];
   }
@@ -189,6 +192,7 @@ static void PackLiteralBitLengths(const uint8_t* bit_lengths,
     (*new_lengths)[length_code_offset + i] =
         bit_lengths[256 + (1 << palette_bits) + i];
   }
+  return 1;
 }
 
 static void StoreHuffmanTreeOfHuffmanTreeToBitMask(
@@ -251,6 +255,11 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   uint8_t code_length_bitdepth[CODE_LENGTH_CODES];
   uint16_t code_length_bitdepth_symbols[CODE_LENGTH_CODES];
   int huffman_tree_histogram[CODE_LENGTH_CODES];
+  if (huffman_tree == NULL ||
+      huffman_tree_extra_bits == NULL) {
+    ok = 0;
+    goto exit_label;
+  }
   for (i = 0; i < bit_lengths_size; ++i) {
     if (bit_lengths[i] != 0) {
       if (count < 2) symbols[count] = i;
@@ -334,8 +343,8 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                               bw);
   }
 exit_label:
-  free(huffman_tree);
-  free(huffman_tree_extra_bits);
+  if (huffman_tree) free(huffman_tree);
+  if (huffman_tree_extra_bits) free(huffman_tree_extra_bits);
   return ok;
 }
 
@@ -467,14 +476,12 @@ static int CreatePalette256(int n, const uint32_t *argb,
 
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
 // Returns the new xsize.
-static int BundlePixels(int xsize, int ysize, int xbits,
-                        const uint32_t *from_argb,
-                        uint32_t** to_argb) {
+static void BundlePixels(int xsize, int ysize, int xbits,
+                         uint32_t *argb, int *new_xsize) {
   const int bit_depth = 1 << (3 - xbits);
-  const int xs = MetaSize(xsize, xbits);
+  int xs = MetaSize(xsize, xbits);
   int y;
   int x;
-  *to_argb = (uint32_t *)malloc(xs * ysize * sizeof((*to_argb)[0]));
   for (y = 0; y < ysize; ++y) {
     uint32_t code;
     for (x = 0; x < xsize; ++x) {
@@ -482,11 +489,11 @@ static int BundlePixels(int xsize, int ysize, int xbits,
       if (xsub == 0) {
         code = 0;
       }
-      code |= (from_argb[y * xsize + x] & 0xff00) << (bit_depth * xsub);
-      (*to_argb)[y * xs + (x >> xbits)] = 0xff000000 | code;
+      code |= (argb[y * xsize + x] & 0xff00) << (bit_depth * xsub);
+      argb[y * xs + (x >> xbits)] = 0xff000000 | code;
     }
   }
-  return xs;
+  *new_xsize = xs;
 }
 
 static void DeleteHistograms(int size, Histogram** histograms) {
@@ -872,16 +879,12 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     use_emerging_palette = 0;
     if (palette_size <= 16) {
       int xbits = 1;
-      uint32_t *from_argb = (uint32_t *)malloc(xsize * ysize * sizeof(argb[0]));
-      memcpy(from_argb, &argb[0], xsize * ysize * sizeof(argb[0]));
       if (palette_size <= 2) {
         xbits = 3;
       } else if (palette_size <= 4) {
         xbits = 2;
       }
-      free(argb);
-      xsize = BundlePixels(xsize, ysize, xbits, &from_argb[0], &argb);
-      free(from_argb);
+      BundlePixels(xsize, ysize, xbits, argb, &xsize);
       WriteBits(1, 1, &bw);
       WriteBits(3, 4, &bw);
       WriteBits(2, xbits, &bw);
