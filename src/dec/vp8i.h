@@ -280,6 +280,8 @@ struct VP8Decoder {
   int layer_colorspace_;
   const uint8_t* layer_data_;   // compressed layer data (if present)
   size_t layer_data_size_;
+
+  int is_lossless_;
 };
 
 //------------------------------------------------------------------------------

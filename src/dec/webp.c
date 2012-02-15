@@ -313,13 +313,31 @@ static VP8StatusCode DecodeInto(const uint8_t* data, uint32_t data_size,
   if (!VP8GetHeaders(dec, &io)) {
     status = VP8_STATUS_BITSTREAM_ERROR;
   } else {
+    // Force color space to be ARGB for WebP-lossless.
+    if (dec->is_lossless_) {
+      params->output->colorspace = MODE_ARGB;
+    }
     // Allocate/check output buffers.
     status = WebPAllocateDecBuffer(io.width, io.height, params->options,
                                    params->output);
     if (status == VP8_STATUS_OK) {
       // Decode
-      if (!VP8Decode(dec, &io)) {
-        status = dec->status_;
+      if (!dec->is_lossless_) {
+        if (!VP8Decode(dec, &io)) {
+          status = dec->status_;
+        }
+      } else {
+        // TODO: Compute offset programatically (from parse Header).
+        uint32_t offset = RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE;
+        VP8LDecoder vp8l_decoder;
+        if (!VP8LDecodeImage(&vp8l_decoder, &io, offset)) {
+          status = VP8_STATUS_BITSTREAM_ERROR;
+        } else {
+          // Make a short-circuit and copy the decoded data to params->output.
+          WebPRGBABuffer* const buf = &(params->output->u.RGBA);
+          memcpy(buf->rgba, vp8l_decoder.argb_, buf->size);
+          free(vp8l_decoder.argb_);
+        }
       }
     }
   }

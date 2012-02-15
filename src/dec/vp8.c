@@ -276,9 +276,14 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
     return VP8SetError(dec, status, "Incorrect/incomplete header.");
   }
   if (is_lossless) {
-    const uint32_t offset = io->data_size - buf_size;
-    VP8LDecoder vp8l_decoder;
-    return VP8LDecodeImage(&vp8l_decoder, io, offset);
+    int width, height;
+    const int ok = VP8LGetInfo(buf, buf_size, &width, &height);
+    if (ok) {
+      dec->is_lossless_ = 1;
+      io->width = width;
+      io->height = height;
+    }
+    return ok;
   }
   if (dec->alpha_data_ == NULL) {
     assert(dec->alpha_data_size_ == 0);
@@ -733,6 +738,9 @@ int VP8Decode(VP8Decoder* const dec, VP8Io* const io) {
   }
   assert(dec->ready_);
 
+  // TODO: Implement lossless decoding. Error till then.
+  if (dec->is_lossless_) goto Error;
+
   // Finish setting up the decoding parameter. Will call io->setup().
   ok = (VP8EnterCritical(dec, io) == VP8_STATUS_OK);
   if (ok) {   // good to go.
@@ -746,13 +754,14 @@ int VP8Decode(VP8Decoder* const dec, VP8Io* const io) {
     ok &= VP8ExitCritical(dec, io);
   }
 
+ Error:
   if (!ok) {
     VP8Clear(dec);
     return 0;
   }
 
   dec->ready_ = 0;
-  return 1;
+  return ok;
 }
 
 void VP8Clear(VP8Decoder* const dec) {
