@@ -14,6 +14,7 @@
 
 #include "./vp8li.h"
 #include "../utils/bit_reader.h"
+#include "../utils/color_cache.h"
 #include "../utils/huffman.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -35,7 +36,7 @@ static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
 #define NUM_CODES_PER_BYTE 256
 // -----------------------------------------------------------------------------
 //  Five Huffman codes are used at each meta code:
-//  1. green + length prefix codes + palette codes,
+//  1. green + length prefix codes + color cache codes,
 //  2. alpha,
 //  3. red,
 //  4. blue, and,
@@ -80,7 +81,8 @@ static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
 //------------------------------------------------------------------------------
 
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
-                             VP8LDecoder* const dec, argb_t** const decoded_data);
+                             VP8LDecoder* const dec,
+                             argb_t** const decoded_data);
 
 static int ReadImageSize(BitReader* const br,
                          uint32_t* const width, uint32_t* const height) {
@@ -249,12 +251,12 @@ static int ReadHuffmanCode(int num_symbols, VP8LDecoder* const dec,
 
 static int ReadHuffmanCodes(
     int xsize, int ysize, VP8LDecoder* const dec,
-    uint32_t* const palette_size,
+    int* const color_cache_bits, int* const color_cache_x_subsample_bits,
     uint32_t** const huffman_image, uint32_t* const huffman_subsample_bits,
     uint32_t** const meta_codes, uint32_t* const meta_code_size,
     HuffmanTreeNode** htrees, uint32_t* const num_huffman_trees) {
   int ok = 1;
-  int use_palette, palette_x_subsample_bits, palette_code_bits;
+  int use_color_cache, color_cache_size;
   uint32_t tree_idx;
 
   uint32_t* huffman_image_lcl = NULL;
@@ -312,13 +314,15 @@ static int ReadHuffmanCodes(
     }
   }
 
-  use_palette = VP8LReadBits(br, 1);
-  if (use_palette) {
-    palette_x_subsample_bits = VP8LReadBits(br, 4);
-    palette_code_bits = VP8LReadBits(br, 4);
-    *palette_size = 1 << palette_code_bits;
+  use_color_cache = VP8LReadBits(br, 1);
+  if (use_color_cache) {
+    *color_cache_x_subsample_bits = VP8LReadBits(br, 4);
+    *color_cache_bits = VP8LReadBits(br, 4);
+    color_cache_size = 1 << *color_cache_bits;
   } else {
-    *palette_size = 0;
+    *color_cache_x_subsample_bits = 0;
+    *color_cache_bits = 0;
+    color_cache_size = 0;
   }
 
   htrees_lcl = (HuffmanTreeNode *)calloc(
@@ -332,7 +336,7 @@ static int ReadHuffmanCodes(
     const int tree_type = tree_idx % HUFFMAN_CODES_PER_META_CODE;
     int alphabet_size = kAlphabetSize[tree_type];
     if (tree_type == 0) {
-      alphabet_size += *palette_size;
+      alphabet_size += color_cache_size;
     }
     ok = ReadHuffmanCode(alphabet_size, dec, &htrees_lcl[tree_idx]);
   }
@@ -371,20 +375,9 @@ static void UpdateHuffmanSet(
   }
 }
 
-// TODO: Implement Hash Lookup and insert.
-static argb_t VP8LHashLookUp(int palette_idx) {
-  (void) palette_idx;
-  return 0;
-}
-
-static void VP8LHashInsert(argb_t argb) {
-  (void)argb;
-}
-
-
-static int DecodeBackwardRefs(
-    VP8LDecoder* const dec,
-    uint32_t xsize, uint32_t ysize, uint32_t palette_size,
+static int DecodePixels(
+    VP8LDecoder* const dec, uint32_t xsize, uint32_t ysize,
+    int color_cache_bits, int color_cache_x_subsample_bits,
     const uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
     const uint32_t* const meta_codes, HuffmanTreeNode* htrees,
     uint32_t** const decoded_data) {
@@ -399,15 +392,24 @@ static int DecodeBackwardRefs(
   BitReader* const br = dec->br_;
   // Collection of HUFFMAN_CODES_PER_META_CODE huffman codes.
   HuffmanTreeNode* huffs[HUFFMAN_CODES_PER_META_CODE] = { NULL };
-
-  // Values in range [NUM_CODES_PER_BYTE .. palette_limit[ are palettes.
-  const int palette_limit = NUM_CODES_PER_BYTE + palette_size;
+  const int use_color_cache = (color_cache_bits > 0);
+  const int color_cache_size = use_color_cache ? 1 << color_cache_bits : 0;
+  // Values in range [NUM_CODES_PER_BYTE .. color_cache_limit[ are
+  // color cache codes.
+  const int color_cache_limit = NUM_CODES_PER_BYTE + color_cache_size;
   const int huffman_mask = (huffman_subsample_bits == 0) ?
       ~0 : (1 << huffman_subsample_bits) - 1;
   const uint32_t huffman_xsize = SubSampleSize(xsize, huffman_subsample_bits);
+  VP8LColorCache* color_cache = NULL;
+  if (use_color_cache) {
+    color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
+    VP8LColorCacheInit(color_cache, xsize, color_cache_x_subsample_bits,
+                       color_cache_bits);
+  }
 
   data = (uint32_t*)calloc(xsize * ysize,sizeof(uint32_t));
-  if (data == NULL) return 0;
+  ok = (data == NULL);
+  if (!ok) goto End;
 
   for (pos = 0; pos < xsize * ysize; ) {
     VP8LFillBitWindow(br);
@@ -419,8 +421,8 @@ static int DecodeBackwardRefs(
     }
 
     green = ReadSymbol(huffs[GREEN], br);
-    // Literal.
     if (green < NUM_CODES_PER_BYTE) {
+      // Literal.
       // Decode and save this pixel.
       red = ReadSymbol(huffs[RED], br);
       VP8LFillBitWindow(br);
@@ -428,28 +430,33 @@ static int DecodeBackwardRefs(
       alpha = ReadSymbol(huffs[ALPHA], br);
 
       data[pos] = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      // Update pos, x & y.
-      ++pos; ++x;
-      if (x == xsize) {
-        ++y; x = 0;
-      }
-    } else if (green < palette_limit) {
-      // Palette.
-      int palette_index = green - NUM_CODES_PER_BYTE;
-      // TODO: Add handling of Palete code here.
-      const argb_t argb = VP8LHashLookUp(palette_index);
-      VP8LHashInsert(argb);
+      if (color_cache) VP8LColorCacheInsert(color_cache, x, data[pos]);
 
       // Update pos, x & y.
       ++pos; ++x;
       if (x == xsize) {
         ++y; x = 0;
       }
-    } else if (green - palette_limit < NUM_LENGTH_CODES) {
+    } else if (green < color_cache_limit) {
+      // Color cache.
+      // Decode and save this pixel.
+      const int color_cache_key = green - NUM_CODES_PER_BYTE;
+      argb_t argb;
+      ok = VP8LColorCacheLookup(color_cache, x, color_cache_key, &argb);
+      if (!ok) goto End;
+      data[pos] = argb;
+      VP8LColorCacheInsert(color_cache, x, argb);
+
+      // Update pos, x & y.
+      ++pos; ++x;
+      if (x == xsize) {
+        ++y; x = 0;
+      }
+    } else if (green - color_cache_limit < NUM_LENGTH_CODES) {
       // Backward reference
       int dist_symbol;
       uint32_t i, dist_code, dist;
-      int length_sym = green - palette_limit;
+      int length_sym = green - color_cache_limit;
       const uint32_t length = GetCopyLength(length_sym, br);
       // Here, we have read the length code prefix + extra bits for the length,
       // so reading the next 15 bits can exhaust the bit window.
@@ -462,16 +469,26 @@ static int DecodeBackwardRefs(
       assert(pos + length <= xsize * ysize);
 
       // Fill data for specified (backward-ref) length and update pos, x & y.
-      for (i = 0; i < length; ++i) {
-        data[pos] = data[pos - dist];
-        ++pos;
+      if (color_cache) {
+        for (i = 0; i < length; ++i) {
+          data[pos] = data[pos - dist];
+          VP8LColorCacheInsert(color_cache, x, data[pos]);
+          ++pos; ++x;
+          if (x == xsize) {
+            ++y; x = 0;
+          }
+        }
+      } else {
+        for (i = 0; i < length; ++i) {
+          data[pos] = data[pos - dist];
+          ++pos;
+        }
+        x += length;
+        while(x >= xsize) {
+          x -= xsize;
+          ++y;
+        }
       }
-      x += length;
-      while(x >= xsize) {
-        x -= xsize;
-        ++y;
-      }
-
       if (pos == xsize * ysize) {
         break;
       }
@@ -485,7 +502,16 @@ static int DecodeBackwardRefs(
       assert(0);
     }
   }
-  *decoded_data = data;
+ End:
+  if (!ok) {
+    free(data);
+  } else {
+    *decoded_data = data;
+  }
+  if (color_cache) {
+    VP8LColorCacheRelease(color_cache);
+    free(color_cache);
+  }
   return ok;
 }
 
@@ -722,8 +748,9 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
                                   argb_t* const decoded_data) {
   int ok = 1;
   int n = dec->next_transform_;
-  while(ok && n-- > start_idx) {
-    const VP8LTransform* const transform = &(dec->transforms_[n]);
+  assert(start_idx >= 0);
+  while(ok && n > start_idx) {
+    const VP8LTransform* const transform = &(dec->transforms_[--n]);
     switch (transform->type_) {
       case SUBTRACT_GREEN:
         AddGreenToBlueAndRed(transform, decoded_data);
@@ -804,7 +831,8 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   uint32_t huffman_subsample_bits = 0;
   uint32_t num_meta_codes = 0;
   uint32_t num_huffman_trees = 0;
-  uint32_t palette_size = 0;
+  int color_cache_bits = 0;
+  int color_cache_x_subsample_bits = 0;
 
   HuffmanTreeNode* htrees = NULL;
   BitReader* const br = dec->br_;
@@ -816,17 +844,17 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   }
 
   // Step#2: Read the Huffman codes.
-  // TODO: Return Huffman codes (trees) from ReadHuffmanCodes.
   ok = ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
-                        &palette_size, &huffman_image, &huffman_subsample_bits,
+                        &color_cache_bits, &color_cache_x_subsample_bits,
+                        &huffman_image, &huffman_subsample_bits,
                         &meta_codes, &num_meta_codes,
                         &htrees, &num_huffman_trees);
 
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  // TODO: Implementation of this method.
-  ok = DecodeBackwardRefs(dec, xsize, ysize, palette_size,
-                          huffman_image, huffman_subsample_bits,
-                          meta_codes, htrees, decoded_data);
+  ok = DecodePixels(dec, xsize, ysize,
+                    color_cache_bits, color_cache_x_subsample_bits,
+                    huffman_image, huffman_subsample_bits, meta_codes, htrees,
+                    decoded_data);
 
   free(huffman_image);
   free(meta_codes);
@@ -835,7 +863,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   }
   free(htrees);
 
-  // Step#4: Appply transforms on the decoded data.
+  // Step#4: Apply transforms on the decoded data.
   ok = ApplyInverseTransforms(dec, transform_start_idx, *decoded_data);
 
   return ok;
@@ -845,7 +873,6 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   uint32_t width, height;
   argb_t* decoded_data = NULL;
   BitReader br;
-  (void)io;
   assert(dec);
 
   if (offset > io->data_size) return 0;
