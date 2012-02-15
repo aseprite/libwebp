@@ -453,17 +453,33 @@ static int IsNotCompatible(int feature, int num_items) {
   return (feature != 0) != (num_items > 0);
 }
 
+#define NO_FLAG 0
+
 WebPMuxError WebPMuxValidate(const WebPMux* const mux) {
-  int num_iccp;
-  int num_meta;
-  int num_loop_chunks;
-  int num_frames;
-  int num_tiles;
-  int num_vp8x;
-  int num_images;
-  int num_alpha;
-  uint32_t flags;
   WebPMuxError err;
+  uint32_t flags;
+  size_t i;
+  static const struct {
+    const TAG_ID id;             // chunk fourcc
+    const FeatureFlags feature;  // VP8X flag indicating chunk's presence.
+    const int max;               // maximum valid number of this chunk
+                                 // or -1 if variable.
+  } chunk_constraints[] = {
+    // Chunks with more complex validation elide the max and/or feature flag.
+    // This validation should be done after the basic checks.
+    { VP8X_ID,  NO_FLAG,     1 },
+    { ICCP_ID,  ICCP_FLAG,   1 },
+    { LOOP_ID,  NO_FLAG,     1 },
+    { FRAME_ID, NO_FLAG,    -1 },
+    { TILE_ID,  TILE_FLAG,  -1 },
+    { ALPHA_ID, ALPHA_FLAG, -1 },
+    { IMAGE_ID, NO_FLAG,    -1 },
+    { META_ID,  META_FLAG,   1 },
+  };
+  const size_t constraints_size =
+      sizeof(chunk_constraints) / sizeof(chunk_constraints[0]);
+  int num_chunks[8];
+  assert(constraints_size == sizeof(num_chunks) / sizeof(num_chunks[0]));
 
   // Verify mux is not NULL.
   if (mux == NULL || mux->state_ == WEBP_MUX_STATE_ERROR) {
@@ -479,79 +495,57 @@ WebPMuxError WebPMuxValidate(const WebPMux* const mux) {
   err = WebPMuxGetFeatures(mux, &flags);
   if (err != WEBP_MUX_OK) return err;
 
-  // At most one color profile chunk.
-  err = WebPMuxNumNamedElements(mux, kChunks[ICCP_ID].chunkName, &num_iccp);
-  if (err != WEBP_MUX_OK) return err;
-  if (num_iccp > 1) return WEBP_MUX_INVALID_ARGUMENT;
+  // Test basic constraints: retrieval, maximum number of chunks by id
+  // and feature incompatibility.
+  for (i = 0; i < constraints_size; ++i) {
+    const TAG_ID id = chunk_constraints[i].id;
+    const FeatureFlags feature = chunk_constraints[i].feature;
+    const int max = chunk_constraints[i].max;
+    int* const num = &num_chunks[i];
 
-  // ICCP_FLAG and color profile chunk is consistent.
-  if (IsNotCompatible(flags & ICCP_FLAG, num_iccp)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
+    assert(id == kChunks[id].chunkId);
+    err = WebPMuxNumNamedElements(mux, kChunks[id].chunkName, num);
+    if (err != WEBP_MUX_OK) return err;
+    if (max > -1 && *num > max) return WEBP_MUX_INVALID_ARGUMENT;
+    if (feature != NO_FLAG && IsNotCompatible(flags & feature, *num)) {
+      return WEBP_MUX_INVALID_ARGUMENT;
+    }
   }
 
-  // At most one XMP metadata.
-  err = WebPMuxNumNamedElements(mux, kChunks[META_ID].chunkName, &num_meta);
-  if (err != WEBP_MUX_OK) return err;
-  if (num_meta > 1) return WEBP_MUX_INVALID_ARGUMENT;
-
-  // META_FLAG and XMP metadata chunk is consistent.
-  if (IsNotCompatible(flags & META_FLAG, num_meta)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
+  // Check animation related constraints.
+  {
+    const int has_animation = !!(flags & ANIMATION_FLAG);
+    const int loop_count = num_chunks[LOOP_ID];
+    const int frame_count = num_chunks[FRAME_ID];
+    if (has_animation && (loop_count == 0 || frame_count == 0)) {
+      return WEBP_MUX_INVALID_ARGUMENT;
+    }
+    if (!has_animation && (loop_count == 1 || frame_count > 0)) {
+      return WEBP_MUX_INVALID_ARGUMENT;
+    }
   }
 
-  // At most one loop chunk.
-  err = WebPMuxNumNamedElements(mux, kChunks[LOOP_ID].chunkName,
-                                &num_loop_chunks);
-  if (err != WEBP_MUX_OK) return err;
-  if (num_loop_chunks > 1) return WEBP_MUX_INVALID_ARGUMENT;
+  // Check extended and simple file format constraints.
+  {
+    const int vp8x_count = num_chunks[VP8X_ID];
+    const int image_count = num_chunks[IMAGE_ID];
+    const int alpha_count = num_chunks[ALPHA_ID];
+    if (vp8x_count > 1) return WEBP_MUX_INVALID_ARGUMENT;
+    if (vp8x_count == 0 && image_count != 1) return WEBP_MUX_INVALID_ARGUMENT;
 
-  // Animation: ANIMATION_FLAG, loop chunk and frame chunk(s) are consistent.
-  err = WebPMuxNumNamedElements(mux, kChunks[FRAME_ID].chunkName, &num_frames);
-  if (err != WEBP_MUX_OK) return err;
-  if ((flags & ANIMATION_FLAG) &&
-      (num_loop_chunks == 0 || num_frames == 0)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  } else if (!(flags & ANIMATION_FLAG) &&
-             (num_loop_chunks == 1 || num_frames > 0)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
-  // Tiling: TILE_FLAG and tile chunk(s) are consistent.
-  err = WebPMuxNumNamedElements(mux, kChunks[TILE_ID].chunkName, &num_tiles);
-  if (err != WEBP_MUX_OK) return err;
-  if (IsNotCompatible(flags & TILE_FLAG, num_tiles)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
-  // Verify either VP8X chunk is present OR there is only one elem in
-  // mux->images_.
-  err = WebPMuxNumNamedElements(mux, kChunks[VP8X_ID].chunkName, &num_vp8x);
-  if (err != WEBP_MUX_OK) return err;
-  err = WebPMuxNumNamedElements(mux, kChunks[IMAGE_ID].chunkName, &num_images);
-  if (err != WEBP_MUX_OK) return err;
-
-  if (num_vp8x > 1) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  } else if (num_vp8x == 0 && num_images != 1) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
-  // ALPHA_FLAG & alpha chunk(s) are consistent.
-  err = WebPMuxNumNamedElements(mux, kChunks[ALPHA_ID].chunkName, &num_alpha);
-  if (err != WEBP_MUX_OK) return err;
-  if (IsNotCompatible(flags & ALPHA_FLAG, num_alpha)) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
-  // num_images & num_alpha_chunks are consistent.
-  if (num_alpha > 0 && num_alpha != num_images) {
-    // Note that "num_alpha > 0" is the correct check but "flags && ALPHA_FLAG"
-    // is NOT, because ALPHA_FLAG is based on first image only.
-    return WEBP_MUX_INVALID_ARGUMENT;
+    // image_count & alpha_count are consistent.
+    if (alpha_count > 0 && alpha_count != image_count) {
+      // Note that "alpha_count > 0" is the correct check but
+      // "flags & ALPHA_FLAG" is NOT, because ALPHA_FLAG is based on the
+      // first image only.
+      return WEBP_MUX_INVALID_ARGUMENT;
+    }
   }
 
   return WEBP_MUX_OK;
 }
+
+#undef NO_FLAG
 
 //------------------------------------------------------------------------------
 
