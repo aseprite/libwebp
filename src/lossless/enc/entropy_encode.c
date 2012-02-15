@@ -93,7 +93,7 @@ int CreateHuffmanTree(const int* const histogram, int histogram_size,
     // tree needs exactly tree_size entities.
     tree = (HuffmanTree *)malloc(3 * tree_size * sizeof(*tree));
     if (tree == NULL) {
-      return 1;
+      return 0;
     }
     {
       int j = 0;
@@ -165,7 +165,7 @@ int CreateHuffmanTree(const int* const histogram, int histogram_size,
       }
     }
   }
-  return 0;
+  return 1;
 }
 
 static void WriteHuffmanTreeRepetitions(

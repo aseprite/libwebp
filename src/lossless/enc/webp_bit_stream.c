@@ -52,7 +52,7 @@ static int ValuesShouldBeCollapsedToStrideAverage(int a, int b) {
 //
 // length containts the size of the histogram.
 // data contains the population counts.
-static void OptimizeHuffmanForRle(int length, int *counts) {
+static int OptimizeHuffmanForRle(int length, int *counts) {
   int stride;
   int limit;
   int sum;
@@ -61,7 +61,7 @@ static void OptimizeHuffmanForRle(int length, int *counts) {
   int i;
   for (; length >= 0; --length) {
     if (length == 0) {
-      return;
+      return 1;  // All zeros.
     }
     if (counts[length - 1] != 0) {
       // Now counts[0..length - 1] does not have trailing zeros.
@@ -71,6 +71,9 @@ static void OptimizeHuffmanForRle(int length, int *counts) {
   // 2) Let's mark all population counts that already can be encoded
   // with an rle code.
   good_for_rle = (char *)malloc(length);
+  if (!good_for_rle) {
+    return 0;
+  }
   memset(good_for_rle, 0, length);
   {
     // Let's not spoil any of the existing good rle codes.
@@ -143,6 +146,7 @@ static void OptimizeHuffmanForRle(int length, int *counts) {
     }
   }
   free(good_for_rle);
+  return 1;
 }
 
 static void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
@@ -237,7 +241,7 @@ static void StoreHuffmanTreeToBitMask(
 
 static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
                             BitWriter* const bw) {
-  int error = 0;
+  int ok = 1;
   int count = 0;
   int symbols[2] = { 0, 0 };
   int i;
@@ -259,7 +263,7 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     WriteBits(1, 1, bw);
     if (count == 0) {
       WriteBits(4, 0, bw);
-      return 0;
+      return 1;
     }
     WriteBits(1, count - 1, bw);
     while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
@@ -267,7 +271,7 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
     for (i = 0; i < count; ++i) {
       WriteBits(num_bits, symbols[i], bw);
     }
-    return 0;
+    return 1;
   }
   WriteBits(1, 0, bw);
   CreateCompressedHuffmanTree(bit_lengths,
@@ -282,10 +286,10 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   memset(&code_length_bitdepth[0], 0, sizeof(code_length_bitdepth));
   memset(&code_length_bitdepth_symbols[0], 0,
          sizeof(code_length_bitdepth_symbols));
-  error = error ||
+  ok = ok &&
       CreateHuffmanTree(&huffman_tree_histogram[0], CODE_LENGTH_CODES,
                         7, &code_length_bitdepth[0]);
-  if (error) {
+  if (!ok) {
     goto exit_label;
   }
   ConvertBitDepthsToSymbols(&code_length_bitdepth[0], CODE_LENGTH_CODES,
@@ -332,7 +336,7 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
 exit_label:
   free(huffman_tree);
   free(huffman_tree_extra_bits);
-  return error;
+  return ok;
 }
 
 static inline int MetaSize(int size, int bits) {
@@ -608,7 +612,7 @@ static int GetHuffBitLengthsAndCodes(
     uint16_t*** bit_codes) {
   int i;
   int k;
-  int error = 0;
+  int ok = 1;
   for (i = 0; i < histogram_image_size; ++i) {
     const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
@@ -617,7 +621,7 @@ static int GetHuffBitLengthsAndCodes(
         malloc(lit_len * sizeof(*(*bit_codes)[5 * i]));
 
     // For each component, optimize histogram for Huffman with RLE compression.
-    OptimizeHuffmanForRle(lit_len, &histogram_image[i]->literal_[0]);
+    ok = ok && OptimizeHuffmanForRle(lit_len, &histogram_image[i]->literal_[0]);
     if (!use_palette) {
       // Implies that palette_bits == 0,
       // and so number of palette entries = (1 << 0) = 1.
@@ -625,16 +629,15 @@ static int GetHuffBitLengthsAndCodes(
       // palette entry, so zero it out.
       histogram_image[i]->literal_[256] = 0;
     }
-    OptimizeHuffmanForRle(256, &histogram_image[i]->red_[0]);
-    OptimizeHuffmanForRle(256, &histogram_image[i]->blue_[0]);
-    OptimizeHuffmanForRle(256, &histogram_image[i]->alpha_[0]);
-    OptimizeHuffmanForRle(DISTANCE_CODES_MAX,
-                          &histogram_image[i]->distance_[0]);
+    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->red_[0]);
+    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->blue_[0]);
+    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->alpha_[0]);
+    ok = ok && OptimizeHuffmanForRle(DISTANCE_CODES_MAX,
+                                     &histogram_image[i]->distance_[0]);
 
     // Create a Huffman tree (in the form of bit lengths) for each component.
-    error = error ||
-        CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
-                          (*bit_lengths)[5 * i]);
+    ok = ok && CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
+                                 (*bit_lengths)[5 * i]);
     for (k = 1; k < 5; ++k) {
       int val = 256;
       if (k == 4) {
@@ -644,14 +647,14 @@ static int GetHuffBitLengthsAndCodes(
       (*bit_lengths)[5 * i + k] = (uint8_t *)calloc(val, 1);
       (*bit_codes)[5 * i + k] = (uint16_t *)calloc(val, sizeof(bit_codes[0]));
     }
-    error = error ||
-        CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
-                          (*bit_lengths)[5 * i + 1]) ||
+    ok = ok && CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
+                                 (*bit_lengths)[5 * i + 1]) &&
         CreateHuffmanTree(histogram_image[i]->blue_, 256, 15,
-                          (*bit_lengths)[5 * i + 2]) ||
+                          (*bit_lengths)[5 * i + 2]) &&
         CreateHuffmanTree(histogram_image[i]->alpha_, 256, 15,
-                          (*bit_lengths)[5 * i + 3]) ||
-        CreateHuffmanTree(histogram_image[i]->distance_, DISTANCE_CODES_MAX, 15,
+                          (*bit_lengths)[5 * i + 3]) &&
+        CreateHuffmanTree(histogram_image[i]->distance_,
+                          DISTANCE_CODES_MAX, 15,
                           (*bit_lengths)[5 * i + 4]);
     // Create the actual bit codes for the bit lengths.
     for (k = 0; k < 5; ++k) {
@@ -660,7 +663,7 @@ static int GetHuffBitLengthsAndCodes(
                                 (*bit_codes)[ix]);
     }
   }
-  return error;
+  return ok;
 }
 
 static void EncodeImageInternal(int xsize, int ysize,

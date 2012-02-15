@@ -28,7 +28,7 @@ extern "C" {
 //
 // See http://en.wikipedia.org/wiki/Huffman_coding
 //
-// Returns 1 when an error has occured, 0 otherwise.
+// Returns 0 when an error has occured.
 int CreateHuffmanTree(const int *data,
                       const int length,
                       const int tree_limit,
