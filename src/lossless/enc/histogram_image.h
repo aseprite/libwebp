@@ -20,21 +20,21 @@
 extern "C" {
 #endif
 
-void BuildHistogramImage(int xsize, int ysize,
-                         int histobits,
-                         int palette_bits,
-                         const PixOrCopy *backward_refs,
-                         int backward_refs_size,
-                         Histogram ***image,
-                         int *histogram_size);
+int BuildHistogramImage(int xsize, int ysize,
+                        int histobits,
+                        int palette_bits,
+                        const PixOrCopy *backward_refs,
+                        int backward_refs_size,
+                        Histogram ***image,
+                        int *histogram_size);
 
 // Combines several histograms into fewer histograms.
-void CombineHistogramImage(Histogram **in,
-                           int in_size,
-                           int quality,
-                           int palette_bits,
-                           Histogram ***out,
-                           int *out_size);
+int CombineHistogramImage(Histogram **in,
+                          int in_size,
+                          int quality,
+                          int palette_bits,
+                          Histogram ***out,
+                          int *out_size);
 
 void RefineHistogramImage(Histogram **raw,
                           int raw_size,

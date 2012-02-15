@@ -18,22 +18,32 @@
 #include "backward_references.h"
 #include "../common/integral_types.h"
 
-void BuildHistogramImage(int xsize, int ysize,
-                         int histobits,
-                         int palettebits,
-                         const PixOrCopy *backward_refs,
-                         int backward_refs_size,
-                         Histogram ***image,
-                         int *image_size) {
+int BuildHistogramImage(int xsize, int ysize,
+                        int histobits,
+                        int palettebits,
+                        const PixOrCopy *backward_refs,
+                        int backward_refs_size,
+                        Histogram ***image,
+                        int *image_size) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
   int i;
   int x = 0;
   int y = 0;
   *image_size = histo_xsize * histo_ysize;
-  *image = (Histogram **)malloc(*image_size * sizeof(**image));
+  *image = (Histogram **)calloc(*image_size, sizeof(**image));
+  if (*image == NULL) {
+    return 0;
+  }
   for (i = 0; i < *image_size; ++i) {
     (*image)[i] = (Histogram *)malloc(sizeof(*(*image)[i]));
+    if (!(*image)[i]) {
+      for (i = 0; i < *image_size; ++i) {
+        if ((*image)[i])
+          free((*image)[i]);
+      }
+      return 0;
+    }
     Histogram_Init((*image)[i], palettebits);
   }
   // x and y trace the position in the image.
@@ -48,26 +58,36 @@ void BuildHistogramImage(int xsize, int ysize,
       ++y;
     }
   }
+  return 1;
 }
 
-void CombineHistogramImage(Histogram **in,
-                           int in_size,
-                           int quality,
-                           int palettebits,
-                           Histogram ***out_arg,
-                           int *out_size) {
+int CombineHistogramImage(Histogram **in,
+                          int in_size,
+                          int quality,
+                          int palettebits,
+                          Histogram ***out_arg,
+                          int *out_size) {
+  int ok = 1;
   int i;
   unsigned int seed = 0;
   int tries_with_no_success = 0;
   int inner_iters = 10 + quality / 2;
   int iter;
   double *bit_costs = (double *)malloc(in_size * sizeof(*bit_costs));
-  Histogram **out = (Histogram **)malloc(in_size * sizeof(*out));
+  Histogram **out = (Histogram **)calloc(in_size, sizeof(*out));
   *out_arg = out;
   *out_size = in_size;
+  if (bit_costs == NULL || out == NULL) {
+    ok = 0;
+    goto exit_label;
+  }
   // Copy
   for (i = 0; i < in_size; ++i) {
     Histogram *new_histo = (Histogram *)malloc(sizeof(*new_histo));
+    if (new_histo == NULL) {
+      ok = 0;
+      goto exit_label;
+    }
     Histogram_Init(new_histo, palettebits);
     *new_histo = *(in[i]);
     out[i] = new_histo;
@@ -95,6 +115,10 @@ void CombineHistogramImage(Histogram **in,
         continue;
       }
       combo = (Histogram *)malloc(sizeof(*combo));
+      if (combo == NULL) {
+        ok = 0;
+        goto exit_label;
+      }
       Histogram_Init(combo, palettebits);
       *combo = *out[ix0];
       Histogram_Add(combo, out[ix1]);
@@ -124,7 +148,18 @@ void CombineHistogramImage(Histogram **in,
       break;
     }
   }
+ exit_label:
   free(bit_costs);
+  if (!ok) {
+    if (out) {
+      int i;
+      for (i = 0; i < *out_size; ++i) {
+        if (out[i]) free(out[i]);
+      }
+      free(out);
+    }
+  }
+  return ok;
 }
 
 // What is the bit cost of moving square_histogram from
@@ -135,7 +170,7 @@ static double HistogramDistance(const Histogram * const square_histogram,
                                 Histogram **candidate_histograms) {
   double new_bit_cost;
   double previous_bit_cost;
-  Histogram *modified;
+  Histogram modified;
   if (cur_symbol == candidate_symbol) {
     return 0;  // Going nowhere. No savings.
   }
@@ -146,20 +181,18 @@ static double HistogramDistance(const Histogram * const square_histogram,
         Histogram_EstimateBits(candidate_histograms[cur_symbol]);
   }
 
-  modified = (Histogram *)malloc(sizeof(*modified));
-  Histogram_Init(modified, square_histogram->palette_code_bits_);
+  Histogram_Init(&modified, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
-  *modified = *candidate_histograms[candidate_symbol];
-  Histogram_Add(modified, square_histogram);
-  new_bit_cost = Histogram_EstimateBits(modified);
+  modified = *candidate_histograms[candidate_symbol];
+  Histogram_Add(&modified, square_histogram);
+  new_bit_cost = Histogram_EstimateBits(&modified);
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
-    *modified = *candidate_histograms[cur_symbol];
-    Histogram_Remove(modified, square_histogram);
-    new_bit_cost += Histogram_EstimateBits(modified);
+    *&modified = *candidate_histograms[cur_symbol];
+    Histogram_Remove(&modified, square_histogram);
+    new_bit_cost += Histogram_EstimateBits(&modified);
   }
-  free(modified);
   return new_bit_cost - previous_bit_cost;
 }
 
