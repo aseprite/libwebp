@@ -503,12 +503,12 @@ static void DeleteHistograms(int size, Histogram** histograms) {
   }
 }
 
-static void GetBackwardReferences(int xsize, int ysize,
-                                  const uint32_t* argb,
-                                  int quality, int use_palette,
-                                  int palette_bits, int use_2d_locality,
-                                  int *backward_refs_size,
-                                  PixOrCopy** backward_refs) {
+static int GetBackwardReferences(int xsize, int ysize,
+                                 const uint32_t* argb,
+                                 int quality, int use_palette,
+                                 int palette_bits, int use_2d_locality,
+                                 int *backward_refs_size,
+                                 PixOrCopy** backward_refs) {
   // Backward Reference using LZ77.
   int lz77_is_useful;
   int backward_refs_rle_only_size;
@@ -519,6 +519,13 @@ static void GetBackwardReferences(int xsize, int ysize,
   PixOrCopy *backward_refs_rle_only = (PixOrCopy *)
       malloc(xsize * ysize * sizeof(*backward_refs_rle_only));
   int backward_refs_lz77_size;
+  int ok = 1;
+  *backward_refs = NULL;
+  if (histo_rle == NULL || histo_lz77 == NULL ||
+      backward_refs_lz77 == NULL || backward_refs_rle_only == NULL) {
+    ok = 0;
+    goto exit_label;
+  }
   BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
                               &backward_refs_lz77[0], &backward_refs_lz77_size);
   Histogram_Init(histo_lz77, palette_bits);
@@ -535,8 +542,6 @@ static void GetBackwardReferences(int xsize, int ysize,
   // Check if LZ77 is useful.
   lz77_is_useful =
       (Histogram_EstimateBits(histo_rle) > Histogram_EstimateBits(histo_lz77));
-  free(histo_rle);
-  free(histo_lz77);
 
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
@@ -568,6 +573,14 @@ static void GetBackwardReferences(int xsize, int ysize,
     // Use backward reference with 2D locality.
     BackwardReferences2DLocality(xsize, *backward_refs_size, *backward_refs);
   }
+exit_label:
+  if (histo_rle) free(histo_rle);
+  if (histo_lz77) free(histo_lz77);
+  if (!ok) {
+    if (*backward_refs) free(*backward_refs);
+    *backward_refs = NULL;
+  }
+  return ok;
 }
 
 static void GetHistImageSymbols(int xsize, int ysize,
