@@ -749,7 +749,7 @@ static int PixelBundleInverseTransform(const VP8LTransform* const transform,
   uint32_t row, col, tile_x;
   const uint32_t bit_depth = 8 >> transform->bits_;
   const uint32_t num_cols = 1 << transform->bits_;
-  const uint32_t bit_mask = num_cols - 1;
+  const uint32_t bit_mask = (1 << bit_depth) - 1;
   const uint32_t xs = SubSampleSize(transform->xsize_, transform->bits_);
 
   uint32_t* tmp = (uint32_t*)calloc(
