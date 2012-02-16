@@ -174,7 +174,7 @@ int HuffmanTreeBuild(HuffmanTreeNode* const root,
     if (code_lengths[symbol] > 0) {
       // Note: code length = 0 indicates non-existent symbol.
       ++num_symbols;
-      root_symbol = code_lengths[symbol];
+      root_symbol = symbol;
     }
   }
 

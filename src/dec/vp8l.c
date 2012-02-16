@@ -194,7 +194,10 @@ static int ReadHuffmanCodeLengths(
       const int rep_cnt = VP8LReadBits(br, extra_bits) + repeat_offset;
       const int use_prev = (code_len == kCodeLengthRepeatCode);
       int rep_iter;
-      assert(code_idx + rep_cnt <= num_symbols);
+      if (code_idx + rep_cnt > num_symbols) {
+        ok = 0;
+        goto End;
+      }
       for (rep_iter = 0; rep_iter < rep_cnt; ++rep_iter) {
         code_lengths_lcl[code_idx + rep_iter] = use_prev ? prev_code_len : 0;
       }
@@ -202,6 +205,7 @@ static int ReadHuffmanCodeLengths(
     }
   }
 
+ End:
   return ok;
 }
 
@@ -395,6 +399,7 @@ static int DecodePixels(
   int alpha = 0xff000000;
   int meta_ix = -1;
   uint32_t pos;
+  uint32_t num_pixs = xsize * ysize;
   uint32_t x = 0;
   uint32_t y = 0;
   uint32_t* data = NULL;
@@ -416,11 +421,11 @@ static int DecodePixels(
                        color_cache_bits);
   }
 
-  data = (uint32_t*)calloc(xsize * ysize,sizeof(uint32_t));
+  data = (uint32_t*)calloc(num_pixs,sizeof(uint32_t));
   ok = (data != NULL);
   if (!ok) goto End;
 
-  for (pos = 0; pos < xsize * ysize; ) {
+  for (pos = 0; pos < num_pixs; ) {
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
@@ -498,7 +503,7 @@ static int DecodePixels(
           ++y;
         }
       }
-      if (pos == xsize * ysize) {
+      if (pos == num_pixs) {
         break;
       }
 
@@ -508,7 +513,8 @@ static int DecodePixels(
       continue;
     } else {
       // Code flow should not come here.
-      assert(0);
+      ok = 0;
+      goto End;
     }
   }
  End:
@@ -885,7 +891,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                               &htrees, &num_huffman_trees);
 
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  ok = ok && DecodePixels(dec, xsize, ysize,
+  ok = ok && DecodePixels(dec, transform_xsize, transform_ysize,
                           color_cache_bits, color_cache_x_subsample_bits,
                           huffman_image, huffman_subsample_bits, meta_codes,
                           htrees, decoded_data);
