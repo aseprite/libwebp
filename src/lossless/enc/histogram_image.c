@@ -23,41 +23,45 @@ int BuildHistogramImage(int xsize, int ysize,
                         int palettebits,
                         const PixOrCopy *backward_refs,
                         int backward_refs_size,
-                        Histogram ***image,
+                        Histogram ***image_arg,
                         int *image_size) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
   int i;
   int x = 0;
   int y = 0;
+  Histogram **image;
+  *image_arg = NULL;
   *image_size = histo_xsize * histo_ysize;
-  *image = (Histogram **)calloc(*image_size, sizeof(**image));
-  if (*image == NULL) {
+  image = (Histogram **)calloc(*image_size, sizeof(*image));
+  if (image == NULL) {
     return 0;
   }
   for (i = 0; i < *image_size; ++i) {
-    (*image)[i] = (Histogram *)malloc(sizeof(*(*image)[i]));
-    if (!(*image)[i]) {
-      for (i = 0; i < *image_size; ++i) {
-        if ((*image)[i])
-          free((*image)[i]);
+    image[i] = (Histogram *)malloc(sizeof(*image[i]));
+    if (!image[i]) {
+      int k;
+      for (k = 0; k < *image_size; ++k) {
+        free(image[k]);
       }
+      free(image);
       return 0;
     }
-    Histogram_Init((*image)[i], palettebits);
+    Histogram_Init(image[i], palettebits);
   }
   // x and y trace the position in the image.
   for (i = 0; i < backward_refs_size; ++i) {
     const PixOrCopy v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;
-    Histogram_AddSinglePixOrCopy((*image)[ix], v);
+    Histogram_AddSinglePixOrCopy(image[ix], v);
     x += PixOrCopy_Length(&v);
     while (x >= xsize) {
       x -= xsize;
       ++y;
     }
   }
+  *image_arg = image;
   return 1;
 }
 
@@ -154,7 +158,7 @@ int CombineHistogramImage(Histogram **in,
     if (out) {
       int i;
       for (i = 0; i < *out_size; ++i) {
-        if (out[i]) free(out[i]);
+        free(out[i]);
       }
       free(out);
     }
@@ -189,7 +193,7 @@ static double HistogramDistance(const Histogram * const square_histogram,
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
-    *&modified = *candidate_histograms[cur_symbol];
+    modified = *candidate_histograms[cur_symbol];
     Histogram_Remove(&modified, square_histogram);
     new_bit_cost += Histogram_EstimateBits(&modified);
   }
