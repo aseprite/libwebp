@@ -38,6 +38,11 @@ typedef struct {
   uint8_t* buf_;
   size_t bit_pos_;
   size_t max_bytes_;
+
+  // After all bits are written, the caller must observe the state of
+  // error_. A value of 1 indicates that a memory allocation failure
+  // has happened during bit writing.
+  char error_;
 } BitWriter;
 
 static inline size_t BitWriterNumBytes(BitWriter* const bw) {
@@ -79,10 +84,9 @@ static inline uint8_t* BitWriterFinish(BitWriter* const bw) {
 }
 
 static void BitWriterDestroy(BitWriter* const bw) {
-  if (bw) {
-    free(bw->buf_);
-    memset(bw, 0, sizeof(*bw));
-  }
+  assert(bw != NULL);
+  free(bw->buf_);
+  memset(bw, 0, sizeof(*bw));
 }
 
 // This function writes bits into bytes in increasing addresses, and within
@@ -102,8 +106,8 @@ static void BitWriterDestroy(BitWriter* const bw) {
 // and locate the rest in BYTE+1 and BYTE+2.
 //
 // returns 1 on success.
-static inline int WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
-  if (n_bits < 1) return 1;
+static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
+  if (n_bits < 1) return;
 #ifdef LITTLE_ENDIAN
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
@@ -133,9 +137,11 @@ static inline int WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
 #endif
   if ((bw->bit_pos_ >> 3) > (bw->max_bytes_ - 8)) {
     const size_t kAdditionalBuffer = 32768 + bw->max_bytes_;
-    return BitWriterResize(bw, kAdditionalBuffer);
+    if (!BitWriterResize(bw, kAdditionalBuffer)) {
+      bw->bit_pos_ = 0;
+      bw->error_ = 1;
+    }
   }
-  return 1;
 }
 
 #if defined(__cplusplus) || defined(c_plusplus)
