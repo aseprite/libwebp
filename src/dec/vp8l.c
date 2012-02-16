@@ -621,9 +621,8 @@ static argb_t PredictValue(uint32_t pred_mode, int xsize,
   return 0;
 }
 
-static int PredictorInverseTransform(const VP8LTransform* const transform,
-                                     argb_t* const decoded_data) {
-  int ok = 1;
+static void PredictorInverseTransform(const VP8LTransform* const transform,
+                                      argb_t* const decoded_data) {
   size_t row, col;
   uint32_t image_ix = 0;
   const uint32_t tile_mask = (1 << transform->bits_) - 1;
@@ -634,6 +633,7 @@ static int PredictorInverseTransform(const VP8LTransform* const transform,
   argb_t pred = 0;
 
   // First Row follows the L (mode=1) mode.
+  decoded_data[0] = Add(decoded_data[0], ARGB_BLACK);
   for (col = 1; col < transform->xsize_; ++col) {
     decoded_data[col] = Add(decoded_data[col], decoded_data[col - 1]);
   }
@@ -655,12 +655,10 @@ static int PredictorInverseTransform(const VP8LTransform* const transform,
       decoded_data[image_ix] = Add(decoded_data[image_ix], pred);
     }
   }
-
-  return ok;
 }
 
-static int AddGreenToBlueAndRed(const VP8LTransform* const transform,
-                                argb_t* const decoded_data) {
+static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
+                                 argb_t* const decoded_data) {
   int i;
   int num_pixs = transform->xsize_ * transform->ysize_;
   for (i = 0; i < num_pixs; ++i) {
@@ -671,8 +669,6 @@ static int AddGreenToBlueAndRed(const VP8LTransform* const transform,
     red_blue &= 0x00ff00ff;
     decoded_data[i] = (argb & 0xff00ff00) + red_blue;
   }
-
-  return 1;
 }
 
 static inline uint32_t ColorTransformDelta(signed char color_pred,
@@ -697,9 +693,8 @@ static argb_t TransformColor(uint32_t color_pred, argb_t argb) {
   return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
 }
 
-static int ColorSpaceInverseTransform(const VP8LTransform* const transform,
-                                      argb_t* const decoded_data) {
-  int ok = 1;
+static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
+                                       argb_t* const decoded_data) {
   size_t row, col;
   uint32_t image_ix = 0;
   const uint32_t tile_mask = (1 << transform->bits_) - 1;
@@ -721,31 +716,52 @@ static int ColorSpaceInverseTransform(const VP8LTransform* const transform,
                                               decoded_data[image_ix]);
     }
   }
-  return ok;
 }
 
-// TODO: Implement this Inverse Transform.
-static int ColorIndexingInverseTransform(const VP8LTransform* const transform,
-                                         argb_t* const decoded_data) {
-  int ok = 0;
-  (void)transform;
-  (void)decoded_data;
-
-  return ok;
+static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
+                                          argb_t* const decoded_data) {
+  int i;
+  const int num_pixs = transform->xsize_ * transform->ysize_;
+  for (i = 0; i < num_pixs; ++i) {
+    decoded_data[i] = transform->data_[(decoded_data[i] >> 8) & 0xff];
+  }
 }
 
-// TODO: Implement this Inverse Transform.
 static int PixelBundleInverseTransform(const VP8LTransform* const transform,
-                                       argb_t* const decoded_data) {
-  int ok = 0;
-  (void)transform;
-  (void)decoded_data;
+                                       argb_t** const decoded_data) {
+  uint32_t row, col, tile_x;
+  const uint32_t bit_depth = 8 >> transform->bits_;
+  const uint32_t num_cols = 1 << transform->bits_;
+  const uint32_t bit_mask = num_cols - 1;
+  const uint32_t xs = SubSampleSize(transform->xsize_, transform->bits_);
 
-  return ok;
+  uint32_t* tmp = (uint32_t*)calloc(
+      transform->xsize_ * transform->ysize_, sizeof(*tmp));
+  if (tmp == NULL) return 0;
+
+  for (row = 0; row < transform->ysize_; ++row) {
+    for (tile_x = 0; tile_x < xs; ++tile_x) {
+      const argb_t* const rowp = (*decoded_data) + row * xs;
+      uint32_t tile_code = (rowp[tile_x] >> 8) & 0xff;
+      for (col = 0; col < num_cols; ++col) {
+        const uint32_t x_all = tile_x * num_cols + col;
+        if (x_all < transform->xsize_) {
+          const uint32_t ix = row * transform->xsize_ + x_all;
+          const uint32_t green = tile_code & bit_mask;
+          tmp[ix] = 0xff000000 | (green << 8);
+          tile_code >>= bit_depth;
+        }
+      }
+    }
+  }
+  free(*decoded_data);
+  *decoded_data = tmp;
+
+  return 1;
 }
 
 static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
-                                  argb_t* const decoded_data) {
+                                  argb_t** const decoded_data) {
   int ok = 1;
   int n = dec->next_transform_;
   assert(start_idx >= 0);
@@ -753,19 +769,19 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
     const VP8LTransform* const transform = &(dec->transforms_[--n]);
     switch (transform->type_) {
       case SUBTRACT_GREEN:
-        AddGreenToBlueAndRed(transform, decoded_data);
+        AddGreenToBlueAndRed(transform, *decoded_data);
         break;
       case PREDICTOR_TRANSFORM:
-        PredictorInverseTransform(transform, decoded_data);
+        PredictorInverseTransform(transform, *decoded_data);
         break;
       case CROSS_COLOR_TRANSFORM:
-        ColorSpaceInverseTransform(transform, decoded_data);
+        ColorSpaceInverseTransform(transform, *decoded_data);
         break;
       case COLOR_INDEXING_TRANSFORM:
-        ColorIndexingInverseTransform(transform, decoded_data);
+        ColorIndexingInverseTransform(transform, *decoded_data);
         break;
       case PIXEL_BUNDLE_TRANSFORM:
-        PixelBundleInverseTransform(transform, decoded_data);
+        ok = PixelBundleInverseTransform(transform, decoded_data);
         break;
       default:
         ok = 0;
@@ -801,6 +817,13 @@ static int ReadTransform(int* const xsize, int* const ysize,
       {
         const int num_colors = VP8LReadBits(br, 8) + 1;
         ok = DecodeImageStream(num_colors, 1, dec, &transform->data_);
+        if (ok) {
+          int i;
+          for (i = 1; i < num_colors; ++i) {
+            transform->data_[i] = Add(transform->data_[i] ,
+                                      transform->data_[i - 1]);
+          }
+        }
       }
       break;
     case PIXEL_BUNDLE_TRANSFORM:
@@ -864,7 +887,7 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   free(htrees);
 
   // Step#4: Apply transforms on the decoded data.
-  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, *decoded_data);
+  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, decoded_data);
 
   return ok;
 }
