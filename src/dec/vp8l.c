@@ -783,7 +783,7 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
   int n = dec->next_transform_;
   assert(start_idx >= 0);
   while(ok && n > start_idx) {
-    const VP8LTransform* const transform = &(dec->transforms_[--n]);
+    VP8LTransform* const transform = &(dec->transforms_[--n]);
     switch (transform->type_) {
       case SUBTRACT_GREEN:
         AddGreenToBlueAndRed(transform, *decoded_data);
@@ -804,6 +804,8 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
         ok = 0;
         break;
     }
+    free(transform->data_);
+    transform->data_ = NULL;
   }
   dec->next_transform_ = n;
 
@@ -921,7 +923,12 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   if (!ReadImageSize(&br, &width, &height)) return 0;
   dec->br_ = &br;
   dec->next_transform_ = 0;
-  if (!DecodeImageStream(width, height, dec, &decoded_data)) return 0;
+  if (!DecodeImageStream(width, height, dec, &decoded_data)) {
+    while (dec->next_transform_ > 0) {
+      free(dec->transforms_[--dec->next_transform_].data_);
+    }
+    return 0;
+  }
   dec->argb_ = decoded_data;
 
   return 1;
