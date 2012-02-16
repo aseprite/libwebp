@@ -482,8 +482,8 @@ static void BundlePixels(int xsize, int ysize, int xbits,
   int xs = MetaSize(xsize, xbits);
   int y;
   int x;
+  uint32_t code = 0;
   for (y = 0; y < ysize; ++y) {
-    uint32_t code;
     for (x = 0; x < xsize; ++x) {
       const int xsub = x & ((1 << xbits) - 1);
       if (xsub == 0) {
@@ -550,6 +550,10 @@ static int GetBackwardReferences(int xsize, int ysize,
     free(backward_refs_lz77);
     *backward_refs = (PixOrCopy *)
         malloc(xsize * ysize * sizeof(*backward_refs));
+    if (*backward_refs == NULL) {
+      ok = 0;
+      goto exit_label;
+    }
     BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
                                      &argb[0], palette_bits, *backward_refs,
                                      backward_refs_size);
