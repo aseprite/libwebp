@@ -261,7 +261,40 @@ static int WritePGM(FILE* fout, const WebPDecBuffer* const buffer) {
   return ok;
 }
 
-static void SaveOutput(const WebPDecBuffer* const buffer,
+static void PreProcessArgb(WebPDecBuffer* const buffer) {
+  uint32_t row, col;
+  const uint32_t width = buffer->width;
+  const uint32_t height = buffer->height;
+  uint8_t* const rgba = buffer->u.RGBA.rgba;
+  const int stride = buffer->u.RGBA.stride;
+
+  for (row = 0; row < height; ++row) {
+    uint8_t* row_bytep = rgba + row * stride;
+    const uint32_t* row_wordp = (uint32_t*)row_bytep;
+    for (col = 0; col < width; ++col) {
+      const uint32_t argb = row_wordp[col];
+#ifdef HAVE_WINCODEC_H
+      *row_bytep++ = (argb >> 0) & 0xff;
+      *row_bytep++ = (argb >> 8) & 0xff;
+      *row_bytep++ = (argb >> 16) & 0xff;
+      *row_bytep++ = (argb >> 24) & 0xff;
+#else
+      *row_bytep++ = (argb >> 16) & 0xff;
+      *row_bytep++ = (argb >> 8) & 0xff;
+      *row_bytep++ = (argb >> 0) & 0xff;
+      *row_bytep++ = (argb >> 24) & 0xff;
+#endif
+    }
+  }
+
+#ifdef HAVE_WINCODEC_H
+  buffer->colorspace = MODE_BGRA;
+#else
+  buffer->colorspace = MODE_RGBA;
+#endif
+}
+
+static void SaveOutput(WebPDecBuffer* const buffer,
                        OutputFileFormat format, const char* const out_file) {
   FILE* fout = NULL;
   int needs_open_file = 1;
@@ -283,6 +316,11 @@ static void SaveOutput(const WebPDecBuffer* const buffer,
   }
 
   if (format == PNG) {
+    // PNG doesn't support native ARGB mode. pre-process the output buffer to
+    // RGBA or BGRA colorspace before PNG Write.
+    if (buffer->colorspace == MODE_ARGB) {
+      PreProcessArgb(buffer);
+    }
 #ifdef HAVE_WINCODEC_H
     ok &= WritePNG(out_file, buffer);
 #else
