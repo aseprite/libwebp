@@ -111,12 +111,13 @@ int VP8LGetInfo(const uint8_t* data, uint32_t data_size,
   }
 }
 
-static uint32_t SubSampleSize(uint32_t size, uint32_t sampling_bits) {
+static WEBP_INLINE uint32_t SubSampleSize(uint32_t size,
+                                          uint32_t sampling_bits) {
   return (size + (1 << sampling_bits) - 1) >> sampling_bits;
 }
 
-static inline uint32_t GetCopyDistance(uint32_t distance_symbol,
-                                       BitReader* const br) {
+static WEBP_INLINE uint32_t GetCopyDistance(uint32_t distance_symbol,
+                                            BitReader* const br) {
   uint32_t extra_bits, offset;
   if (distance_symbol < 4) {
     return distance_symbol + 1;
@@ -126,13 +127,13 @@ static inline uint32_t GetCopyDistance(uint32_t distance_symbol,
   return offset + VP8LReadBits(br, extra_bits) + 1;
 }
 
-static inline uint32_t GetCopyLength(uint32_t length_symbol,
-                                     BitReader* const br) {
+static WEBP_INLINE uint32_t GetCopyLength(uint32_t length_symbol,
+                                          BitReader* const br) {
   // Length and distance prefixes are encoded the same way.
   return GetCopyDistance(length_symbol, br);
 }
 
-static int PlaneCodeToDistance(int xsize, uint32_t plane_code) {
+static WEBP_INLINE int PlaneCodeToDistance(int xsize, uint32_t plane_code) {
   int dist_code, yoffset, xoffset;
   if (plane_code > CODE_TO_PLANE_CODES) {
     return plane_code - CODE_TO_PLANE_CODES;
@@ -146,7 +147,8 @@ static int PlaneCodeToDistance(int xsize, uint32_t plane_code) {
 // Decodes the next Huffman code from bit-stream.
 // FillBitWindow(br) needs to be called at minimum every second call
 // to ReadSymbol.
-static inline int ReadSymbol(const HuffmanTreeNode* root, BitReader* const br) {
+static WEBP_INLINE int ReadSymbol(const HuffmanTreeNode* root,
+                                  BitReader* const br) {
   const HuffmanTreeNode* node = root;
   while (!HuffmanTreeNodeIsLeaf(node)) {
     node = node->child_[VP8LReadOneBitUnsafe(br)];
@@ -355,7 +357,7 @@ static int ReadHuffmanCodes(
   return ok;
 }
 
-static inline int GetMetaIndex(
+static WEBP_INLINE int GetMetaIndex(
     const uint32_t* const image, uint32_t xsize, uint32_t bits, int x, int y) {
   if (bits == 0) return 0;
   return image[xsize * (y >> bits) + (x >> bits)];
@@ -522,27 +524,27 @@ static int DecodePixels(
   return ok;
 }
 
-static inline uint32_t Average2(uint32_t a0, uint32_t a1) {
+static WEBP_INLINE uint32_t Average2(uint32_t a0, uint32_t a1) {
   return (((a0 ^ a1) & 0xfefefefeL) >> 1) + (a0 & a1);
 }
 
-static inline uint32_t Average3(uint32_t a0, uint32_t a1, uint32_t a2) {
+static WEBP_INLINE uint32_t Average3(uint32_t a0, uint32_t a1, uint32_t a2) {
   return Average2(Average2(a0, a2), a1);
 }
 
-static inline uint32_t Average4(uint32_t a0, uint32_t a1,
-                                uint32_t a2, uint32_t a3) {
+static WEBP_INLINE uint32_t Average4(uint32_t a0, uint32_t a1,
+                                     uint32_t a2, uint32_t a3) {
   return Average2(Average2(a0, a1), Average2(a2, a3));
 }
 
-static uint32_t Add(uint32_t a, uint32_t b) {
+static WEBP_INLINE uint32_t Add(uint32_t a, uint32_t b) {
   // This computes the sum of each component with mod 256.
   const uint32_t alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
   const uint32_t red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
   return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
-static inline uint32_t Clip255(uint32_t a) {
+static WEBP_INLINE uint32_t Clip255(uint32_t a) {
   if (a < NUM_CODES_PER_BYTE) {
     return a;
   }
@@ -551,11 +553,12 @@ static inline uint32_t Clip255(uint32_t a) {
   return ~a >> 24;
 }
 
-static inline int AddSubtractComponentFull(int a, int b, int c) {
+static WEBP_INLINE int AddSubtractComponentFull(int a, int b, int c) {
   return Clip255(a + b - c);
 }
 
-static uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1, uint32_t c2) {
+static WEBP_INLINE uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1,
+                                                   uint32_t c2) {
   const int a = AddSubtractComponentFull(c0 >> 24, c1 >> 24, c2 >> 24);
   const int r = AddSubtractComponentFull((c0 >> 16) & 0xff,
                                          (c1 >> 16) & 0xff,
@@ -567,11 +570,12 @@ static uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1, uint32_t c2) {
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-static inline int AddSubtractComponentHalf(int a, int b) {
+static WEBP_INLINE int AddSubtractComponentHalf(int a, int b) {
   return Clip255(a + (a - b) / 2);
 }
 
-static uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1, uint32_t c2) {
+static WEBP_INLINE uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1,
+                                                   uint32_t c2) {
   const uint32_t ave = Average2(c0, c1);
   const int a = AddSubtractComponentHalf(ave >> 24, c2 >> 24);
   const int r = AddSubtractComponentHalf((ave >> 16) & 0xff, (c2 >> 16) & 0xff);
@@ -678,8 +682,8 @@ static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
   }
 }
 
-static inline uint32_t ColorTransformDelta(signed char color_pred,
-                                           signed char color) {
+static WEBP_INLINE uint32_t ColorTransformDelta(signed char color_pred,
+                                                signed char color) {
   return (uint32_t)((int)(color_pred) * color) >> 5;
 }
 
