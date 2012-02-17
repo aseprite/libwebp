@@ -496,10 +496,13 @@ static void BundlePixels(int xsize, int ysize, int xbits,
 }
 
 static void DeleteHistograms(int size, Histogram** histograms) {
-  int i;
-  for (i = 0; i < size; ++i) {
-    free(histograms[i]);
+  if (histograms) {
+    int i;
+    for (i = 0; i < size; ++i) {
+      free(histograms[i]);
+    }
   }
+  free(histograms);
 }
 
 static int GetBackwardReferences(int xsize, int ysize,
@@ -592,28 +595,37 @@ exit_label:
   return ok;
 }
 
-static void GetHistImageSymbols(int xsize, int ysize,
-                                PixOrCopy* backward_refs,
-                                int backward_refs_size,
-                                int quality, int histogram_bits,
-                                int palette_bits,
-                                int *histogram_image_size,
-                                Histogram*** histogram_image,
-                                uint32_t* histogram_symbols) {
+// Returns 1 on success.
+static int GetHistImageSymbols(int xsize, int ysize,
+                               PixOrCopy* backward_refs,
+                               int backward_refs_size,
+                               int quality, int histogram_bits,
+                               int palette_bits,
+                               int *histogram_image_size,
+                               Histogram*** histogram_image,
+                               uint32_t* histogram_symbols) {
   // Build histogram image.
+  int ok = 1;
   const int max_refinement_iters = 1;
-  Histogram** histogram_image_raw;
+  Histogram** histogram_image_raw = NULL;
   int histogram_image_raw_size;
   int i;
-  BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
-                      backward_refs, backward_refs_size,
-                      &histogram_image_raw,
-                      &histogram_image_raw_size);
+  *histogram_image = 0;
+  if (!BuildHistogramImage(xsize, ysize, histogram_bits, palette_bits,
+                           backward_refs, backward_refs_size,
+                           &histogram_image_raw,
+                           &histogram_image_raw_size)) {
+    ok = 0;
+    goto exit_label;
+  }
   // Collapse similar histograms.
-  CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
-                        quality, palette_bits,
-                        histogram_image,
-                        histogram_image_size);
+  if (!CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
+                             quality, palette_bits,
+                             histogram_image,
+                             histogram_image_size)) {
+    ok = 0;
+    goto exit_label;
+  }
   // Refine histogram image.
   for (i = 0; i < histogram_image_raw_size; ++i) {
     histogram_symbols[i] = -1;
@@ -627,8 +639,12 @@ static void GetHistImageSymbols(int xsize, int ysize,
       break;
     }
   }
+exit_label:
+  if (!ok) {
+    DeleteHistograms(*histogram_image_size, *histogram_image);
+  }
   DeleteHistograms(histogram_image_raw_size, histogram_image_raw);
-  free(histogram_image_raw);
+  return ok;
 }
 
 // Returns 0 when no error has occured.
@@ -704,9 +720,9 @@ static int EncodeImageInternal(int xsize, int ysize,
   int histogram_image_size;
   Histogram **histogram_image;
 
-  int* bit_lengths_sizes;
-  uint8_t** bit_lengths;
-  uint16_t** bit_codes;
+  int* bit_lengths_sizes = 0;
+  uint8_t** bit_lengths = 0;
+  uint16_t** bit_codes = 0;
 
   int write_histogram_image;
   int i;
@@ -723,12 +739,15 @@ static int EncodeImageInternal(int xsize, int ysize,
                         use_2d_locality, &backward_refs_size, &backward_refs);
 
   // Build histogram image & symbols from backward references.
-  GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
-                      quality, histogram_bits,
-                      palette_bits,
-                      &histogram_image_size,
-                      &histogram_image,
-                      histogram_symbols);
+  if (!GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
+                           quality, histogram_bits,
+                           palette_bits,
+                           &histogram_image_size,
+                           &histogram_image,
+                           histogram_symbols)) {
+    ok = 0;
+    goto exit_label;
+  }
 
   // Create Huffman bit lengths & codes for each histogram image.
   bit_lengths_sizes = (int *)calloc(5 * histogram_image_size,
@@ -808,9 +827,8 @@ static int EncodeImageInternal(int xsize, int ysize,
                        bit_lengths_sizes[5 * i + k], bw);
     }
   }
-  // free combined histograms
+  // Free combined histograms.
   DeleteHistograms(histogram_image_size, histogram_image);
-  free(histogram_image);
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
@@ -818,7 +836,7 @@ static int EncodeImageInternal(int xsize, int ysize,
     ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths_sizes[i], bit_lengths[i],
                                     bit_codes[i]);
   }
-  // Store actual literals
+  // Store actual literals.
   StoreImageToBitMask(xsize, histogram_bits, palette_bits,
                       backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
