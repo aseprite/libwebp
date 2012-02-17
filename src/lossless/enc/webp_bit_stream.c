@@ -20,7 +20,7 @@
 #include "./backward_references.h"
 #include "./bit_writer.h"
 #include "./entropy_encode.h"
-#include "./histogram_image.h"
+#include "./histogram.h"
 #include "./predictor.h"
 
 static void PutLE32(uint8_t* const data, uint32_t val) {

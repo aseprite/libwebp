@@ -118,6 +118,32 @@ void ConvertPopulationCountTableToBitEstimates(
 
 double BitsEntropy(const int * const array, int n);
 
+// Build a 2d image of histograms, subresolutioned by (1 << histobits) to
+// the original image.
+int BuildHistogramImage(int xsize, int ysize,
+                        int histobits,
+                        int palette_bits,
+                        const PixOrCopy *backward_refs,
+                        int backward_refs_size,
+                        Histogram ***image,
+                        int *histogram_size);
+
+// Combines several histograms into fewer histograms.
+int CombineHistogramImage(Histogram **in,
+                          int in_size,
+                          int quality,
+                          int palette_bits,
+                          Histogram ***out,
+                          int *out_size);
+
+// Moves histograms from one cluster to another if smaller entropy can
+// be achieved by doing that.
+void RefineHistogramImage(Histogram **raw,
+                          int raw_size,
+                          uint32_t *symbols,
+                          int out_size,
+                          Histogram **out);
+
 #if defined(__cplusplus) || defined(c_plusplus)
 }
 #endif
