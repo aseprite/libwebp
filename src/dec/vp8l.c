@@ -687,24 +687,35 @@ static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
   }
 }
 
-static WEBP_INLINE uint32_t ColorTransformDelta(signed char color_pred,
-                                                signed char color) {
-  return (uint32_t)((int)(color_pred) * color) >> 5;
+typedef struct {
+  int green_to_red_;
+  int green_to_blue_;
+  int red_to_blue_;
+} ColorTransformElem;
+
+static WEBP_INLINE argb_t ColorTransformDelta(signed char color_pred,
+                                              signed char color) {
+  return (argb_t)((int)(color_pred) * color) >> 5;
 }
 
-static argb_t TransformColor(uint32_t color_pred, argb_t argb) {
-  const uint32_t green_to_red = color_pred & 0xff;
-  const uint32_t green_to_blue = (color_pred >> 8) & 0xff;
-  const uint32_t red_to_blue = (color_pred >> 16) & 0xff;
+static WEBP_INLINE void ColorTransformElemInitFromCode(ColorTransformElem* elem,
+                                                       argb_t color_pred) {
+  elem->green_to_red_ = color_pred & 0xff;
+  elem->green_to_blue_ = (color_pred >> 8) & 0xff;
+  elem->red_to_blue_ = (color_pred >> 16) & 0xff;
+}
 
-  const uint32_t green = argb >> 8;
-  const uint32_t red = argb >> 16;
-  uint32_t new_red = red;
-  uint32_t new_blue = argb;
-  new_red += ColorTransformDelta(green_to_red, green);
+static WEBP_INLINE argb_t TransformColor(const ColorTransformElem* const elem,
+                                         argb_t argb) {
+  const argb_t green = argb >> 8;
+  const argb_t red = argb >> 16;
+  argb_t new_red = red;
+  argb_t new_blue = argb;
+
+  new_red += ColorTransformDelta(elem->green_to_red_, green);
   new_red &= 0xff;
-  new_blue += ColorTransformDelta(green_to_blue, green);
-  new_blue += ColorTransformDelta(red_to_blue, new_red);
+  new_blue += ColorTransformDelta(elem->green_to_blue_, green);
+  new_blue += ColorTransformDelta(elem->red_to_blue_, new_red);
   new_blue &= 0xff;
   return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
 }
@@ -716,7 +727,8 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
   const uint32_t tile_mask = (1 << transform->bits_) - 1;
   const uint32_t tile_xsize =
       (transform->xsize_ + tile_mask) >> transform->bits_;
-  argb_t color_pred = 0;
+  ColorTransformElem color_pred;
+  ColorTransformElemInitFromCode(&color_pred, 0);
 
   for (row = 0; row < transform->ysize_; ++row) {
     const uint32_t tile_y = row >> transform->bits_;
@@ -725,10 +737,10 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
       // Pick the appropriate color predictor mode (at start of every tile).
       if (!(col & tile_mask)) {
         const int tile_ix = tile_y * tile_xsize + tile_x;
-        color_pred = transform->data_[tile_ix];
+        ColorTransformElemInitFromCode(&color_pred, transform->data_[tile_ix]);
         ++tile_x;
       }
-      decoded_data[image_ix] = TransformColor(color_pred,
+      decoded_data[image_ix] = TransformColor(&color_pred,
                                               decoded_data[image_ix]);
     }
   }
