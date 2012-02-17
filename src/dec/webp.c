@@ -336,7 +336,7 @@ static VP8StatusCode DecodeInto(const uint8_t* data, uint32_t data_size,
           // Make a short-circuit and copy the decoded data to params->output.
           WebPRGBABuffer* const buf = &(params->output->u.RGBA);
           memcpy(buf->rgba, vp8l_decoder.argb_, buf->size);
-          free(vp8l_decoder.argb_);
+          VP8LClear(&vp8l_decoder);
         }
       }
     }

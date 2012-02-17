@@ -42,9 +42,9 @@ struct VP8LTransform {
 
 typedef struct VP8LDecoder VP8LDecoder;
 struct VP8LDecoder {
+  argb_t        *argb_;
   BitReader     *br_;
   int           next_transform_;
-  argb_t        *argb_;
   VP8LTransform transforms_[NUM_TRANSFORMS];
 };
 
@@ -60,8 +60,11 @@ int VP8LGetInfo(const uint8_t* data,
                 uint32_t data_size,    // data available so far
                 int *width, int *height);
 
+// Decode a picture. Returns false in case of error.
 int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
 
+// Resets the decoder in its initial state, reclaiming memory.
+void VP8LClear(VP8LDecoder* const dec);
 //------------------------------------------------------------------------------
 
 #if defined(__cplusplus) || defined(c_plusplus)

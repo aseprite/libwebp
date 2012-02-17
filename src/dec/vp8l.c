@@ -206,6 +206,7 @@ static int ReadHuffmanCodeLengths(
   }
 
  End:
+  HuffmanTreeRelease(&root);
   return ok;
 }
 
@@ -399,7 +400,7 @@ static int DecodePixels(
   int alpha = 0xff000000;
   int meta_ix = -1;
   uint32_t pos;
-  uint32_t num_pixs = xsize * ysize;
+  size_t num_pixs = xsize * ysize;
   uint32_t x = 0;
   uint32_t y = 0;
   uint32_t* data = NULL;
@@ -421,11 +422,12 @@ static int DecodePixels(
                        color_cache_bits);
   }
 
-  data = (uint32_t*)calloc(num_pixs,sizeof(uint32_t));
+  data = (uint32_t*)calloc(num_pixs, sizeof(uint32_t));
   ok = (data != NULL);
   if (!ok) goto End;
 
-  for (pos = 0; pos < num_pixs; ) {
+  pos = 0;
+  while (pos < num_pixs) {
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
@@ -503,14 +505,11 @@ static int DecodePixels(
           ++y;
         }
       }
-      if (pos == num_pixs) {
-        break;
+
+      if (pos < num_pixs) {
+        UpdateHuffmanSet(huffman_image, meta_codes, htrees, huffman_xsize,
+                         huffman_subsample_bits, x, y, &meta_ix, &huffs);
       }
-
-      UpdateHuffmanSet(huffman_image, meta_codes, htrees, huffman_xsize,
-                       huffman_subsample_bits, x, y, &meta_ix, &huffs);
-
-      continue;
     } else {
       // Code flow should not come here.
       ok = 0;
@@ -676,8 +675,8 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
 
 static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
                                  argb_t* const decoded_data) {
-  int i;
-  int num_pixs = transform->xsize_ * transform->ysize_;
+  size_t i;
+  const size_t num_pixs = transform->xsize_ * transform->ysize_;
   for (i = 0; i < num_pixs; ++i) {
     const argb_t argb = decoded_data[i];
     argb_t green = (argb >> 8) & 0xff;
@@ -737,8 +736,8 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
 
 static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
                                           argb_t* const decoded_data) {
-  int i;
-  const int num_pixs = transform->xsize_ * transform->ysize_;
+  size_t i;
+  const size_t num_pixs = transform->xsize_ * transform->ysize_;
   for (i = 0; i < num_pixs; ++i) {
     decoded_data[i] = transform->data_[(decoded_data[i] >> 8) & 0xff];
   }
@@ -915,23 +914,35 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   uint32_t width, height;
   argb_t* decoded_data = NULL;
   BitReader br;
-  assert(dec);
 
+  if (dec == NULL) return 0;
+  if (io == NULL) return 0;
   if (offset > io->data_size) return 0;
 
   VP8LInitBitReader(&br, io->data + offset, io->data_size - offset);
   if (!ReadImageSize(&br, &width, &height)) return 0;
   dec->br_ = &br;
   dec->next_transform_ = 0;
-  if (!DecodeImageStream(width, height, dec, &decoded_data)) {
-    while (dec->next_transform_ > 0) {
-      free(dec->transforms_[--dec->next_transform_].data_);
-    }
+  dec->argb_ = NULL;
+  if (DecodeImageStream(width, height, dec, &decoded_data)) {
+    dec->argb_ = decoded_data;
+  } else {
+    VP8LClear(dec);
     return 0;
   }
-  dec->argb_ = decoded_data;
 
   return 1;
+}
+
+void VP8LClear(VP8LDecoder* const dec) {
+  if (dec == NULL) return;
+  free(dec->argb_);
+  dec->argb_ = NULL;
+  dec->br_ = NULL;
+  while (dec->next_transform_ > 0) {
+    free(dec->transforms_[--dec->next_transform_].data_);
+    dec->transforms_[dec->next_transform_].data_ = NULL;
+  }
 }
 //------------------------------------------------------------------------------
 
