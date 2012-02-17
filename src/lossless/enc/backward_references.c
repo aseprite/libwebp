@@ -308,27 +308,38 @@ typedef struct {
   int palette_bits_;
 } CostModel;
 
-static void CostModel_Build(CostModel *p, int xsize, int ysize,
-                            int recursion_level, int use_palette,
-                            const uint32_t *argb, int palette_bits) {
+static int CostModel_Build(CostModel *p, int xsize, int ysize,
+                           int recursion_level, int use_palette,
+                           const uint32_t *argb, int palette_bits) {
+  int ok = 1;
   int stream_size;
   Histogram histo;
   int i;
   PixOrCopy *stream = (PixOrCopy *)malloc(xsize * ysize * sizeof(*stream));
+  if (stream == NULL) {
+    ok = 0;
+    goto exit_label;
+  }
   p->palette_bits_ = palette_bits;
   if (recursion_level > 0) {
-    BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
-                                     use_palette, argb,
-                                     palette_bits, &stream[0], &stream_size);
+    if (!BackwardReferencesTraceBackwards(xsize, ysize, recursion_level - 1,
+                                          use_palette, argb,
+                                          palette_bits,
+                                          &stream[0], &stream_size)) {
+      ok = 0;
+      goto exit_label;
+    }
   } else {
-    BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
-                                palette_bits, &stream[0], &stream_size);
+    if (!BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
+                                     palette_bits, &stream[0], &stream_size)) {
+      ok = 0;
+      goto exit_label;
+    }
   }
   Histogram_Init(&histo, palette_bits);
   for (i = 0; i < stream_size; ++i) {
     Histogram_AddSinglePixOrCopy(&histo, stream[i]);
   }
-  free(stream);
   ConvertPopulationCountTableToBitEstimates(
       Histogram_NumPixOrCopyCodes(&histo),
       &histo.literal_[0], &p->literal_[0]);
@@ -340,6 +351,9 @@ static void CostModel_Build(CostModel *p, int xsize, int ysize,
       VALUES_IN_BYTE, &histo.alpha_[0], &p->alpha_[0]);
   ConvertPopulationCountTableToBitEstimates(
       DISTANCE_CODES_MAX, &histo.distance_[0], &p->distance_[0]);
+exit_label:
+  free(stream);
+  return ok;
 }
 
 static inline double CostModel_LiteralCost(const CostModel *p, uint32_t v) {
@@ -729,15 +743,21 @@ static int ComputePaletteHistogram(const uint32_t *argb, int xsize, int ysize,
 
 // Returns how many bits are to be used for a palette.
 int CalculateEstimateForPaletteSize(const uint32_t *argb,
-                                    int xsize, int ysize) {
+                                    int xsize, int ysize,
+                                    int *best_palette_bits) {
+  int ok = 1;
   int palette_bits;
-  int best_palette_bits = -1;
   double lowest_entropy = 1e99;
   PixOrCopy *stream = (PixOrCopy *)
       malloc(xsize * ysize * sizeof(*stream));
   int stream_size;
   static const double kMakeLargePaletteSlightlyLessFavorable = 4.0;
-  BackwardReferencesHashChain(xsize, ysize, 0, argb, 0, stream, &stream_size);
+  if (stream == NULL ||
+      !BackwardReferencesHashChain(xsize, ysize,
+                                   0, argb, 0, stream, &stream_size)) {
+    ok = 0;
+    goto exit_label;
+  }
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     double cur_entropy;
     Histogram histo;
@@ -747,10 +767,11 @@ int CalculateEstimateForPaletteSize(const uint32_t *argb,
     cur_entropy = Histogram_EstimateBits(&histo) +
         kMakeLargePaletteSlightlyLessFavorable * palette_bits;
     if (palette_bits == 0 || cur_entropy < lowest_entropy) {
-      best_palette_bits = palette_bits;
+      *best_palette_bits = palette_bits;
       lowest_entropy = cur_entropy;
     }
   }
+exit_label:
   free(stream);
-  return best_palette_bits;
+  return ok;
 }

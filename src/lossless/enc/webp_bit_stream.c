@@ -286,28 +286,27 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
   CreateCompressedHuffmanTree(bit_lengths,
                               bit_lengths_size,
                               &huffman_tree_size,
-                              &huffman_tree[0],
-                              &huffman_tree_extra_bits[0]);
-  memset(&huffman_tree_histogram[0], 0, sizeof(huffman_tree_histogram));
+                              huffman_tree,
+                              huffman_tree_extra_bits);
+  memset(huffman_tree_histogram, 0, sizeof(huffman_tree_histogram));
   for (i = 0; i < huffman_tree_size; ++i) {
     ++huffman_tree_histogram[huffman_tree[i]];
   }
-  memset(&code_length_bitdepth[0], 0, sizeof(code_length_bitdepth));
-  memset(&code_length_bitdepth_symbols[0], 0,
-         sizeof(code_length_bitdepth_symbols));
+  memset(code_length_bitdepth, 0, sizeof(code_length_bitdepth));
+  memset(code_length_bitdepth_symbols, 0, sizeof(code_length_bitdepth_symbols));
   ok = ok &&
-      CreateHuffmanTree(&huffman_tree_histogram[0], CODE_LENGTH_CODES,
-                        7, &code_length_bitdepth[0]);
+      CreateHuffmanTree(huffman_tree_histogram, CODE_LENGTH_CODES,
+                        7, code_length_bitdepth);
   if (!ok) {
     goto exit_label;
   }
-  ConvertBitDepthsToSymbols(&code_length_bitdepth[0], CODE_LENGTH_CODES,
-                            &code_length_bitdepth_symbols[0]);
+  ConvertBitDepthsToSymbols(code_length_bitdepth, CODE_LENGTH_CODES,
+                            code_length_bitdepth_symbols);
   StoreHuffmanTreeOfHuffmanTreeToBitMask(code_length_bitdepth,
                                          bw);
   ClearHuffmanTreeIfOnlyOneSymbol(CODE_LENGTH_CODES,
-                                  &code_length_bitdepth[0],
-                                  &code_length_bitdepth_symbols[0]);
+                                  code_length_bitdepth,
+                                  code_length_bitdepth_symbols);
   {
     int num_trailing_zeros = 0;
     int trailing_zero_bits = 0;
@@ -335,11 +334,11 @@ static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
       WriteBits(3, nbitpairs - 1, bw);
       WriteBits(nbitpairs * 2, trimmed_length - 2, bw);
     }
-    StoreHuffmanTreeToBitMask(&huffman_tree[0],
-                              &huffman_tree_extra_bits[0],
+    StoreHuffmanTreeToBitMask(huffman_tree,
+                              huffman_tree_extra_bits,
                               length,
-                              &code_length_bitdepth[0],
-                              &code_length_bitdepth_symbols[0],
+                              code_length_bitdepth,
+                              code_length_bitdepth_symbols,
                               bw);
   }
 exit_label:
@@ -436,7 +435,7 @@ static int CreatePalette256(int n, const uint32_t *argb,
   uint8_t in_use[1024];
   uint32_t colors[1024];
   static const uint32_t kHashMul = 0x1e35a7bd;
-  memset(&in_use[0], 0, sizeof(in_use));
+  memset(in_use, 0, sizeof(in_use));
   for (i = 0; i < n; ++i) {
     int addr;
     if (i != 0 && argb[i - 1] == argb[i]) {
@@ -470,7 +469,7 @@ static int CreatePalette256(int n, const uint32_t *argb,
       ++(*palette_size);
     }
   }
-  qsort(&palette[0], *palette_size, sizeof(palette[0]), Uint32Order);
+  qsort(palette, *palette_size, sizeof(palette[0]), Uint32Order);
   return 1;
 }
 
@@ -526,18 +525,23 @@ static int GetBackwardReferences(int xsize, int ysize,
     ok = 0;
     goto exit_label;
   }
-  BackwardReferencesHashChain(xsize, ysize, use_palette, &argb[0], palette_bits,
-                              &backward_refs_lz77[0], &backward_refs_lz77_size);
+  if (!BackwardReferencesHashChain(xsize, ysize, use_palette,
+                                   argb, palette_bits,
+                                   backward_refs_lz77,
+                                   &backward_refs_lz77_size)) {
+    ok = 0;
+    goto exit_label;
+  }
   Histogram_Init(histo_lz77, palette_bits);
-  Histogram_Build(histo_lz77, &backward_refs_lz77[0], backward_refs_lz77_size);
+  Histogram_Build(histo_lz77, backward_refs_lz77, backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
-  BackwardReferencesRle(xsize, ysize, &argb[0], &backward_refs_rle_only[0],
+  BackwardReferencesRle(xsize, ysize, argb, backward_refs_rle_only,
                         &backward_refs_rle_only_size);
 
   Histogram_Init(histo_rle, palette_bits);
   Histogram_Build(histo_rle,
-                  &backward_refs_rle_only[0], backward_refs_rle_only_size);
+                  backward_refs_rle_only, backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
   lz77_is_useful =
@@ -548,15 +552,16 @@ static int GetBackwardReferences(int xsize, int ysize,
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
     free(backward_refs_rle_only);
     free(backward_refs_lz77);
-    *backward_refs = (PixOrCopy *)
-        malloc(xsize * ysize * sizeof(*backward_refs));
-    if (*backward_refs == NULL) {
+    *backward_refs = (PixOrCopy*)malloc(xsize * ysize * sizeof(*backward_refs));
+    if (*backward_refs == NULL ||
+        !BackwardReferencesTraceBackwards(xsize, ysize,
+                                          recursion_level, use_palette,
+                                          argb, palette_bits,
+                                          *backward_refs,
+                                          backward_refs_size)) {
       ok = 0;
       goto exit_label;
     }
-    BackwardReferencesTraceBackwards(xsize, ysize, recursion_level, use_palette,
-                                     &argb[0], palette_bits, *backward_refs,
-                                     backward_refs_size);
   } else {
     if (lz77_is_useful) {
       *backward_refs = backward_refs_lz77;
@@ -570,7 +575,7 @@ static int GetBackwardReferences(int xsize, int ysize,
   }
 
   // Verify.
-  VERIFY(VerifyBackwardReferences(&argb[0], xsize, ysize, palette_bits,
+  VERIFY(VerifyBackwardReferences(argb, xsize, ysize, palette_bits,
                                   *backward_refs, *backward_refs_size));
 
   if (use_2d_locality) {
@@ -645,7 +650,7 @@ static int GetHuffBitLengthsAndCodes(
         malloc(lit_len * sizeof(*(*bit_codes)[5 * i]));
 
     // For each component, optimize histogram for Huffman with RLE compression.
-    ok = ok && OptimizeHuffmanForRle(lit_len, &histogram_image[i]->literal_[0]);
+    ok = ok && OptimizeHuffmanForRle(lit_len, histogram_image[i]->literal_);
     if (!use_palette) {
       // Implies that palette_bits == 0,
       // and so number of palette entries = (1 << 0) = 1.
@@ -653,11 +658,11 @@ static int GetHuffBitLengthsAndCodes(
       // palette entry, so zero it out.
       histogram_image[i]->literal_[256] = 0;
     }
-    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->red_[0]);
-    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->blue_[0]);
-    ok = ok && OptimizeHuffmanForRle(256, &histogram_image[i]->alpha_[0]);
+    ok = ok && OptimizeHuffmanForRle(256, histogram_image[i]->red_);
+    ok = ok && OptimizeHuffmanForRle(256, histogram_image[i]->blue_);
+    ok = ok && OptimizeHuffmanForRle(256, histogram_image[i]->alpha_);
     ok = ok && OptimizeHuffmanForRle(DISTANCE_CODES_MAX,
-                                     &histogram_image[i]->distance_[0]);
+                                     histogram_image[i]->distance_);
 
     // Create a Huffman tree (in the form of bit lengths) for each component.
     ok = ok && CreateHuffmanTree(histogram_image[i]->literal_, lit_len, 15,
@@ -758,11 +763,11 @@ static int EncodeImageInternal(int xsize, int ysize,
     memcpy(histogram_argb, histogram_symbols,
            histogram_image_xysize * sizeof(*histogram_argb));
 
-    ShiftHistogramImage(histogram_image_xysize, &histogram_argb[0]);
+    ShiftHistogramImage(histogram_image_xysize, histogram_argb);
     WriteBits(4, histogram_bits, bw);
     if (!EncodeImageInternal(MetaSize(xsize, histogram_bits),
                              MetaSize(ysize, histogram_bits),
-                             &histogram_argb[0],
+                             histogram_argb,
                              quality,
                              0,
                              0,      // no histogram bits
@@ -794,24 +799,24 @@ static int EncodeImageInternal(int xsize, int ysize,
     int k;
     int literal_lengths_size;
     uint8_t* literal_lengths;
-    PackLiteralBitLengths(&bit_lengths[5 * i][0], palette_bits, use_palette,
+    PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
                           &literal_lengths_size, &literal_lengths);
     StoreHuffmanCode(literal_lengths, literal_lengths_size, bw);
     free(literal_lengths);
     for (k = 1; k < 5; ++k) {
-      StoreHuffmanCode(&bit_lengths[5 * i + k][0],
+      StoreHuffmanCode(bit_lengths[5 * i + k],
                        bit_lengths_sizes[5 * i + k], bw);
     }
   }
   // free combined histograms
-  DeleteHistograms(histogram_image_size, &histogram_image[0]);
+  DeleteHistograms(histogram_image_size, histogram_image);
   free(histogram_image);
 
   // Emit no bits if there is only one symbol in the histogram.
   // This gives better compression for some images.
   for (i = 0; i < 5 * histogram_image_size; ++i) {
-    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths_sizes[i], &bit_lengths[i][0],
-                                    &bit_codes[i][0]);
+    ClearHuffmanTreeIfOnlyOneSymbol(bit_lengths_sizes[i], bit_lengths[i],
+                                    bit_codes[i]);
   }
   // Store actual literals
   StoreImageToBitMask(xsize, histogram_bits, palette_bits,
@@ -881,7 +886,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
     }
-    SubtractGreenFromBlueAndRed(xsize * ysize, &argb[0]);
+    SubtractGreenFromBlueAndRed(xsize * ysize, argb);
     Histogram_Init(after, 1);
     for (i = 0; i < xsize * ysize; ++i) {
       Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
@@ -898,7 +903,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   }
 
   if (use_small_palette &&
-      CreatePalette256(xsize * ysize, &argb[0], &palette_size, &palette[0])) {
+      CreatePalette256(xsize * ysize, argb, &palette_size, palette)) {
     for (i = 0; i < xsize * ysize; ++i) {
       int k;
       for (k = 0; k < palette_size; ++k) {
@@ -914,7 +919,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     for (i = palette_size - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
     }
-    if (!EncodeImageInternal(palette_size, 1, &palette[0],
+    if (!EncodeImageInternal(palette_size, 1, palette,
                              quality, 0, 0, 1, &bw)) {
       ok = 0;
       goto exit_label;
@@ -946,17 +951,17 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
       ok = 0;
       goto exit_label;
     }
-    memcpy(from_argb, &argb[0], xsize * ysize * sizeof(*argb));
+    memcpy(from_argb, argb, xsize * ysize * sizeof(*argb));
     PredictorImage(xsize, ysize, predict_bits,
-                   &from_argb[0],
-                   &argb[0],
-                   &predictor_image[0]);
+                   from_argb,
+                   argb,
+                   predictor_image);
     WriteBits(1, 1, &bw);
     WriteBits(3, 0, &bw);
     WriteBits(4, predict_bits, &bw);
     if (!EncodeImageInternal(MetaSize(xsize, predict_bits),
                              MetaSize(ysize, predict_bits),
-                             &predictor_image[0],
+                             predictor_image,
                              quality,
                              0,
                              0,      // no histogram bits
@@ -980,9 +985,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
       goto exit_label;
     }
     ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
-                        &argb[0],
+                        argb,
                         quality,
-                        &argb[0],
+                        argb,
                         color_space_image);
     WriteBits(1, 1, &bw);
     WriteBits(3, 1, &bw);
@@ -1003,16 +1008,17 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
 
   palette_bits = 0;
   if (use_emerging_palette) {
-    palette_bits = (quality == 0) ?
-        7 :
-        CalculateEstimateForPaletteSize(&argb[0], xsize, ysize);
+    if (quality == 0) {
+      palette_bits = 7;
+    } else {
+      if (!CalculateEstimateForPaletteSize(argb, xsize, ysize, &palette_bits)) {
+        ok = 0;
+        goto exit_label;
+      }
+    }
   }
 
-  if (!EncodeImageInternal(xsize,
-                           ysize,
-                           &argb[0],
-                           quality,
-                           palette_bits,
+  if (!EncodeImageInternal(xsize, ysize, argb, quality, palette_bits,
                            histogram_bits,
                            1,   // use_2d_locality
                            &bw)) {

@@ -219,7 +219,9 @@ int VerifyBackwardReferences(const uint32_t* argb,
                              int lit_size);
 
 // Produce an estimate for a good emerging palette size for the image.
-int CalculateEstimateForPaletteSize(const uint32_t *argb, int xsize, int ysize);
+int CalculateEstimateForPaletteSize(const uint32_t *argb,
+                                    int xsize, int ysize,
+                                    int *best_palette_bits);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }
