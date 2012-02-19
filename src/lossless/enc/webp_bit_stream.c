@@ -735,9 +735,12 @@ static int EncodeImageInternal(int xsize, int ysize,
   uint32_t *histogram_symbols = (uint32_t *)
       calloc(histogram_image_xysize, sizeof(*histogram_symbols));
   // Calculate backward references from ARGB image.
-  GetBackwardReferences(xsize, ysize, argb, quality, use_palette, palette_bits,
-                        use_2d_locality, &backward_refs_size, &backward_refs);
-
+  if (!GetBackwardReferences(xsize, ysize, argb, quality,
+                             use_palette, palette_bits, use_2d_locality,
+                             &backward_refs_size, &backward_refs)) {
+    ok = 0;
+    goto exit_label;
+  }
   // Build histogram image & symbols from backward references.
   if (!GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
                            quality, histogram_bits,
@@ -748,7 +751,6 @@ static int EncodeImageInternal(int xsize, int ysize,
     ok = 0;
     goto exit_label;
   }
-
   // Create Huffman bit lengths & codes for each histogram image.
   bit_lengths_sizes = (int *)calloc(5 * histogram_image_size,
                                     sizeof(*bit_lengths_sizes));
@@ -818,13 +820,22 @@ static int EncodeImageInternal(int xsize, int ysize,
     int k;
     int literal_lengths_size;
     uint8_t* literal_lengths;
-    PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
-                          &literal_lengths_size, &literal_lengths);
-    StoreHuffmanCode(literal_lengths, literal_lengths_size, bw);
+    if (!PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
+                               &literal_lengths_size, &literal_lengths)) {
+      ok = 0;
+      goto exit_label;
+    }
+    if (!StoreHuffmanCode(literal_lengths, literal_lengths_size, bw)) {
+      ok = 0;
+      goto exit_label;
+    }
     free(literal_lengths);
     for (k = 1; k < 5; ++k) {
-      StoreHuffmanCode(bit_lengths[5 * i + k],
-                       bit_lengths_sizes[5 * i + k], bw);
+      if (!StoreHuffmanCode(bit_lengths[5 * i + k],
+                            bit_lengths_sizes[5 * i + k], bw)) {
+        ok = 0;
+        goto exit_label;
+      }
     }
   }
   // Free combined histograms.
