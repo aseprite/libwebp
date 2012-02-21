@@ -42,6 +42,7 @@ struct VP8LTransform {
 
 typedef struct VP8LDecoder VP8LDecoder;
 struct VP8LDecoder {
+  VP8StatusCode status_;
   argb_t        *argb_;
   BitReader     *br_;
   int           next_transform_;

@@ -172,7 +172,10 @@ static int ReadHuffmanCodeLengths(
   HuffmanTreeNode root;
 
   HuffmanTreeNodeInit(&root);
-  if (!HuffmanTreeBuild(&root, code_length_code_lengths, num_codes)) return 0;
+  if (!HuffmanTreeBuild(&root, code_length_code_lengths, num_codes)) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    return 0;
+  }
 
   if (use_length) {
     const int length_nbits = (VP8LReadBits(br, 3) + 1) * 2;
@@ -195,6 +198,7 @@ static int ReadHuffmanCodeLengths(
       const int use_prev = (code_len == kCodeLengthRepeatCode);
       int rep_iter;
       if (code_idx + rep_cnt > num_symbols) {
+        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
         ok = 0;
         goto End;
       }
@@ -240,10 +244,14 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
     const uint32_t num_codes = VP8LReadBits(br, 4) + 4;
     uint32_t* code_lengths = NULL;
 
-    if (num_codes > NUM_CODE_LENGTH_CODES) return 0;
+    if (num_codes > NUM_CODE_LENGTH_CODES) {
+      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+      return 0;
+    }
 
     code_lengths = (uint32_t*)calloc(alphabet_size, sizeof(code_lengths[0]));
     if (code_lengths == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       return 0;
     }
 
@@ -303,7 +311,10 @@ static int ReadHuffmanCodes(
     *meta_code_size = num_meta_codes * HUFFMAN_CODES_PER_META_CODE;
     meta_codes_lcl = (uint32_t*)calloc(
         *meta_code_size, sizeof(meta_codes_lcl[0]));
-    if (meta_codes_lcl == NULL) return 0;
+    if (meta_codes_lcl == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      return 0;
+    }
 
     mci = 0;
     for (mc = 0; mc < num_meta_codes; ++mc) {
@@ -321,7 +332,10 @@ static int ReadHuffmanCodes(
     *meta_code_size = HUFFMAN_CODES_PER_META_CODE;
     meta_codes_lcl = (uint32_t*)calloc(
         *meta_code_size, sizeof(meta_codes_lcl[0]));
-    if (meta_codes_lcl == NULL) return 0;
+    if (meta_codes_lcl == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      return 0;
+    }
 
     for (hc = 0; hc < HUFFMAN_CODES_PER_META_CODE; ++hc) {
       meta_codes_lcl[hc] = hc;
@@ -343,6 +357,7 @@ static int ReadHuffmanCodes(
       *num_huffman_trees, sizeof(htrees_lcl[0]));
   if (htrees_lcl == NULL) {
     free(meta_codes_lcl);
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
     return 0;
   }
 
@@ -418,13 +433,21 @@ static int DecodePixels(
   VP8LColorCache* color_cache = NULL;
   if (use_color_cache) {
     color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
+    if (color_cache == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      ok = 0;
+      goto End;
+    }
     VP8LColorCacheInit(color_cache, xsize, color_cache_x_subsample_bits,
                        color_cache_bits);
   }
 
   data = (uint32_t*)calloc(num_pixs, sizeof(uint32_t));
-  ok = (data != NULL);
-  if (!ok) goto End;
+  if (data == NULL) {
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+    ok = 0;
+    goto End;
+  }
 
   pos = 0;
   while (pos < num_pixs) {
@@ -512,6 +535,7 @@ static int DecodePixels(
       }
     } else {
       // Code flow should not come here.
+      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       ok = 0;
       goto End;
     }
@@ -810,8 +834,12 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
         break;
       case PIXEL_BUNDLE_TRANSFORM:
         ok = PixelBundleInverseTransform(transform, decoded_data);
+        if (!ok) {
+          dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+        }
         break;
       default:
+        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
         ok = 0;
         break;
     }
@@ -864,6 +892,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
     case SUBTRACT_GREEN:
       break;
     default:
+      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       ok = 0;
   }
 
@@ -928,11 +957,17 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   BitReader br;
 
   if (dec == NULL) return 0;
-  if (io == NULL) return 0;
-  if (offset > io->data_size) return 0;
+  if (io == NULL || offset > io->data_size) {
+    dec->status_ = VP8_STATUS_INVALID_PARAM;
+    return 0;
+  }
 
+  dec->status_ = VP8_STATUS_OK;
   VP8LInitBitReader(&br, io->data + offset, io->data_size - offset);
-  if (!ReadImageSize(&br, &width, &height)) return 0;
+  if (!ReadImageSize(&br, &width, &height)) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    return 0;
+  }
   dec->br_ = &br;
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
@@ -940,6 +975,9 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
     dec->argb_ = decoded_data;
   } else {
     VP8LClear(dec);
+    if (dec->status_ == VP8_STATUS_OK) {
+      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    }
     return 0;
   }
 
