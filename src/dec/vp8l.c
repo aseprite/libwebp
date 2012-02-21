@@ -84,8 +84,9 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data);
 
-static int ReadImageSize(BitReader* const br,
-                         uint32_t* const width, uint32_t* const height) {
+static WEBP_INLINE int ReadImageSize(BitReader* const br,
+                                     uint32_t* const width,
+                                     uint32_t* const height) {
   const int signature = VP8LReadBits(br, 8);
   if (signature != LOSSLESS_MAGIC_BYTE) return 0;
   *width = VP8LReadBits(br, kImageSizeBits) + 1;
@@ -385,7 +386,7 @@ static WEBP_INLINE int GetMetaIndex(
 
 typedef HuffmanTreeNode* HuffmanTreeNodeArray[HUFFMAN_CODES_PER_META_CODE];
 
-static void UpdateHuffmanSet(
+static WEBP_INLINE void UpdateHuffmanSet(
     const uint32_t* const huffman_image, const uint32_t* const meta_codes,
     HuffmanTreeNode* const htrees, uint32_t huffman_xsize,
     uint32_t huffman_subsample_bits, uint32_t x, uint32_t y,
@@ -616,7 +617,7 @@ static WEBP_INLINE uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1,
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
+static WEBP_INLINE uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
   const int p0 = (int)(a >> 24) + (int)(b >> 24) - (int)(c >> 24);
   const int p1 = (int)((a >> 16) & 0xff) + (int)((b >> 16) & 0xff) -
       (int)((c >> 16) & 0xff);
@@ -640,8 +641,8 @@ static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
 
 #define ARGB_BLACK 0xff000000
 
-static argb_t PredictValue(uint32_t pred_mode, int xsize,
-                           const argb_t* const argb) {
+static WEBP_INLINE argb_t PredictValue(uint32_t pred_mode, int xsize,
+                                       const argb_t* const argb) {
   switch(pred_mode) {
     case 0: return ARGB_BLACK;
     case 1: return argb[-1];
