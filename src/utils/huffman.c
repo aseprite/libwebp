@@ -201,7 +201,7 @@ int HuffmanTreeBuild(HuffmanTreeNode* const root,
     ok = 1;
  End:
     free(codes);
-    return ok;
+    return ok ? HuffmanTreeIsFull(root) : ok;
   }
 }
 

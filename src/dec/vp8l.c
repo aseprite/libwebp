@@ -504,8 +504,11 @@ static int DecodePixels(
       dist_symbol = ReadSymbol(huffs[DIST], br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, dist_code);
-      assert(dist <= pos);
-      assert(pos + length <= xsize * ysize);
+      if ((dist > pos) || (pos + length > num_pixs)) {
+        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+        ok = 0;
+        goto End;
+      }
 
       // Fill data for specified (backward-ref) length and update pos, x & y.
       if (color_cache) {
