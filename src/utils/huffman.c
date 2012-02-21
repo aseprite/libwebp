@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 #define NON_EXISTENT_SYMBOL (-1)
+#define MAX_ALLOWED_CODE_LENGTH 15
 
 void HuffmanTreeNodeInit(HuffmanTreeNode* const node) {
   if (node != NULL) {
@@ -69,9 +70,9 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
   size_t symbol;
   uint32_t max_code_length = 0;
   uint32_t code_len;
-  int* code_length_hist = NULL;
+  int code_length_hist[MAX_ALLOWED_CODE_LENGTH + 1] = { 0 };
   int curr_code;
-  int* next_codes = NULL;
+  int next_codes[MAX_ALLOWED_CODE_LENGTH + 1] = { 0 };
 
   if (code_lengths == NULL || code_lengths_size == 0 || huff_codes == NULL) {
     return 0;
@@ -83,19 +84,9 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
       max_code_length = code_lengths[symbol];
     }
   }
-
-  // Memory allocations.
-  code_length_hist = (int*)calloc(max_code_length + 1,
-                                  sizeof(*code_length_hist));
-  if (code_length_hist == NULL) return 0;
-  next_codes = (int*)malloc((max_code_length + 1) * sizeof(*next_codes));
-  if (next_codes == NULL) {
-    free(code_length_hist);
-    return 0;
-  }
+  assert(max_code_length <= MAX_ALLOWED_CODE_LENGTH);
 
   // Calculate code length histogram.
-  if (code_length_hist == NULL) return 0;
   for(symbol = 0; symbol < code_lengths_size; ++symbol) {
     ++code_length_hist[code_lengths[symbol]];
   }
@@ -110,7 +101,6 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
     curr_code = (curr_code + code_length_hist[code_len - 1]) << 1;
     next_codes[code_len] = curr_code;
   }
-  free(code_length_hist);
 
   // Get symbols.
   for (symbol = 0; symbol < code_lengths_size; ++symbol) {
@@ -120,7 +110,6 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
       huff_codes[symbol] = NON_EXISTENT_SYMBOL;
     }
   }
-  free(next_codes);
   return 1;
 }
 
