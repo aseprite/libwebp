@@ -74,9 +74,9 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
   int curr_code;
   int next_codes[MAX_ALLOWED_CODE_LENGTH + 1] = { 0 };
 
-  if (code_lengths == NULL || code_lengths_size == 0 || huff_codes == NULL) {
-    return 0;
-  }
+  assert(code_lengths != NULL);
+  assert(code_lengths_size > 0);
+  assert(huff_codes != NULL);
 
   // Calculate max code length.
   for (symbol = 0; symbol < code_lengths_size; ++symbol) {
@@ -84,7 +84,7 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
       max_code_length = code_lengths[symbol];
     }
   }
-  assert(max_code_length <= MAX_ALLOWED_CODE_LENGTH);
+  if (max_code_length > MAX_ALLOWED_CODE_LENGTH) return 0;
 
   // Calculate code length histogram.
   for(symbol = 0; symbol < code_lengths_size; ++symbol) {
