@@ -66,6 +66,7 @@ DIROBJ = $(DIRBASE)\obj
 DIRLIB = $(DIRBASE)\lib
 DIRINC = $(DIRBASE)\include
 DIRBIN = $(DIRBASE)\bin
+PDBLIB = $(DIROBJ)\$(TARGET).pdb
 OUTPUT_DIRS = $(DIRBIN) $(DIRINC) $(DIRLIB) \
               $(DIROBJ)\dec \
               $(DIROBJ)\dsp \
@@ -230,17 +231,17 @@ $(DIROBJ)\$(DLLINC):
 
 .SUFFIXES: .c .obj .res .exe
 {examples}.c{$(DIROBJ)\examples}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$@.pdb /Fo"$@"  $<
 {src\dec}.c{$(DIROBJ)\dec}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$(PDBLIB) /Fo"$@"  $<
 {src\dsp}.c{$(DIROBJ)\dsp}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$(PDBLIB) /Fo"$@"  $<
 {src\enc}.c{$(DIROBJ)\enc}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$(PDBLIB) /Fo"$@"  $<
 {src\mux}.c{$(DIROBJ)\mux}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$(PDBLIB) /Fo"$@"  $<
 {src\utils}.c{$(DIROBJ)\utils}.obj:
-	$(CC) $(CFLAGS) /Fo"$@"  $<
+	$(CC) $(CFLAGS) /Fd$(PDBLIB) /Fo"$@"  $<
 
 {$(DIROBJ)\examples}.obj{$(DIRBIN)}.exe:
 	$(LNKEXE) $(LDFLAGS) /OUT:"$@" $< \
