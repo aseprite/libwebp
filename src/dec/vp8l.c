@@ -84,9 +84,8 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data);
 
-static WEBP_INLINE int ReadImageSize(BitReader* const br,
-                                     uint32_t* const width,
-                                     uint32_t* const height) {
+static int ReadImageSize(BitReader* const br,
+                         uint32_t* const width, uint32_t* const height) {
   const int signature = VP8LReadBits(br, 8);
   if (signature != LOSSLESS_MAGIC_BYTE) return 0;
   *width = VP8LReadBits(br, kImageSizeBits) + 1;
@@ -155,7 +154,6 @@ static WEBP_INLINE int ReadSymbol(const HuffmanTreeNode* root,
     node = node->child_[VP8LReadOneBitUnsafe(br)];
   }
   assert(node);
-  assert(node->symbol_ >= 0);
 
   return node->symbol_;
 }
@@ -667,36 +665,34 @@ static WEBP_INLINE argb_t PredictValue(uint32_t pred_mode, int xsize,
 
 static void PredictorInverseTransform(const VP8LTransform* const transform,
                                       argb_t* const decoded_data) {
-  size_t row, col;
-  uint32_t image_ix = 0;
-  const uint32_t tile_mask = (1 << transform->bits_) - 1;
-  const uint32_t tile_xsize =
-      (transform->xsize_ + tile_mask) >> transform->bits_;
-
-  uint32_t pred_mode = 0;
-  argb_t pred = 0;
-
+  size_t row, col, col_start, tile_offset;
+  uint32_t pix_ix = 0;
+  const uint32_t tile_size = 1 << transform->bits_;
+  const uint32_t tiles_per_row = SubSampleSize(transform->xsize_,
+                                               transform->bits_);
   // First Row follows the L (mode=1) mode.
   decoded_data[0] = Add(decoded_data[0], ARGB_BLACK);
   for (col = 1; col < transform->xsize_; ++col) {
     decoded_data[col] = Add(decoded_data[col], decoded_data[col - 1]);
   }
-  image_ix += transform->xsize_;
+  pix_ix += transform->xsize_;
 
   for (row = 1; row < transform->ysize_; ++row) {
-    const uint32_t tile_y = row >> transform->bits_;
-    uint32_t tile_x = 0;
-    for (col = 0; col < transform->xsize_; ++col, ++image_ix) {
+    const uint32_t tile_base_ix = tiles_per_row * (row >> transform->bits_);
+    for (tile_offset = 0, col_start = 0; tile_offset < tiles_per_row;
+         ++tile_offset, col_start += tile_size) {
       // Pick the appropriate predictor mode (at start of every tile).
-      if (!(col & tile_mask)) {
-        const int tile_ix = tile_y * tile_xsize + tile_x;
-        pred_mode = (transform->data_[tile_ix] >> 8) & 0xff;
-        ++tile_x;
+      const uint32_t pred_mode =
+          (transform->data_[tile_base_ix + tile_offset] >> 8) & 0xff;
+      uint32_t col_end = col_start + tile_size;
+      if (col_end > transform->xsize_) col_end = transform->xsize_;
+      for (col = col_start; col < col_end; ++col, ++pix_ix) {
+        // First col follows the T (mode=2) mode.
+        const argb_t pred = (col == 0) ?
+            decoded_data[pix_ix - transform->xsize_] :
+            PredictValue(pred_mode, transform->xsize_, decoded_data + pix_ix);
+        decoded_data[pix_ix] = Add(decoded_data[pix_ix], pred);
       }
-      // First col follows the T (mode=2) mode.
-      pred = (col == 0) ? decoded_data[image_ix - transform->xsize_] :
-          PredictValue(pred_mode, transform->xsize_, decoded_data + image_ix);
-      decoded_data[image_ix] = Add(decoded_data[image_ix], pred);
     }
   }
 }
@@ -750,26 +746,25 @@ static WEBP_INLINE argb_t TransformColor(const ColorTransformElem* const elem,
 
 static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
                                        argb_t* const decoded_data) {
-  size_t row, col;
-  uint32_t image_ix = 0;
-  const uint32_t tile_mask = (1 << transform->bits_) - 1;
-  const uint32_t tile_xsize =
-      (transform->xsize_ + tile_mask) >> transform->bits_;
-  ColorTransformElem color_pred;
-  ColorTransformElemInitFromCode(&color_pred, 0);
-
+  size_t row, col, col_start, tile_offset;
+  uint32_t pix_ix = 0;
+  const uint32_t tile_size = 1 << transform->bits_;
+  const uint32_t tiles_per_row = SubSampleSize(transform->xsize_,
+                                               transform->bits_);
   for (row = 0; row < transform->ysize_; ++row) {
-    const uint32_t tile_y = row >> transform->bits_;
-    uint32_t tile_x = 0;
-    for (col = 0; col < transform->xsize_; ++col, ++image_ix) {
+    const uint32_t tile_base_ix = tiles_per_row * (row >> transform->bits_);
+    for (tile_offset = 0, col_start = 0; tile_offset < tiles_per_row;
+         ++tile_offset, col_start += tile_size) {
+      ColorTransformElem color_pred;
+      uint32_t col_end = col_start + tile_size;
+      if (col_end > transform->xsize_) col_end = transform->xsize_;
       // Pick the appropriate color predictor mode (at start of every tile).
-      if (!(col & tile_mask)) {
-        const int tile_ix = tile_y * tile_xsize + tile_x;
-        ColorTransformElemInitFromCode(&color_pred, transform->data_[tile_ix]);
-        ++tile_x;
+      ColorTransformElemInitFromCode(
+          &color_pred, transform->data_[tile_base_ix + tile_offset]);
+      for (col = col_start; col < col_end; ++col, ++pix_ix) {
+        decoded_data[pix_ix] = TransformColor(&color_pred,
+                                              decoded_data[pix_ix]);
       }
-      decoded_data[image_ix] = TransformColor(&color_pred,
-                                              decoded_data[image_ix]);
     }
   }
 }
