@@ -34,12 +34,14 @@ static const uint32_t kHashMul = 0x1e35a7bd;
 // ColorCacheColumn, but is never recalled as a value.
 static const uint32_t kNotInitialized = 0x1e35a7bd;
 
-static WEBP_INLINE uint32_t GetKey(uint32_t argb, uint32_t hash_shift) {
+static WEBP_INLINE uint32_t ColorCacheColumnGetKey(uint32_t argb,
+                                                   uint32_t hash_shift) {
   return (kHashMul * argb) >> hash_shift;
 }
 
-static WEBP_INLINE int ColumnLookup(const ColorCacheColumn* const cc,
-                                    uint32_t key, uint32_t* const argb) {
+static WEBP_INLINE int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
+                                              uint32_t key,
+                                              uint32_t* const argb) {
   assert(key < cc->hash_size_);
   if (cc->data_[key] != kNotInitialized) {
     *argb = cc->data_[key];
@@ -48,9 +50,9 @@ static WEBP_INLINE int ColumnLookup(const ColorCacheColumn* const cc,
   return 0;
 }
 
-static WEBP_INLINE void ColumnInsert(ColorCacheColumn* const cc,
-                                     uint32_t argb) {
-  const uint32_t key = GetKey(argb, cc->hash_shift_);
+static WEBP_INLINE void ColorCacheColumnInsert(ColorCacheColumn* const cc,
+                                               uint32_t argb) {
+  const uint32_t key = ColorCacheColumnGetKey(argb, cc->hash_shift_);
   cc->data_[key] = argb;
 }
 
@@ -86,7 +88,7 @@ void VP8LColorCacheRelease(VP8LColorCache* const color_cache);
 static WEBP_INLINE void VP8LColorCacheInsert(VP8LColorCache* const color_cache,
                                              uint32_t x_pos, uint32_t argb) {
   const int col = ColorCacheGetColumn(color_cache, x_pos);
-  ColumnInsert(&color_cache->cache_columns_[col], argb);
+  ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb);
 }
 
 // Given the key and x position of a pixel, find out its ARGB value.
@@ -98,16 +100,18 @@ static WEBP_INLINE int VP8LColorCacheLookup(
   assert(color_cache != NULL);
   assert(argb != NULL);
   col = ColorCacheGetColumn(color_cache, x_pos);
-  if (ColumnLookup(&color_cache->cache_columns_[col], key, argb)) {
+  if (ColorCacheColumnLookup(&color_cache->cache_columns_[col], key, argb)) {
     return 1;
   }
   for (i = 1; i < color_cache->num_cache_columns_; ++i) {
     if (col - i >= 0 &&
-        ColumnLookup(&color_cache->cache_columns_[col - i], key, argb)) {
+        ColorCacheColumnLookup(&color_cache->cache_columns_[col - i], key,
+                               argb)) {
       return 1;
     }
     if (col + i < color_cache->num_cache_columns_ &&
-        ColumnLookup(&color_cache->cache_columns_[col + i], key, argb)) {
+        ColorCacheColumnLookup(&color_cache->cache_columns_[col + i], key,
+                               argb)) {
       return 1;
     }
   }

@@ -54,7 +54,7 @@ static WEBP_INLINE int ColumnContains(const ColorCacheColumn* const cc,
   if (argb == kNotInitialized) {
     return 0;
   } else {
-    const uint32_t key = GetKey(argb, cc->hash_shift_);
+    const uint32_t key = ColorCacheColumnGetKey(argb, cc->hash_shift_);
     if (cc->data_[key] == kNotInitialized) {
       return -1;
     } else {
@@ -69,7 +69,7 @@ static WEBP_INLINE int ColumnContains(const ColorCacheColumn* const cc,
 static WEBP_INLINE uint32_t ColorCacheGetIndex(
     const VP8LColorCache* const color_cache, uint32_t argb) {
   assert(color_cache != NULL);
-  return GetKey(argb, 32 - color_cache->hash_bits_);
+  return ColorCacheColumnGetKey(argb, 32 - color_cache->hash_bits_);
 }
 
 static WEBP_INLINE int ColorCacheContains(
