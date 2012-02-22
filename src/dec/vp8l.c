@@ -405,10 +405,10 @@ static WEBP_INLINE void UpdateHuffmanSet(
 
 static int DecodePixels(
     VP8LDecoder* const dec, uint32_t xsize, uint32_t ysize,
-    int color_cache_bits, int color_cache_x_subsample_bits,
+    VP8LColorCache* const color_cache, int color_cache_size,
     const uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
     const uint32_t* const meta_codes, HuffmanTreeNode* htrees,
-    uint32_t** const decoded_data) {
+    argb_t** const decoded_data) {
   int ok = 1;
   int red, green, blue;
   int alpha = 0xff000000;
@@ -417,36 +417,16 @@ static int DecodePixels(
   size_t num_pixs = xsize * ysize;
   uint32_t x = 0;
   uint32_t y = 0;
-  uint32_t* data = NULL;
+  argb_t* data = *decoded_data;
   BitReader* const br = dec->br_;
   // Collection of HUFFMAN_CODES_PER_META_CODE huffman codes.
   HuffmanTreeNode* huffs[HUFFMAN_CODES_PER_META_CODE] = { NULL };
-  const int use_color_cache = (color_cache_bits > 0);
-  const int color_cache_size = use_color_cache ? 1 << color_cache_bits : 0;
   // Values in range [NUM_CODES_PER_BYTE .. color_cache_limit[ are
   // color cache codes.
   const int color_cache_limit = NUM_CODES_PER_BYTE + color_cache_size;
   const int huffman_mask = (huffman_subsample_bits == 0) ?
       ~0 : (1 << huffman_subsample_bits) - 1;
   const uint32_t huffman_xsize = SubSampleSize(xsize, huffman_subsample_bits);
-  VP8LColorCache* color_cache = NULL;
-  if (use_color_cache) {
-    color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
-    if (color_cache == NULL) {
-      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-      ok = 0;
-      goto End;
-    }
-    VP8LColorCacheInit(color_cache, xsize, color_cache_x_subsample_bits,
-                       color_cache_bits);
-  }
-
-  data = (uint32_t*)calloc(num_pixs, sizeof(uint32_t));
-  if (data == NULL) {
-    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-    ok = 0;
-    goto End;
-  }
 
   pos = 0;
   while (pos < num_pixs) {
@@ -504,7 +484,6 @@ static int DecodePixels(
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, dist_code);
       if ((dist > pos) || (pos + length > num_pixs)) {
-        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
         ok = 0;
         goto End;
       }
@@ -537,20 +516,13 @@ static int DecodePixels(
       }
     } else {
       // Code flow should not come here.
-      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       ok = 0;
       goto End;
     }
   }
  End:
   if (!ok) {
-    free(data);
-  } else {
-    *decoded_data = data;
-  }
-  if (color_cache) {
-    VP8LColorCacheRelease(color_cache);
-    free(color_cache);
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
   }
   return ok;
 }
@@ -910,19 +882,23 @@ static int ReadTransform(int* const xsize, int* const ysize,
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data) {
+  int ok = 1;
   int transform_xsize = xsize;
   int transform_ysize = ysize;
-  int ok = 1;
   uint32_t tree_idx;
+
+  argb_t* data = NULL;
   uint32_t* huffman_image = NULL;
-  uint32_t* meta_codes = NULL;
-  uint32_t huffman_subsample_bits = 0;
-  uint32_t num_meta_codes = 0;
+  HuffmanTreeNode* htrees = NULL;
   uint32_t num_huffman_trees = 0;
+  uint32_t huffman_subsample_bits = 0;
+  uint32_t* meta_codes = NULL;
+  uint32_t num_meta_codes = 0;
+  VP8LColorCache* color_cache = NULL;
   int color_cache_bits = 0;
+  int color_cache_size = 0;
   int color_cache_x_subsample_bits = 0;
 
-  HuffmanTreeNode* htrees = NULL;
   BitReader* const br = dec->br_;
   int transform_start_idx = dec->next_transform_;
 
@@ -938,12 +914,37 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                               &meta_codes, &num_meta_codes,
                               &htrees, &num_huffman_trees);
 
+  if (ok) {
+    if (color_cache_bits > 0) {
+      color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
+      if (color_cache == NULL) {
+        dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+        ok = 0;
+        goto End;
+      }
+      color_cache_size = 1 << color_cache_bits;
+      VP8LColorCacheInit(color_cache, transform_xsize,
+                         color_cache_x_subsample_bits, color_cache_bits);
+    }
+
+    data = (argb_t*)calloc(transform_xsize * transform_ysize, sizeof(argb_t));
+    if (data == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      ok = 0;
+      goto End;
+    }
+  }
+
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
   ok = ok && DecodePixels(dec, transform_xsize, transform_ysize,
-                          color_cache_bits, color_cache_x_subsample_bits,
+                          color_cache, color_cache_size,
                           huffman_image, huffman_subsample_bits, meta_codes,
-                          htrees, decoded_data);
+                          htrees, &data);
 
+  // Step#4: Apply transforms on the decoded data.
+  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);
+
+ End:
   free(huffman_image);
   free(meta_codes);
   for (tree_idx = 0; tree_idx < num_huffman_trees; ++tree_idx) {
@@ -951,9 +952,16 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   }
   free(htrees);
 
-  // Step#4: Apply transforms on the decoded data.
-  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, decoded_data);
+  if (color_cache) {
+    VP8LColorCacheRelease(color_cache);
+    free(color_cache);
+  }
 
+  if (!ok) {
+    free(data);
+  } else {
+    *decoded_data = data;
+  }
   return ok;
 }
 
