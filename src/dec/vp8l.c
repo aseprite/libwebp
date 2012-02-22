@@ -681,16 +681,23 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
     const uint32_t tile_base_ix = tiles_per_row * (row >> transform->bits_);
     for (tile_offset = 0, col_start = 0; tile_offset < tiles_per_row;
          ++tile_offset, col_start += tile_size) {
+      argb_t pred;
       // Pick the appropriate predictor mode (at start of every tile).
       const uint32_t pred_mode =
           (transform->data_[tile_base_ix + tile_offset] >> 8) & 0xff;
       uint32_t col_end = col_start + tile_size;
       if (col_end > transform->xsize_) col_end = transform->xsize_;
-      for (col = col_start; col < col_end; ++col, ++pix_ix) {
-        // First col follows the T (mode=2) mode.
-        const argb_t pred = (col == 0) ?
-            decoded_data[pix_ix - transform->xsize_] :
-            PredictValue(pred_mode, transform->xsize_, decoded_data + pix_ix);
+
+      // First col follows the T (mode=2) mode.
+      pred = (col_start == 0) ? decoded_data[pix_ix - transform->xsize_] :
+          PredictValue(pred_mode, transform->xsize_, decoded_data + pix_ix);
+      decoded_data[pix_ix] = Add(decoded_data[pix_ix], pred);
+      ++pix_ix;
+
+      // Subsequent columns.
+      for (col = col_start + 1; col < col_end; ++col, ++pix_ix) {
+        pred = PredictValue(pred_mode, transform->xsize_,
+                            decoded_data + pix_ix);
         decoded_data[pix_ix] = Add(decoded_data[pix_ix], pred);
       }
     }
