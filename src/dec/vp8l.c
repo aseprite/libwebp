@@ -13,8 +13,6 @@
 #include <stdlib.h>
 
 #include "./vp8li.h"
-#include "../utils/bit_reader.h"
-#include "../utils/color_cache.h"
 #include "../utils/huffman.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -31,6 +29,7 @@ static const int kCodeLengthRepeatCode = 16;
 static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
 static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
 
+#define ARGB_BLACK 0xff000000
 #define NUM_LENGTH_CODES    24
 #define NUM_DISTANCE_CODES  40
 #define NUM_CODES_PER_BYTE 256
@@ -47,7 +46,6 @@ typedef enum {
   BLUE  = 2,
   ALPHA = 3,
   DIST  = 4,
-  HUFFMAN_CODES_PER_META_CODE = 5
 } HuffIndex;
 
 static const uint16_t kAlphabetSize[HUFFMAN_CODES_PER_META_CODE] = {
@@ -382,76 +380,64 @@ static WEBP_INLINE int GetMetaIndex(
   return image[xsize * (y >> bits) + (x >> bits)];
 }
 
-typedef HuffmanTreeNode* HuffmanTreeNodeArray[HUFFMAN_CODES_PER_META_CODE];
-
-static WEBP_INLINE void UpdateHuffmanSet(
-    const uint32_t* const huffman_image, const uint32_t* const meta_codes,
-    HuffmanTreeNode* const htrees, uint32_t huffman_xsize,
-    uint32_t huffman_subsample_bits, uint32_t x, uint32_t y,
-    int* const orig_meta_ix, HuffmanTreeNodeArray* const huffs) {
+static WEBP_INLINE void UpdateHtreeForPos(VP8LDecoder* const dec,
+                                          int32_t x, uint32_t y) {
+  HuffmanTreeNode* const htrees = dec->htrees_;
+  const uint32_t* const meta_codes = dec->meta_codes_;
   const int meta_index = HUFFMAN_CODES_PER_META_CODE *
-      GetMetaIndex(huffman_image, huffman_xsize, huffman_subsample_bits, x, y);
+      GetMetaIndex(dec->huffman_image_, dec->huffman_xsize_,
+                   dec->huffman_subsample_bits_, x, y);
 
-  if (*orig_meta_ix != meta_index) {
-    HuffmanTreeNode** const huffs_lcl = *huffs;
-    huffs_lcl[GREEN] = &htrees[meta_codes[meta_index + GREEN]];
-    huffs_lcl[RED] = &htrees[meta_codes[meta_index + RED]];
-    huffs_lcl[BLUE] = &htrees[meta_codes[meta_index + BLUE]];
-    huffs_lcl[ALPHA] = &htrees[meta_codes[meta_index + ALPHA]];
-    huffs_lcl[DIST] = &htrees[meta_codes[meta_index + DIST]];
-    *orig_meta_ix = meta_index;
+  if (dec->meta_index_ != meta_index) {
+    dec->meta_htrees_[GREEN] = &htrees[meta_codes[meta_index + GREEN]];
+    dec->meta_htrees_[RED] = &htrees[meta_codes[meta_index + RED]];
+    dec->meta_htrees_[BLUE] = &htrees[meta_codes[meta_index + BLUE]];
+    dec->meta_htrees_[ALPHA] = &htrees[meta_codes[meta_index + ALPHA]];
+    dec->meta_htrees_[DIST] = &htrees[meta_codes[meta_index + DIST]];
+    dec->meta_index_ = meta_index;
   }
 }
 
-static int DecodePixels(
-    VP8LDecoder* const dec, uint32_t xsize, uint32_t ysize,
-    VP8LColorCache* const color_cache, int color_cache_size,
-    const uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
-    const uint32_t* const meta_codes, HuffmanTreeNode* htrees,
-    argb_t** const decoded_data) {
+static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
   int ok = 1;
   int red, green, blue;
-  int alpha = 0xff000000;
-  int meta_ix = -1;
-  uint32_t pos;
-  size_t num_pixs = xsize * ysize;
-  uint32_t x = 0;
-  uint32_t y = 0;
+  int alpha = ARGB_BLACK;
   argb_t* data = *decoded_data;
+  uint32_t x = dec->x_ix_;
+  uint32_t y = dec->y_ix_;
+  uint32_t pix_ix = dec->pix_ix_;
+  uint32_t xsize = dec->xsize_;
+  size_t num_pixs = dec->xsize_ * dec->ysize_;
   BitReader* const br = dec->br_;
-  // Collection of HUFFMAN_CODES_PER_META_CODE huffman codes.
-  HuffmanTreeNode* huffs[HUFFMAN_CODES_PER_META_CODE] = { NULL };
+  VP8LColorCache* const color_cache = dec->color_cache_;
   // Values in range [NUM_CODES_PER_BYTE .. color_cache_limit[ are
   // color cache codes.
-  const int color_cache_limit = NUM_CODES_PER_BYTE + color_cache_size;
-  const int huffman_mask = (huffman_subsample_bits == 0) ?
-      ~0 : (1 << huffman_subsample_bits) - 1;
-  const uint32_t huffman_xsize = SubSampleSize(xsize, huffman_subsample_bits);
+  const int color_cache_limit = NUM_CODES_PER_BYTE + dec->color_cache_size_;
 
-  pos = 0;
-  while (pos < num_pixs) {
+  // TODO: Run this loop until all pixels are coverer or BitReader exhausts on
+  // input (for incremental case).
+  while (pix_ix < num_pixs) {
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
-    if ((x & huffman_mask) == 0) {
-      UpdateHuffmanSet(huffman_image, meta_codes, htrees, huffman_xsize,
-                       huffman_subsample_bits, x, y, &meta_ix, &huffs);
+    if ((x & dec->huffman_mask_) == 0) {
+      UpdateHtreeForPos(dec, x, y);
     }
 
-    green = ReadSymbol(huffs[GREEN], br);
+    green = ReadSymbol(dec->meta_htrees_[GREEN], br);
     if (green < NUM_CODES_PER_BYTE) {
       // Literal.
       // Decode and save this pixel.
-      red = ReadSymbol(huffs[RED], br);
+      red = ReadSymbol(dec->meta_htrees_[RED], br);
       VP8LFillBitWindow(br);
-      blue = ReadSymbol(huffs[BLUE], br);
-      alpha = ReadSymbol(huffs[ALPHA], br);
+      blue = ReadSymbol(dec->meta_htrees_[BLUE], br);
+      alpha = ReadSymbol(dec->meta_htrees_[ALPHA], br);
 
-      data[pos] = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      if (color_cache) VP8LColorCacheInsert(color_cache, x, data[pos]);
+      data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
+      if (color_cache) VP8LColorCacheInsert(color_cache, x, data[pix_ix]);
 
-      // Update pos, x & y.
-      ++pos; ++x;
+      // Update pix_ix, x & y.
+      ++pix_ix; ++x;
       if (x == xsize) {
         ++y; x = 0;
       }
@@ -462,11 +448,11 @@ static int DecodePixels(
       argb_t argb;
       ok = VP8LColorCacheLookup(color_cache, x, color_cache_key, &argb);
       if (!ok) goto End;
-      data[pos] = argb;
+      data[pix_ix] = argb;
       VP8LColorCacheInsert(color_cache, x, argb);
 
-      // Update pos, x & y.
-      ++pos; ++x;
+      // Update pix_ix, x & y.
+      ++pix_ix; ++x;
       if (x == xsize) {
         ++y; x = 0;
       }
@@ -480,28 +466,28 @@ static int DecodePixels(
       // so reading the next 15 bits can exhaust the bit window.
       // We must fill the window before the next read.
       VP8LFillBitWindow(br);
-      dist_symbol = ReadSymbol(huffs[DIST], br);
+      dist_symbol = ReadSymbol(dec->meta_htrees_[DIST], br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, dist_code);
-      if ((dist > pos) || (pos + length > num_pixs)) {
+      if ((dist > pix_ix) || (pix_ix + length > num_pixs)) {
         ok = 0;
         goto End;
       }
 
-      // Fill data for specified (backward-ref) length and update pos, x & y.
+      // Fill data for specified (backward-ref) length and update pix_ix, x & y.
       if (color_cache) {
         for (i = 0; i < length; ++i) {
-          data[pos] = data[pos - dist];
-          VP8LColorCacheInsert(color_cache, x, data[pos]);
-          ++pos; ++x;
+          data[pix_ix] = data[pix_ix - dist];
+          VP8LColorCacheInsert(color_cache, x, data[pix_ix]);
+          ++pix_ix; ++x;
           if (x == xsize) {
             ++y; x = 0;
           }
         }
       } else {
         for (i = 0; i < length; ++i) {
-          data[pos] = data[pos - dist];
-          ++pos;
+          data[pix_ix] = data[pix_ix - dist];
+          ++pix_ix;
         }
         x += length;
         while(x >= xsize) {
@@ -510,9 +496,8 @@ static int DecodePixels(
         }
       }
 
-      if (pos < num_pixs) {
-        UpdateHuffmanSet(huffman_image, meta_codes, htrees, huffman_xsize,
-                         huffman_subsample_bits, x, y, &meta_ix, &huffs);
+      if (pix_ix < num_pixs) {
+        UpdateHtreeForPos(dec, x, y);
       }
     } else {
       // Code flow should not come here.
@@ -520,6 +505,9 @@ static int DecodePixels(
       goto End;
     }
   }
+  dec->x_ix_ = x;
+  dec->y_ix_ = y;
+  dec->pix_ix_ = pix_ix;
  End:
   if (!ok) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
@@ -608,8 +596,6 @@ static WEBP_INLINE uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
     return b;
   }
 }
-
-#define ARGB_BLACK 0xff000000
 
 static WEBP_INLINE argb_t PredictValue(uint32_t pred_mode, int xsize,
                                        const argb_t* const argb) {
@@ -778,7 +764,7 @@ static int PixelBundleInverseTransform(const VP8LTransform* const transform,
         if (x_all < transform->xsize_) {
           const uint32_t ix = row * transform->xsize_ + x_all;
           const uint32_t green = tile_code & bit_mask;
-          tmp[ix] = 0xff000000 | (green << 8);
+          tmp[ix] = ARGB_BLACK | (green << 8);
           tile_code >>= bit_depth;
         }
       }
@@ -879,6 +865,29 @@ static int ReadTransform(int* const xsize, int* const ysize,
   return ok;
 }
 
+static WEBP_INLINE void UpdateDecoder(
+    uint32_t xsize, uint32_t ysize,
+    VP8LColorCache* const color_cache, int color_cache_size,
+    uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
+    uint32_t* const meta_codes, HuffmanTreeNode* htrees,
+    VP8LDecoder* const dec) {
+  dec->xsize_ = xsize;
+  dec->ysize_ = ysize;
+  dec->x_ix_ = 0;
+  dec->y_ix_ = 0;
+  dec->pix_ix_ = 0;
+  dec->meta_index_ = -1;
+  dec->color_cache_ = color_cache;
+  dec->color_cache_size_ = color_cache_size;
+  dec->huffman_image_ = huffman_image;
+  dec->huffman_subsample_bits_ = huffman_subsample_bits;
+  dec->meta_codes_ = meta_codes;
+  dec->htrees_ = htrees;
+  dec->huffman_xsize_ = SubSampleSize(xsize, huffman_subsample_bits);
+  dec->huffman_mask_ = (huffman_subsample_bits == 0) ?
+      ~0 : (1 << huffman_subsample_bits) - 1;
+}
+
 static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data) {
@@ -914,32 +923,32 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                               &meta_codes, &num_meta_codes,
                               &htrees, &num_huffman_trees);
 
-  if (ok) {
-    if (color_cache_bits > 0) {
-      color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
-      if (color_cache == NULL) {
-        dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-        ok = 0;
-        goto End;
-      }
-      color_cache_size = 1 << color_cache_bits;
-      VP8LColorCacheInit(color_cache, transform_xsize,
-                         color_cache_x_subsample_bits, color_cache_bits);
-    }
+  if (!ok) goto End;
 
-    data = (argb_t*)calloc(transform_xsize * transform_ysize, sizeof(argb_t));
-    if (data == NULL) {
+  if (color_cache_bits > 0) {
+    color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
+    if (color_cache == NULL) {
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       ok = 0;
       goto End;
     }
+    color_cache_size = 1 << color_cache_bits;
+    VP8LColorCacheInit(color_cache, transform_xsize,
+                       color_cache_x_subsample_bits, color_cache_bits);
   }
 
+  data = (argb_t*)calloc(transform_xsize * transform_ysize, sizeof(argb_t));
+  if (data == NULL) {
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+    ok = 0;
+    goto End;
+  }
+
+  UpdateDecoder(transform_xsize, transform_ysize,
+                color_cache, color_cache_size, huffman_image,
+                huffman_subsample_bits, meta_codes, htrees, dec);
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  ok = ok && DecodePixels(dec, transform_xsize, transform_ysize,
-                          color_cache, color_cache_size,
-                          huffman_image, huffman_subsample_bits, meta_codes,
-                          htrees, &data);
+  ok = DecodePixels(dec, &data);
 
   // Step#4: Apply transforms on the decoded data.
   ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);

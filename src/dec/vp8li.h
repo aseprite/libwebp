@@ -15,13 +15,18 @@
 
 #include <string.h>     // for memcpy()
 #include "../utils/bit_reader.h"
+#include "../utils/color_cache.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
 typedef unsigned int argb_t;
-#define NUM_TRANSFORMS 16
+
+#define NUM_TRANSFORMS              16
+#define HUFFMAN_CODES_PER_META_CODE  5
+
+struct HuffmanTreeNode;
 
 typedef enum ImageTransformType {
   PREDICTOR_TRANSFORM = 0,
@@ -42,10 +47,29 @@ struct VP8LTransform {
 
 typedef struct VP8LDecoder VP8LDecoder;
 struct VP8LDecoder {
-  VP8StatusCode status_;
-  argb_t        *argb_;
-  BitReader     *br_;
-  int           next_transform_;
+  VP8StatusCode   status_;
+  argb_t          *argb_;
+  BitReader       *br_;
+
+  uint32_t        xsize_;
+  uint32_t        ysize_;
+  uint32_t        x_ix_;
+  uint32_t        y_ix_;
+  uint32_t        pix_ix_;
+
+  int             color_cache_size_;
+  VP8LColorCache  *color_cache_;
+
+  int             meta_index_;
+  int             huffman_mask_;
+  uint32_t        huffman_subsample_bits_;
+  uint32_t        huffman_xsize_;
+  uint32_t        *meta_codes_;
+  uint32_t        *huffman_image_;
+  struct HuffmanTreeNode *htrees_;
+  struct HuffmanTreeNode *meta_htrees_[HUFFMAN_CODES_PER_META_CODE];
+
+  int             next_transform_;
   VP8LTransform transforms_[NUM_TRANSFORMS];
 };
 
