@@ -37,8 +37,8 @@ extern "C" {
 static WebPMuxError MuxGet(const WebPMux* const mux, TAG_ID id, uint32_t nth,
                            WebPData* const data) {
   assert(mux != NULL);
-  memset(data, 0, sizeof(*data));
   assert(!IsWPI(id));
+  memset(data, 0, sizeof(*data));
 
   SWITCH_ID_LIST(VP8X_ID, mux->vp8x_);
   SWITCH_ID_LIST(ICCP_ID, mux->iccp_);
@@ -79,7 +79,6 @@ WebPMux* WebPMuxCreate(const uint8_t* data, uint32_t size, int copy_data,
   uint32_t riff_size;
   uint32_t tag;
   const uint8_t* end;
-  TAG_ID id;
   WebPMux* mux = NULL;
   WebPMuxImage* wpi = NULL;
 
@@ -129,6 +128,7 @@ WebPMux* WebPMuxCreate(const uint8_t* data, uint32_t size, int copy_data,
 
   // Loop over chunks.
   while (data != end) {
+    TAG_ID id;
     WebPChunk chunk;
     WebPMuxError err;
 
@@ -146,8 +146,8 @@ WebPMux* WebPMuxCreate(const uint8_t* data, uint32_t size, int copy_data,
     id = ChunkGetIdFromTag(chunk.tag_);
 
     if (IsWPI(id)) {  // An image chunk (frame/tile/alpha/vp8).
-      WebPChunk** wpi_chunk_ptr;
-      wpi_chunk_ptr = MuxImageGetListFromId(wpi, id);  // Image chunk to set.
+      WebPChunk** wpi_chunk_ptr =
+          MuxImageGetListFromId(wpi, id);  // Image chunk to set.
       assert(wpi_chunk_ptr != NULL);
       if (*wpi_chunk_ptr != NULL) goto Err;  // Consecutive alpha chunks or
                                              // consecutive frame/tile chunks.
@@ -230,11 +230,8 @@ WebPMuxError WebPMuxGetImage(const WebPMux* const mux,
   WebPMuxError err;
   WebPMuxImage* wpi = NULL;
 
-  if (mux == NULL || image == NULL) {
+  if (mux == NULL || (image == NULL && alpha == NULL))
     return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
-  memset(image, 0, sizeof(*image));
 
   err = ValidateForImage(mux);
   if (err != WEBP_MUX_OK) return err;
@@ -253,28 +250,25 @@ WebPMuxError WebPMuxGetImage(const WebPMux* const mux,
   }
 
   // Get image chunk.
-  if (wpi->vp8_ != NULL) {
-    image->bytes_ = wpi->vp8_->data_;
-    image->size_ = wpi->vp8_->payload_size_;
+  if (image != NULL) {
+    memset(image, 0, sizeof(*image));
+    if (wpi->vp8_ != NULL) {
+      image->bytes_ = wpi->vp8_->data_;
+      image->size_ = wpi->vp8_->payload_size_;
+    }
   }
   return WEBP_MUX_OK;
 }
 
 WebPMuxError WebPMuxGetMetadata(const WebPMux* const mux,
                                 WebPData* const metadata) {
-  if (mux == NULL || metadata == NULL) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
+  if (mux == NULL || metadata == NULL) return WEBP_MUX_INVALID_ARGUMENT;
   return MuxGet(mux, META_ID, 1, metadata);
 }
 
 WebPMuxError WebPMuxGetColorProfile(const WebPMux* const mux,
                                     WebPData* const color_profile) {
-  if (mux == NULL || color_profile == NULL) {
-    return WEBP_MUX_INVALID_ARGUMENT;
-  }
-
+  if (mux == NULL || color_profile == NULL) return WEBP_MUX_INVALID_ARGUMENT;
   return MuxGet(mux, ICCP_ID, 1, color_profile);
 }
 
@@ -293,13 +287,10 @@ WebPMuxError WebPMuxGetLoopCount(const WebPMux* const mux,
   return WEBP_MUX_OK;
 }
 
-static WebPMuxError MuxGetFrameTileInternal(const WebPMux* const mux,
-                                            uint32_t nth,
-                                            WebPData* const image,
-                                            WebPData* const alpha,
-                                            uint32_t* x_offset,
-                                            uint32_t* y_offset,
-                                            uint32_t* duration, uint32_t tag) {
+static WebPMuxError MuxGetFrameTileInternal(
+    const WebPMux* const mux, uint32_t nth,
+    WebPData* const image, WebPData* const alpha,
+    uint32_t* x_offset, uint32_t* y_offset, uint32_t* duration, uint32_t tag) {
   const uint8_t* frame_tile_data;
   uint32_t frame_tile_size;
   WebPMuxError err;
@@ -378,18 +369,16 @@ static int CountChunks(WebPChunk* const chunk_list, uint32_t tag) {
 
 WebPMuxError WebPMuxNumNamedElements(const WebPMux* const mux, const char* tag,
                                      int* num_elements) {
-  TAG_ID id;
-  WebPChunk** chunk_list;
+  const TAG_ID id = ChunkGetIdFromName(tag);
 
   if (mux == NULL || tag == NULL || num_elements == NULL) {
     return WEBP_MUX_INVALID_ARGUMENT;
   }
 
-  id = ChunkGetIdFromName(tag);
   if (IsWPI(id)) {
     *num_elements = MuxImageCount(mux->images_, id);
   } else {
-    chunk_list = GetChunkListFromId(mux, id);
+    WebPChunk** chunk_list = GetChunkListFromId(mux, id);
     if (chunk_list == NULL) {
       *num_elements = 0;
     } else {

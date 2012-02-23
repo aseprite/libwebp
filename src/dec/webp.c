@@ -14,6 +14,7 @@
 #include "./vp8i.h"
 #include "./vp8li.h"
 #include "./webpi.h"
+#include "../mux/muxi.h"  // For MAX_CHUNK_PAYLOAD.
 #include "../webp/mux.h"  // For 'ALPHA_FLAG'.
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -265,7 +266,8 @@ VP8StatusCode WebPParseHeaders(const uint8_t** data, uint32_t* data_size,
     *vp8_size = vp8_size_tmp;
   }
 
-  *bytes_skipped = buf - *data;
+  *bytes_skipped = (uint32_t)(buf - *data);
+  assert(buf - *data < MAX_CHUNK_PAYLOAD);
   assert(*bytes_skipped == *data_size - buf_size);
   *data = buf;
   *data_size = buf_size;
