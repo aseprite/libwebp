@@ -170,6 +170,7 @@ static int ReadHuffmanCodeLengths(
 
   HuffmanTreeNodeInit(&root);
   if (!HuffmanTreeBuild(&root, code_length_code_lengths, num_codes)) {
+    HuffmanTreeRelease(&root);
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     return 0;
   }
@@ -259,7 +260,7 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
     ok = ReadHuffmanCodeLengths(dec, code_length_code_lengths,
                                 NUM_CODE_LENGTH_CODES,
                                 alphabet_size, &code_lengths);
-    ok = HuffmanTreeBuild(root, code_lengths, alphabet_size);
+    ok = ok && HuffmanTreeBuild(root, code_lengths, alphabet_size);
 
     free(code_lengths);
   }
@@ -910,12 +911,12 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   int ok = 1;
   int transform_xsize = xsize;
   int transform_ysize = ysize;
-  uint32_t tree_idx;
 
   argb_t* data = NULL;
   uint32_t* huffman_image = NULL;
   HuffmanTreeNode* htrees = NULL;
   uint32_t num_huffman_trees = 0;
+  // TODO: htrees & num_huffman_trees should be part of a struct.
   uint32_t huffman_subsample_bits = 0;
   uint32_t* meta_codes = NULL;
   uint32_t num_meta_codes = 0;
@@ -977,10 +978,13 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
  End:
   free(huffman_image);
   free(meta_codes);
-  for (tree_idx = 0; tree_idx < num_huffman_trees; ++tree_idx) {
-    HuffmanTreeRelease(&htrees[tree_idx]);
+  if (htrees != NULL) {
+    uint32_t i;
+    for (i = 0; i < num_huffman_trees; ++i) {
+      HuffmanTreeRelease(&htrees[i]);
+    }
+    free(htrees);
   }
-  free(htrees);
 
   if (color_cache) {
     VP8LColorCacheRelease(color_cache);
