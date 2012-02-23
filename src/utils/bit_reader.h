@@ -157,6 +157,7 @@ typedef struct {
   size_t         len_;
   size_t         pos_;
   int            bit_pos_;
+  int            error_;
 } BitReader;
 
 void VP8LInitBitReader(BitReader* const br,

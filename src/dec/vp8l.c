@@ -263,7 +263,10 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
 
     free(code_lengths);
   }
-
+  if (br->error_) {
+    ok = 0;
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+  }
 
   return ok;
 }
@@ -370,6 +373,11 @@ static int ReadHuffmanCodes(
   *huffman_image = huffman_image_lcl;
   *meta_codes = meta_codes_lcl;
   *htrees = htrees_lcl;
+
+  if (br->error_) {
+    ok = 0;
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+  }
 
   return ok;
 }
@@ -496,6 +504,10 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
         }
       }
 
+      if (br->error_) {
+        ok = 0;
+        goto End;
+      }
       if (pix_ix < num_pixs) {
         UpdateHtreeForPos(dec, x, y);
       }
@@ -504,6 +516,10 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
       ok = 0;
       goto End;
     }
+  }
+  if (br->error_) {
+    ok = 0;
+    goto End;
   }
   dec->x_ix_ = x;
   dec->y_ix_ = y;
@@ -865,7 +881,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
   return ok;
 }
 
-static WEBP_INLINE void UpdateDecoder(
+static void UpdateDecoder(
     uint32_t xsize, uint32_t ysize,
     VP8LColorCache* const color_cache, int color_cache_size,
     uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
@@ -952,6 +968,11 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
 
   // Step#4: Apply transforms on the decoded data.
   ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);
+
+  if (ok && br->error_) {
+    ok = 0;
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+  }
 
  End:
   free(huffman_image);
