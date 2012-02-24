@@ -19,7 +19,7 @@
 #include "./huffman.h"
 #include "./image_transform.h"
 #include "../common/integral_types.h"
-#include "../common/pixel_hasher.h"
+#include "../common/color_cache.h"
 
 // TODO(jyrki): Move these to some 'common' Header file.
 #define TAG_SIZE 4

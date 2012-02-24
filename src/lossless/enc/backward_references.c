@@ -13,7 +13,7 @@
 #include "backward_references.h"
 #include "histogram.h"
 #include "../common/integral_types.h"
-#include "../common/pixel_hasher.h"
+#include "../common/color_cache.h"
 
 #define VALUES_IN_BYTE 256
 

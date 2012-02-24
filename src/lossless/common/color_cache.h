@@ -7,8 +7,8 @@
 //
 // Author: jyrki@google.com (Jyrki Alakuijala)
 
-#ifndef WEBP_PIXEL_HASHER_H_
-#define WEBP_PIXEL_HASHER_H_
+#ifndef WEBP_COLOR_CACHE_H_
+#define WEBP_COLOR_CACHE_H_
 
 #include <assert.h>
 #include <stddef.h>
@@ -191,4 +191,4 @@ static inline uint32_t VP8LColorCacheLookup(VP8LColorCache *p,
 }
 #endif
 
-#endif  // WEBP_PIXEL_HASHER_H_
+#endif  // WEBP_COLOR_CACHE_H_
