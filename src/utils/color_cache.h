@@ -19,15 +19,25 @@
 extern "C" {
 #endif
 
-//------------------------------------------------------------------------------
-// Helper struct & methods.
-
 // Represents cache for colors in a vertical stripe of an image.
 typedef struct {
   uint32_t *data_;
-  uint32_t hash_shift_;
-  uint32_t hash_size_;
-} ColorCacheColumn;
+} VP8LColorCacheColumn;
+
+// Main color cache struct.
+typedef struct {
+  VP8LColorCacheColumn* cache_columns_;  // A collection of cache columns.
+  int num_cache_columns_;      // Number of cache columns
+  int hash_size_;              // Size of a cache column: 1 << hash_bits.
+                               // (where hash_bits = number of bits used for
+                               // hash addressing in a cache column).
+  int hash_shift_;             // Hash shift: 32 - hash_bits.
+  int x_downsample_bits_;      // Number of columns:
+                               // ceil(image_width/x_downsample_bits_).
+} VP8LColorCache;
+
+//------------------------------------------------------------------------------
+// Helper methods.
 
 static const uint32_t kHashMul = 0x1e35a7bd;
 // kNotInitialized is a special value which can be inserted into the
@@ -35,14 +45,12 @@ static const uint32_t kHashMul = 0x1e35a7bd;
 static const uint32_t kNotInitialized = 0x1e35a7bd;
 
 static WEBP_INLINE uint32_t ColorCacheColumnGetKey(uint32_t argb,
-                                                   uint32_t hash_shift) {
+                                                   int hash_shift) {
   return (kHashMul * argb) >> hash_shift;
 }
 
-static WEBP_INLINE int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
-                                              uint32_t key,
-                                              uint32_t* const argb) {
-  assert(key < cc->hash_size_);
+static WEBP_INLINE int ColorCacheColumnLookup(
+    const VP8LColorCacheColumn* const cc, uint32_t key, uint32_t* const argb) {
   if (cc->data_[key] != kNotInitialized) {
     *argb = cc->data_[key];
     return 1;
@@ -50,22 +58,15 @@ static WEBP_INLINE int ColorCacheColumnLookup(const ColorCacheColumn* const cc,
   return 0;
 }
 
-static WEBP_INLINE void ColorCacheColumnInsert(ColorCacheColumn* const cc,
-                                               uint32_t argb) {
-  const uint32_t key = ColorCacheColumnGetKey(argb, cc->hash_shift_);
+static WEBP_INLINE void ColorCacheColumnInsert(VP8LColorCacheColumn* const cc,
+                                               uint32_t argb,
+                                               int hash_shift) {
+  const uint32_t key = ColorCacheColumnGetKey(argb, hash_shift);
   cc->data_[key] = argb;
 }
 
 //------------------------------------------------------------------------------
 // Main APIs.
-
-// Main color cache struct. It contains multiple cache columns.
-typedef struct {
-  ColorCacheColumn* cache_columns_;
-  int num_cache_columns_;
-  int hash_bits_;
-  int x_downsample_bits_;
-} VP8LColorCache;
 
 static WEBP_INLINE int ColorCacheGetColumn(
     const VP8LColorCache* const color_cache, uint32_t x_pos) {
@@ -88,7 +89,8 @@ void VP8LColorCacheRelease(VP8LColorCache* const color_cache);
 static WEBP_INLINE void VP8LColorCacheInsert(VP8LColorCache* const color_cache,
                                              uint32_t x_pos, uint32_t argb) {
   const int col = ColorCacheGetColumn(color_cache, x_pos);
-  ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb);
+  ColorCacheColumnInsert(&color_cache->cache_columns_[col], argb,
+                         color_cache->hash_shift_);
 }
 
 // Given the key and x position of a pixel, find out its ARGB value.

@@ -21,26 +21,23 @@ extern "C" {
 // Helper functions.
 
 // TODO: This function is static in vp8l.c as well. Move to a common header.
-static WEBP_INLINE uint32_t SubSampleSize(uint32_t size,
-                                          uint32_t sampling_bits) {
+static uint32_t SubSampleSize(uint32_t size, uint32_t sampling_bits) {
   return (size + (1 << sampling_bits) - 1) >> sampling_bits;
 }
 
 //------------------------------------------------------------------------------
 // ColorCacheColumn.
 
-static WEBP_INLINE void ColumnInit(ColorCacheColumn* const cc, int hash_bits) {
-  uint32_t i;
+static void ColumnInit(VP8LColorCacheColumn* const cc, int hash_size) {
+  int i;
   assert(cc != NULL);
-  cc->hash_shift_ = 32 - hash_bits;
-  cc->hash_size_ = 1 << hash_bits;
-  cc->data_ = (uint32_t*)malloc(cc->hash_size_ * sizeof(cc->data_[0]));
-  for (i = 0; i < cc->hash_size_; ++i) {
+  cc->data_ = (uint32_t*)malloc(hash_size * sizeof(cc->data_[0]));
+  for (i = 0; i < hash_size; ++i) {
     cc->data_[i] = kNotInitialized;
   }
 }
 
-static WEBP_INLINE void ColumnRelease(ColorCacheColumn* const cc) {
+static void ColumnRelease(VP8LColorCacheColumn* const cc) {
   free(cc->data_);
   cc->data_ = NULL;
 }
@@ -48,13 +45,13 @@ static WEBP_INLINE void ColumnRelease(ColorCacheColumn* const cc) {
 // Returns 1 if the key location in the column contains this ARGB value,
 //         0 if the key contains a different ARGB value and
 //        -1 if the key is uninitialized.
-static WEBP_INLINE int ColumnContains(const ColorCacheColumn* const cc,
-                                      uint32_t argb) {
+static WEBP_INLINE int ColumnContains(const VP8LColorCacheColumn* const cc,
+                                      uint32_t argb, int hash_shift) {
   assert(cc != NULL);
   if (argb == kNotInitialized) {
     return 0;
   } else {
-    const uint32_t key = ColorCacheColumnGetKey(argb, cc->hash_shift_);
+    const uint32_t key = ColorCacheColumnGetKey(argb, hash_shift);
     if (cc->data_[key] == kNotInitialized) {
       return -1;
     } else {
@@ -69,7 +66,7 @@ static WEBP_INLINE int ColumnContains(const ColorCacheColumn* const cc,
 static WEBP_INLINE uint32_t ColorCacheGetIndex(
     const VP8LColorCache* const color_cache, uint32_t argb) {
   assert(color_cache != NULL);
-  return ColorCacheColumnGetKey(argb, 32 - color_cache->hash_bits_);
+  return ColorCacheColumnGetKey(argb, color_cache->hash_shift_);
 }
 
 static WEBP_INLINE int ColorCacheContains(
@@ -77,20 +74,21 @@ static WEBP_INLINE int ColorCacheContains(
   int i;
   int ret;
   const int col = ColorCacheGetColumn(color_cache, x_pos);
-  const ColorCacheColumn* const columns = &color_cache->cache_columns_[col];
+  const VP8LColorCacheColumn* const columns = &color_cache->cache_columns_[col];
+  const int hash_shift = color_cache->hash_shift_;
 
   // Search in current column.
-  ret = ColumnContains(&columns[0], argb);
+  ret = ColumnContains(&columns[0], argb, hash_shift);
   if (ret != -1) return ret;
 
   // Search in nearby columns one-by-one.
   for (i = 1; i < color_cache->num_cache_columns_; ++i) {
     if (col - i >= 0) {
-      ret = ColumnContains(&columns[-i], argb);
+      ret = ColumnContains(&columns[-i], argb, hash_shift);
       if (ret != -1) return ret;
     }
     if (col + i < color_cache->num_cache_columns_) {
-      ret = ColumnContains(&columns[i], argb);
+      ret = ColumnContains(&columns[i], argb, hash_shift);
       if (ret != -1) return ret;
     }
   }
@@ -110,13 +108,14 @@ void VP8LColorCacheInit(VP8LColorCache* const color_cache, uint32_t xsize,
     hash_bits = 1;
   }
   color_cache->x_downsample_bits_ = x_downsample_bits;
-  color_cache->hash_bits_ = hash_bits;
+  color_cache->hash_size_ = 1 << hash_bits;
+  color_cache->hash_shift_ = 32 - hash_bits;
   color_cache->num_cache_columns_ = SubSampleSize(xsize, x_downsample_bits);
   color_cache->cache_columns_ =
-      (ColorCacheColumn*)malloc(color_cache->num_cache_columns_ *
-                                sizeof(color_cache->cache_columns_[0]));
+      (VP8LColorCacheColumn*)malloc(color_cache->num_cache_columns_ *
+                                    sizeof(color_cache->cache_columns_[0]));
   for (i = 0; i < color_cache->num_cache_columns_; ++i) {
-    ColumnInit(&color_cache->cache_columns_[i], hash_bits);
+    ColumnInit(&color_cache->cache_columns_[i], color_cache->hash_size_);
   }
 }
 
