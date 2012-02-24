@@ -420,25 +420,27 @@ static bool IsFar(uint32_t a, uint32_t b, int limit) {
 static void IsPhotographic(int xsize, int ysize, const uint32_t *argb,
                            double *nonpredicted_bits,
                            double *predicted_bits) {
-  Histogram *predicted = new Histogram;
-  Histogram *nonpredicted = new Histogram;
+  int k;
+  uint32_t diff;
+  Histogram *predicted = (Histogram *)malloc(sizeof(Histogram));
+  Histogram *nonpredicted = (Histogram *)malloc(sizeof(Histogram));
   Histogram_Init(predicted, 0);
   Histogram_Init(nonpredicted, 0);
-  for (int k = 1; k < xsize * ysize; ++k) {
+  for (k = 1; k < xsize * ysize; ++k) {
     if ((argb[k] == argb[k - 1]) ||
         (k >= xsize && argb[k] == argb[k - xsize])) {
       continue;
     }
     Histogram_AddSinglePixOrCopy(nonpredicted,
                                  PixOrCopy_CreateLiteral(argb[k]));
-    const uint32_t diff = Subtract(argb[k], argb[k - 1]);
+    diff = Subtract(argb[k], argb[k - 1]);
     Histogram_AddSinglePixOrCopy(predicted,
                                  PixOrCopy_CreateLiteral(diff));
   }
   *predicted_bits = Histogram_EstimateBitsBulk(predicted);
   *nonpredicted_bits = Histogram_EstimateBitsBulk(nonpredicted);
-  delete predicted;
-  delete nonpredicted;
+  free(predicted);
+  free(nonpredicted);
 }
 
 static void NearLossless(int xsize, int ysize, uint32_t *argb, int limit_bits) {
