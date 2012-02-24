@@ -607,8 +607,6 @@ int main(int argc, char **argv) {
     uint8_t *bytes;
     size_t n_bytes;
     const bool use_small_palette = mode == 2;
-    const bool use_spatial_predict = mode == 0;
-    const bool use_cross_color_transform = mode == 0;
     // If the colors fit in the palette, there is rarely a benefit for doing
     // a near lossless using the method implemented here.
     const uint32_t *argb_to_compress =
@@ -616,15 +614,14 @@ int main(int argc, char **argv) {
         png_decoder.GetPixelsInArgbArray() :
         &near_lossless_argb[0];
     EncodingStrategy strategy;
+    if (mode == 0) {
+      EncodingStrategyPhotographic(&strategy);
+    } else {
+      EncodingStrategyGraphical(&strategy);
+    }
     strategy.quality = quality;
-    strategy.use_lz77 = 1;
-    strategy.use_small_palette = use_small_palette;
-    strategy.palette_bits = 7;
-    strategy.predict = use_spatial_predict;
-    strategy.predict_bits = 4;
     strategy.histogram_bits = histogram_bits;
-    strategy.cross_color_transform = use_cross_color_transform;
-    strategy.cross_color_transform_bits = 4;
+    strategy.use_small_palette = use_small_palette;
     EncodeWebpLLImage(png_decoder.width(),
                       png_decoder.height(),
                       argb_to_compress,

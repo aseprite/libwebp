@@ -30,6 +30,9 @@ typedef struct {
   int cross_color_transform_bits;
 } EncodingStrategy;
 
+void EncodingStrategyPhotographic(EncodingStrategy *p);
+void EncodingStrategyGraphical(EncodingStrategy *p);
+
 // Main encoding call for webp lossless compression.
 // Input is an array of argb pixel values. Output "stream" is the compressed
 // webp lossless image.

@@ -1080,3 +1080,22 @@ exit_label:
   free(argb);
   return ok;
 }
+
+void EncodingStrategyPhotographic(EncodingStrategy *p) {
+  p->quality = 95;
+  p->use_lz77 = 1;
+  p->use_small_palette = 0;
+  p->palette_bits = 7;
+  p->predict = 1;
+  p->predict_bits = 4;
+  p->histogram_bits = 4;
+  p->cross_color_transform = 1;
+  p->cross_color_transform_bits = 4;
+}
+
+void EncodingStrategyGraphical(EncodingStrategy *p) {
+  EncodingStrategyPhotographic(p);
+  p->use_small_palette = 0;
+  p->predict = 0;
+  p->cross_color_transform = 0;
+}
