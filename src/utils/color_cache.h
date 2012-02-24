@@ -33,7 +33,7 @@ typedef struct {
                                // hash addressing in a cache column).
   int hash_shift_;             // Hash shift: 32 - hash_bits.
   int x_downsample_bits_;      // Number of columns:
-                               // ceil(image_width/x_downsample_bits_).
+                               // ceil(image_width >> x_downsample_bits_).
 } VP8LColorCache;
 
 //------------------------------------------------------------------------------
