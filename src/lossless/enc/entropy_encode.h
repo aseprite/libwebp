@@ -29,21 +29,21 @@ extern "C" {
 // See http://en.wikipedia.org/wiki/Huffman_coding
 //
 // Returns 0 when an error has occured.
-int CreateHuffmanTree(const int *data,
+int CreateHuffmanTree(const int* data,
                       const int length,
                       const int tree_limit,
-                      uint8_t *depth);
+                      uint8_t* depth);
 
 // Write a huffman tree from bit depths into the deflate representation
 // of a Huffman tree. In deflate, the generated Huffman tree is to be
 // compressed once more using a Huffman tree.
-void CreateCompressedHuffmanTree(const uint8_t *depth, int len,
-                                 int *num_symbols,
-                                 uint8_t *tree,
-                                 uint8_t *extra_bits_data);
+void CreateCompressedHuffmanTree(const uint8_t* depth, int len,
+                                 int* num_symbols,
+                                 uint8_t* tree,
+                                 uint8_t* extra_bits_data);
 
 // Get the actual bit values for a tree of bit depths.
-void ConvertBitDepthsToSymbols(const uint8_t *depth, int len, uint16_t *bits);
+void ConvertBitDepthsToSymbols(const uint8_t* depth, int len, uint16_t* bits);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

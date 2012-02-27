@@ -19,20 +19,20 @@ extern "C" {
 #endif
 
 void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32_t *original_argb,
-                    uint32_t *to_argb,
-                    uint32_t *image);
+                    const uint32_t* original_argb,
+                    uint32_t* to_argb,
+                    uint32_t* image);
 
 // Get in the image, produces a subresolution transform image.
 // The transform minimize locally the entropy of red and blue by
 // finding cross-component correlation to green.
 void ColorSpaceTransform(int xsize, int ysize, int bits,
-                         const uint32_t *original_argb,
+                         const uint32_t* original_argb,
                          int quality,
-                         uint32_t *to_argb,
-                         uint32_t *image);
+                         uint32_t* to_argb,
+                         uint32_t* image);
 
-void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array);
+void SubtractGreenFromBlueAndRed(int n, uint32_t* argb_array);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }

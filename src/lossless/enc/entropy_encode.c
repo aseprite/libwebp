@@ -23,9 +23,9 @@ typedef struct {
 } HuffmanTree;
 
 // Sort the root nodes, most popular first.
-static int CompHuffmanTree(const void *vp0, const void *vp1) {
-  const HuffmanTree *v0 = (const HuffmanTree *)vp0;
-  const HuffmanTree *v1 = (const HuffmanTree *)vp1;
+static int CompHuffmanTree(const void* vp0, const void* vp1) {
+  const HuffmanTree* v0 = (const HuffmanTree*)vp0;
+  const HuffmanTree* v1 = (const HuffmanTree*)vp1;
   if (v0->total_count_ > v1->total_count_) {
     return -1;
   } else if (v0->total_count_ < v1->total_count_) {
@@ -41,9 +41,9 @@ static int CompHuffmanTree(const void *vp0, const void *vp1) {
   }
 }
 
-static void SetDepth(const HuffmanTree *p,
-                     HuffmanTree *pool,
-                     uint8_t *depth,
+static void SetDepth(const HuffmanTree* p,
+                     HuffmanTree* pool,
+                     uint8_t* depth,
                      const int level) {
   if (p->pool_index_left_ >= 0) {
     SetDepth(&pool[p->pool_index_left_], pool, depth, level + 1);
@@ -71,8 +71,8 @@ static void SetDepth(const HuffmanTree *p,
 int CreateHuffmanTree(const int* const histogram, int histogram_size,
                       int tree_depth_limit,
                       uint8_t* const bit_depths) {
-  HuffmanTree *tree;
-  HuffmanTree *tree_pool;
+  HuffmanTree* tree;
+  HuffmanTree* tree_pool;
   int tree_pool_size;
   // For block sizes with less than 64k symbols we never need to do a
   // second iteration of this loop.
@@ -91,7 +91,7 @@ int CreateHuffmanTree(const int* const histogram, int histogram_size,
     // population and all the inserted nodes combining two existing nodes.
     // The tree pool needs 2 * (tree_size - 1) entities, and the
     // tree needs exactly tree_size entities.
-    tree = (HuffmanTree *)malloc(3 * tree_size * sizeof(*tree));
+    tree = (HuffmanTree*)malloc(3 * tree_size * sizeof(*tree));
     if (tree == NULL) {
       return 0;
     }
@@ -110,7 +110,7 @@ int CreateHuffmanTree(const int* const histogram, int histogram_size,
         }
       }
     }
-    qsort((void *)tree, tree_size, sizeof(*tree), CompHuffmanTree);
+    qsort((void*)tree, tree_size, sizeof(*tree), CompHuffmanTree);
     tree_pool = tree + tree_size;
     tree_pool_size = 0;
     if (tree_size >= 2) {
@@ -172,9 +172,9 @@ static void WriteHuffmanTreeRepetitions(
     const int value,
     const int prev_value,
     int repetitions,
-    int *num_symbols,
-    uint8_t *tree,
-    uint8_t *extra_bits_data) {
+    int* num_symbols,
+    uint8_t* tree,
+    uint8_t* extra_bits_data) {
   if (value != prev_value) {
     tree[*num_symbols] = value;
     extra_bits_data[*num_symbols] = 0;
@@ -208,9 +208,9 @@ static void WriteHuffmanTreeRepetitions(
 static void WriteHuffmanTreeRepetitionsZeros(
     const int value,
     int repetitions,
-    int *num_symbols,
-    uint8_t *tree,
-    uint8_t *extra_bits_data) {
+    int* num_symbols,
+    uint8_t* tree,
+    uint8_t* extra_bits_data) {
   while (repetitions >= 1) {
     if (repetitions < 3) {
       int i;
@@ -239,11 +239,11 @@ static void WriteHuffmanTreeRepetitionsZeros(
   }
 }
 
-void CreateCompressedHuffmanTree(const uint8_t *depth,
+void CreateCompressedHuffmanTree(const uint8_t* depth,
                                  int depth_size,
-                                 int *num_symbols,
-                                 uint8_t *tree,
-                                 uint8_t *extra_bits_data) {
+                                 int* num_symbols,
+                                 uint8_t* tree,
+                                 uint8_t* extra_bits_data) {
   int prev_value = 8;  // 8 is the initial value for rle.
   int i;
   for (i = 0; i < depth_size;) {
@@ -278,8 +278,8 @@ static uint32_t ReverseBits(int num_bits, uint32_t bits) {
   return retval;
 }
 
-void ConvertBitDepthsToSymbols(const uint8_t *depth, int len,
-                               uint16_t *bits) {
+void ConvertBitDepthsToSymbols(const uint8_t* depth, int len,
+                               uint16_t* bits) {
   // This function is based on RFC 1951.
   //
   // In deflate, all bit depths are [1..15]

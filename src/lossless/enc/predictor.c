@@ -18,7 +18,7 @@
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
 
-static double PredictionCostSpatial(int *counts, int weight_0,
+static double PredictionCostSpatial(int* counts, int weight_0,
                                     double exp_val) {
   const int significant_symbols = 16;
   const double exp_decay_factor = 0.6;
@@ -31,8 +31,8 @@ static double PredictionCostSpatial(int *counts, int weight_0,
   return -0.1 * bits;
 }
 
-static double PredictionCostSpatialHistogram(Histogram *accumulated,
-                                             Histogram *tile) {
+static double PredictionCostSpatialHistogram(Histogram* accumulated,
+                                             Histogram* tile) {
   const double exp_val = 0.94;
   Histogram combo;
   Histogram_Init(&combo, 0);
@@ -49,8 +49,8 @@ static double PredictionCostSpatialHistogram(Histogram *accumulated,
 
 static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
                                    int xsize, int ysize,
-                                   Histogram *accumulated,
-                                   const uint32_t *argb) {
+                                   Histogram* accumulated,
+                                   const uint32_t* argb) {
   const int num_pred_modes = 14;
   const int tile_y_offset = tile_y * max_tile_size;
   const int tile_x_offset = tile_x * max_tile_size;
@@ -102,15 +102,15 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
 }
 
 void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32_t *from_argb,
-                    uint32_t *to_argb, uint32_t *image) {
+                    const uint32_t* from_argb,
+                    uint32_t* to_argb, uint32_t* image) {
   const int max_tile_size = 1 << bits;
   const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   int tile_y;
   Histogram histo;
 #ifndef NDEBUG
-  uint32_t *argb_orig = (uint32_t *)
+  uint32_t* argb_orig = (uint32_t*)
       malloc(sizeof(from_argb[0]) * xsize * ysize);
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
 #endif
@@ -150,7 +150,7 @@ void PredictorImage(int xsize, int ysize, int bits,
 #ifndef NDEBUG
   {
     int i;
-    uint32_t *argb = (uint32_t *)malloc(sizeof(to_argb[0]) * xsize * ysize);
+    uint32_t* argb = (uint32_t*)malloc(sizeof(to_argb[0]) * xsize * ysize);
     memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
     PredictorInverseTransform(xsize, ysize, bits, image,
                               &argb[0], &argb[0]);
@@ -163,7 +163,7 @@ void PredictorImage(int xsize, int ysize, int bits,
 #endif
 }
 
-static double PredictionCostCrossColor(int *accumulated, int *counts) {
+static double PredictionCostCrossColor(int* accumulated, int* counts) {
   // Favor low entropy, locally and globally.
   const int length = 256;
   int combo[256];
@@ -176,7 +176,7 @@ static double PredictionCostCrossColor(int *accumulated, int *counts) {
       PredictionCostSpatial(counts, 3, 2.4); // Favor small absolute values.
 }
 
-static inline int SkipRepeatedPixels(const uint32_t *argb, int ix, int xsize) {
+static inline int SkipRepeatedPixels(const uint32_t* argb, int ix, int xsize) {
   const uint32_t v = argb[ix];
   if (ix >= xsize + 3) {
     if (v == argb[ix - xsize] &&
@@ -201,9 +201,9 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
     ColorSpaceTransformElement prevX,
     ColorSpaceTransformElement prevY,
     int quality, int xsize, int ysize,
-    int *accumulated_red_histo,
-    int *accumulated_blue_histo,
-    const uint32_t *argb) {
+    int* accumulated_red_histo,
+    int* accumulated_blue_histo,
+    const uint32_t* argb) {
   double best_diff = 1e99;
   double cur_diff;
   const int step = (quality == 0) ? 16 : 8;
@@ -310,8 +310,8 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
 }
 
 void ColorSpaceTransform(int xsize, int ysize, int bits,
-                         const uint32_t *from_argb, int quality,
-                         uint32_t *to_argb, uint32_t *image) {
+                         const uint32_t* from_argb, int quality,
+                         uint32_t* to_argb, uint32_t* image) {
   const int max_tile_size = 1 << bits;
   int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   int tile_ysize = (ysize + max_tile_size - 1) >> bits;
@@ -322,8 +322,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
   ColorSpaceTransformElement prevX;
   ColorSpaceTransformElement prevY;
 #ifndef NDEBUG
-  uint32_t *argb_orig = (uint32_t *)
-      malloc(sizeof(from_argb[0]) * xsize * ysize);
+  uint32_t* argb_orig = (uint32_t*)malloc(sizeof(from_argb[0]) * xsize * ysize);
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
 #endif
   ColorSpaceTransformElementClear(&prevY);
@@ -392,7 +391,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
 #ifndef NDEBUG
   {
     int i;
-    uint32_t *argb = (uint32_t *)malloc(sizeof(to_argb[0]) * xsize * ysize);
+    uint32_t* argb = (uint32_t*)malloc(sizeof(to_argb[0]) * xsize * ysize);
     memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
     ColorSpaceInverseTransform(xsize, ysize, bits, image, &argb[0], &argb[0]);
     for (i = 0; i < xsize * ysize; ++i) {
@@ -404,7 +403,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
 #endif
 }
 
-void SubtractGreenFromBlueAndRed(int n, uint32_t *argb_array) {
+void SubtractGreenFromBlueAndRed(int n, uint32_t* argb_array) {
   int i;
   for (i = 0; i < n; ++i) {
     uint32_t argb = argb_array[i];

@@ -118,8 +118,8 @@ static inline double FastLog(int v) {
 
 void ConvertPopulationCountTableToBitEstimates(
     int num_symbols,
-    const int * const population_counts,
-    double * const output) {
+    const int* const population_counts,
+    double* const output) {
   int sum = 0;
   int nonzeros = 0;
   int i;
@@ -145,7 +145,7 @@ void ConvertPopulationCountTableToBitEstimates(
   }
 }
 
-void Histogram_AddSinglePixOrCopy(Histogram * const p, const PixOrCopy v) {
+void Histogram_AddSinglePixOrCopy(Histogram* const p, const PixOrCopy v) {
   if (PixOrCopy_IsLiteral(&v)) {
     ++p->alpha_[PixOrCopy_Literal(&v, 3)];
     ++p->red_[PixOrCopy_Literal(&v, 2)];
@@ -165,8 +165,8 @@ void Histogram_AddSinglePixOrCopy(Histogram * const p, const PixOrCopy v) {
   }
 }
 
-void Histogram_Build(Histogram * const p,
-                     const PixOrCopy * const literal_and_length,
+void Histogram_Build(Histogram* const p,
+                     const PixOrCopy* const literal_and_length,
                      int n_literal_and_length) {
   int i;
   Histogram_Clear(p);
@@ -175,7 +175,7 @@ void Histogram_Build(Histogram * const p,
   }
 }
 
-double BitsEntropy(const int * const array, int n) {
+double BitsEntropy(const int* const array, int n) {
   double retval = 0;
   int sum = 0;
   int nonzeros = 0;
@@ -225,7 +225,7 @@ double BitsEntropy(const int * const array, int n) {
   return retval;
 }
 
-double Histogram_EstimateBitsBulk(const Histogram * const p) {
+double Histogram_EstimateBitsBulk(const Histogram* const p) {
   double retval = BitsEntropy(&p->literal_[0],
                               Histogram_NumPixOrCopyCodes(p)) +
       BitsEntropy(&p->red_[0], 256) +
@@ -244,13 +244,13 @@ double Histogram_EstimateBitsBulk(const Histogram * const p) {
   return retval;
 }
 
-double Histogram_EstimateBits(const Histogram * const p) {
+double Histogram_EstimateBits(const Histogram* const p) {
   return Histogram_EstimateBitsHeader(p) + Histogram_EstimateBitsBulk(p);
 }
 
 // Returns the cost encode the rle-encoded entropy code.
 // The constants in this function are experimental.
-static double HuffmanCost(const int * const population, int length) {
+static double HuffmanCost(const int* const population, int length) {
   // Small bias because Huffman code length is typically not stored in
   // full length.
   static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
@@ -287,7 +287,7 @@ static double HuffmanCost(const int * const population, int length) {
   return retval;
 }
 
-double Histogram_EstimateBitsHeader(const Histogram * const p) {
+double Histogram_EstimateBitsHeader(const Histogram* const p) {
   return HuffmanCost(&p->alpha_[0], 256) +
       HuffmanCost(&p->red_[0], 256) +
       HuffmanCost(&p->literal_[0], Histogram_NumPixOrCopyCodes(p)) +
@@ -298,24 +298,24 @@ double Histogram_EstimateBitsHeader(const Histogram * const p) {
 int BuildHistogramImage(int xsize, int ysize,
                         int histobits,
                         int palettebits,
-                        const PixOrCopy *backward_refs,
+                        const PixOrCopy* backward_refs,
                         int backward_refs_size,
-                        Histogram ***image_arg,
-                        int *image_size) {
+                        Histogram*** image_arg,
+                        int* image_size) {
   int histo_xsize = histobits ? (xsize + (1 << histobits) - 1) >> histobits : 1;
   int histo_ysize = histobits ? (ysize + (1 << histobits) - 1) >> histobits : 1;
   int i;
   int x = 0;
   int y = 0;
-  Histogram **image;
+  Histogram** image;
   *image_arg = NULL;
   *image_size = histo_xsize * histo_ysize;
-  image = (Histogram **)calloc(*image_size, sizeof(*image));
+  image = (Histogram**)calloc(*image_size, sizeof(*image));
   if (image == NULL) {
     return 0;
   }
   for (i = 0; i < *image_size; ++i) {
-    image[i] = (Histogram *)malloc(sizeof(*image[i]));
+    image[i] = (Histogram*)malloc(sizeof(*image[i]));
     if (!image[i]) {
       int k;
       for (k = 0; k < *image_size; ++k) {
@@ -342,20 +342,20 @@ int BuildHistogramImage(int xsize, int ysize,
   return 1;
 }
 
-int CombineHistogramImage(Histogram **in,
+int CombineHistogramImage(Histogram** in,
                           int in_size,
                           int quality,
                           int palettebits,
-                          Histogram ***out_arg,
-                          int *out_size) {
+                          Histogram*** out_arg,
+                          int* out_size) {
   int ok = 1;
   int i;
   unsigned int seed = 0;
   int tries_with_no_success = 0;
   int inner_iters = 10 + quality / 2;
   int iter;
-  double *bit_costs = (double *)malloc(in_size * sizeof(*bit_costs));
-  Histogram **out = (Histogram **)calloc(in_size, sizeof(*out));
+  double* bit_costs = (double*)malloc(in_size * sizeof(*bit_costs));
+  Histogram** out = (Histogram**)calloc(in_size, sizeof(*out));
   *out_arg = out;
   *out_size = in_size;
   if (bit_costs == NULL || out == NULL) {
@@ -364,7 +364,7 @@ int CombineHistogramImage(Histogram **in,
   }
   // Copy
   for (i = 0; i < in_size; ++i) {
-    Histogram *new_histo = (Histogram *)malloc(sizeof(*new_histo));
+    Histogram* new_histo = (Histogram*)malloc(sizeof(*new_histo));
     if (new_histo == NULL) {
       ok = 0;
       goto exit_label;
@@ -384,7 +384,7 @@ int CombineHistogramImage(Histogram **in,
     for (k = 0; k < inner_iters; ++k) {
       // Choose two, build a combo out of them.
       double cost_val;
-      Histogram *combo;
+      Histogram* combo;
       int ix0 = rand_r(&seed) % *out_size;
       int ix1;
       int diff = ((k & 7) + 1) % (*out_size - 1);
@@ -395,7 +395,7 @@ int CombineHistogramImage(Histogram **in,
       if (ix0 == ix1) {
         continue;
       }
-      combo = (Histogram *)malloc(sizeof(*combo));
+      combo = (Histogram*)malloc(sizeof(*combo));
       if (combo == NULL) {
         ok = 0;
         goto exit_label;
@@ -445,10 +445,10 @@ int CombineHistogramImage(Histogram **in,
 
 // What is the bit cost of moving square_histogram from
 // cur_symbol to candidate_symbol.
-static double HistogramDistance(const Histogram * const square_histogram,
+static double HistogramDistance(const Histogram* const square_histogram,
                                 int cur_symbol,
                                 int candidate_symbol,
-                                Histogram **candidate_histograms) {
+                                Histogram** candidate_histograms) {
   double new_bit_cost;
   double previous_bit_cost;
   Histogram modified;
@@ -477,11 +477,11 @@ static double HistogramDistance(const Histogram * const square_histogram,
   return new_bit_cost - previous_bit_cost;
 }
 
-void RefineHistogramImage(Histogram **raw,
+void RefineHistogramImage(Histogram** raw,
                           int raw_size,
-                          uint32_t *symbols,
+                          uint32_t* symbols,
                           int out_size,
-                          Histogram **out) {
+                          Histogram** out) {
   int i;
   // Find the best 'out' histogram for each of the raw histograms
   for (i = 0; i < raw_size; ++i) {

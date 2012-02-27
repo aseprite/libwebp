@@ -25,8 +25,8 @@
 extern "C" {
 #endif
 
-#define UNALIGNED_LOAD32(_p) (*(const uint32_t *)(_p))
-#define UNALIGNED_STORE32(_p, _val) (*(uint32_t *)(_p) = (_val))
+#define UNALIGNED_LOAD32(_p) (*(const uint32_t*)(_p))
+#define UNALIGNED_STORE32(_p, _val) (*(uint32_t*)(_p) = (_val))
 
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8
@@ -112,7 +112,7 @@ static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
   // Technically, this branch of the code can write up to 25 bits at a time,
   // but in deflate, the maximum number of bits written is 16 at a time.
   {
-    uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
+    uint8_t* p = &bw->buf_[bw->bit_pos_ >> 3];
     uint32_t v = UNALIGNED_LOAD32(p);
     v |= bits << (bw->bit_pos_ & 7);
     UNALIGNED_STORE32(p, v);  // Set some bits.
@@ -121,7 +121,7 @@ static inline void WriteBits(int n_bits, uint32_t bits, BitWriter* const bw) {
 #else
   // implicit & 0xff is assumed for uint8_t arithmetics
   {
-    uint8_t *p = &bw->buf_[bw->bit_pos_ >> 3];
+    uint8_t* p = &bw->buf_[bw->bit_pos_ >> 3];
     const int bits_reserved_in_first_byte = (bw->bit_pos_ & 7);
     *p++ |= (bits << bits_reserved_in_first_byte);
     const int bits_left_to_write = n_bits - 8 + bits_reserved_in_first_byte;

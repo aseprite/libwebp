@@ -30,7 +30,7 @@ static void PutLE32(uint8_t* const data, uint32_t val) {
   data[3] = (val >> 24) & 0xff;
 }
 
-static void PutRiffHeader(uint8_t *bytes, size_t webpll_size) {
+static void PutRiffHeader(uint8_t* bytes, size_t webpll_size) {
   uint8_t riff[HEADER_SIZE + SIGNATURE_SIZE] = {
     'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P',
     'V', 'P', '8', 'L', 0, 0, 0, 0, 0x64
@@ -52,11 +52,11 @@ static int ValuesShouldBeCollapsedToStrideAverage(int a, int b) {
 //
 // length containts the size of the histogram.
 // data contains the population counts.
-static int OptimizeHuffmanForRle(int length, int *counts) {
+static int OptimizeHuffmanForRle(int length, int* counts) {
   int stride;
   int limit;
   int sum;
-  char *good_for_rle;
+  char* good_for_rle;
   // Let's make the Huffman code more compatible with rle encoding.
   int i;
   for (; length >= 0; --length) {
@@ -70,7 +70,7 @@ static int OptimizeHuffmanForRle(int length, int *counts) {
   }
   // 2) Let's mark all population counts that already can be encoded
   // with an rle code.
-  good_for_rle = (char *)malloc(length);
+  good_for_rle = (char*)malloc(length);
   if (!good_for_rle) {
     return 0;
   }
@@ -167,7 +167,7 @@ static void ClearHuffmanTreeIfOnlyOneSymbol(const int num_symbols,
 
 static int PackLiteralBitLengths(const uint8_t* bit_lengths,
                                  int palette_bits, int use_palette,
-                                 int *new_length_size,
+                                 int* new_length_size,
                                  uint8_t** new_lengths) {
   int i;
   int length_code_offset = 256;
@@ -196,7 +196,7 @@ static int PackLiteralBitLengths(const uint8_t* bit_lengths,
 }
 
 static void StoreHuffmanTreeOfHuffmanTreeToBitMask(
-    const uint8_t *code_length_bitdepth, BitWriter* const bw) {
+    const uint8_t* code_length_bitdepth, BitWriter* const bw) {
   // RFC 1951 will calm you down if you are worried about this funny sequence.
   // This sequence is tuned from that, but more weighted for lower symbol count,
   // and more spiking histograms.
@@ -219,11 +219,11 @@ static void StoreHuffmanTreeOfHuffmanTreeToBitMask(
 }
 
 static void StoreHuffmanTreeToBitMask(
-    const uint8_t *huffman_tree,
-    const uint8_t *huffman_tree_extra_bits,
+    const uint8_t* huffman_tree,
+    const uint8_t* huffman_tree_extra_bits,
     const int num_symbols,
-    const uint8_t *code_length_bitdepth,
-    const uint16_t *code_length_bitdepth_symbols,
+    const uint8_t* code_length_bitdepth,
+    const uint16_t* code_length_bitdepth_symbols,
     BitWriter* const bw) {
   int i;
   for (i = 0; i < num_symbols; ++i) {
@@ -243,7 +243,7 @@ static void StoreHuffmanTreeToBitMask(
   }
 }
 
-static int StoreHuffmanCode(uint8_t *bit_lengths, int bit_lengths_size,
+static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
                             BitWriter* const bw) {
   int ok = 1;
   int count = 0;
@@ -353,8 +353,8 @@ static inline int MetaSize(int size, int bits) {
 
 static void StoreImageToBitMask(
     int xsize, int histo_bits, int palette_bits,
-    const PixOrCopy *literals, int literals_size,
-    const uint32_t *histogram_symbols,
+    const PixOrCopy* literals, int literals_size,
+    const uint32_t* histogram_symbols,
     uint8_t** const bitdepths, uint16_t** const bit_symbols,
     BitWriter* const bw) {
   const int histo_xsize = histo_bits ? MetaSize(xsize, histo_bits) : 1;
@@ -414,9 +414,9 @@ static void ShiftHistogramImage(int image_size, uint32_t* image) {
   }
 }
 
-static int Uint32Order(const void *p1, const void *p2) {
-  uint32_t a = *(const uint32_t *)p1;
-  uint32_t b = *(const uint32_t *)p2;
+static int Uint32Order(const void* p1, const void* p2) {
+  uint32_t a = *(const uint32_t*)p1;
+  uint32_t b = *(const uint32_t*)p2;
   if (a < b) {
     return -1;
   }
@@ -426,7 +426,7 @@ static int Uint32Order(const void *p1, const void *p2) {
   return 1;
 }
 
-static int CreatePalette256(int n, const uint32_t *argb,
+static int CreatePalette256(int n, const uint32_t* argb,
                             int* palette_size,
                             uint32_t* palette) {
   int i;
@@ -476,7 +476,7 @@ static int CreatePalette256(int n, const uint32_t *argb,
 // Bundles multiple (2, 4 or 8) pixels into a single pixel.
 // Returns the new xsize.
 static void BundlePixels(int xsize, int ysize, int xbits,
-                         uint32_t *argb, int *new_xsize) {
+                         uint32_t* argb, int* new_xsize) {
   const int bit_depth = 1 << (3 - xbits);
   int xs = MetaSize(xsize, xbits);
   int y;
@@ -509,16 +509,16 @@ static int GetBackwardReferences(int xsize, int ysize,
                                  const uint32_t* argb,
                                  int quality, int use_palette,
                                  int palette_bits, int use_2d_locality,
-                                 int *backward_refs_size,
+                                 int* backward_refs_size,
                                  PixOrCopy** backward_refs) {
   // Backward Reference using LZ77.
   int lz77_is_useful;
   int backward_refs_rle_only_size;
-  Histogram *histo_rle = (Histogram *)malloc(sizeof(*histo_rle));
-  Histogram *histo_lz77 = (Histogram *)malloc(sizeof(*histo_lz77));
-  PixOrCopy *backward_refs_lz77 = (PixOrCopy *)
+  Histogram* histo_rle = (Histogram*)malloc(sizeof(*histo_rle));
+  Histogram* histo_lz77 = (Histogram*)malloc(sizeof(*histo_lz77));
+  PixOrCopy* backward_refs_lz77 = (PixOrCopy*)
       malloc(xsize * ysize * sizeof(*backward_refs_lz77));
-  PixOrCopy *backward_refs_rle_only = (PixOrCopy *)
+  PixOrCopy* backward_refs_rle_only = (PixOrCopy*)
       malloc(xsize * ysize * sizeof(*backward_refs_rle_only));
   int backward_refs_lz77_size;
   int ok = 1;
@@ -601,7 +601,7 @@ static int GetHistImageSymbols(int xsize, int ysize,
                                int backward_refs_size,
                                int quality, int histogram_bits,
                                int palette_bits,
-                               int *histogram_image_size,
+                               int* histogram_image_size,
                                Histogram*** histogram_image,
                                uint32_t* histogram_symbols) {
   // Build histogram image.
@@ -652,7 +652,7 @@ static int GetHuffBitLengthsAndCodes(
     int histogram_image_size,
     Histogram** histogram_image,
     int use_palette,
-    int **bit_length_sizes,
+    int** bit_length_sizes,
     uint8_t*** bit_lengths,
     uint16_t*** bit_codes) {
   int i;
@@ -661,8 +661,8 @@ static int GetHuffBitLengthsAndCodes(
   for (i = 0; i < histogram_image_size; ++i) {
     const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
-    (*bit_lengths)[5 * i] = (uint8_t *)calloc(lit_len, 1);
-    (*bit_codes)[5 * i] = (uint16_t *)
+    (*bit_lengths)[5 * i] = (uint8_t*)calloc(lit_len, 1);
+    (*bit_codes)[5 * i] = (uint16_t*)
         malloc(lit_len * sizeof(*(*bit_codes)[5 * i]));
 
     // For each component, optimize histogram for Huffman with RLE compression.
@@ -689,8 +689,8 @@ static int GetHuffBitLengthsAndCodes(
         val = DISTANCE_CODES_MAX;
       }
       (*bit_length_sizes)[5 * i + k] = val;
-      (*bit_lengths)[5 * i + k] = (uint8_t *)calloc(val, 1);
-      (*bit_codes)[5 * i + k] = (uint16_t *)calloc(val, sizeof(bit_codes[0]));
+      (*bit_lengths)[5 * i + k] = (uint8_t*)calloc(val, 1);
+      (*bit_codes)[5 * i + k] = (uint16_t*)calloc(val, sizeof(bit_codes[0]));
     }
     ok = ok && CreateHuffmanTree(histogram_image[i]->red_, 256, 15,
                                  (*bit_lengths)[5 * i + 1]) &&
@@ -712,13 +712,13 @@ static int GetHuffBitLengthsAndCodes(
 }
 
 static int EncodeImageInternal(int xsize, int ysize,
-                               const uint32_t *argb, int quality,
+                               const uint32_t* argb, int quality,
                                int palette_bits, int histogram_bits,
-                               int use_2d_locality, BitWriter *bw) {
+                               int use_2d_locality, BitWriter* bw) {
   int ok = 1;
 
   int histogram_image_size;
-  Histogram **histogram_image;
+  Histogram** histogram_image;
 
   int* bit_lengths_sizes = 0;
   uint8_t** bit_lengths = 0;
@@ -732,7 +732,7 @@ static int EncodeImageInternal(int xsize, int ysize,
   PixOrCopy* backward_refs;
   const int histogram_image_xysize = MetaSize(xsize, histogram_bits) *
       MetaSize(ysize, histogram_bits);
-  uint32_t *histogram_symbols = (uint32_t *)
+  uint32_t* histogram_symbols = (uint32_t*)
       calloc(histogram_image_xysize, sizeof(*histogram_symbols));
   // Calculate backward references from ARGB image.
   if (!GetBackwardReferences(xsize, ysize, argb, quality,
@@ -752,8 +752,8 @@ static int EncodeImageInternal(int xsize, int ysize,
     goto exit_label;
   }
   // Create Huffman bit lengths & codes for each histogram image.
-  bit_lengths_sizes = (int *)calloc(5 * histogram_image_size,
-                                    sizeof(*bit_lengths_sizes));
+  bit_lengths_sizes = (int*)calloc(5 * histogram_image_size,
+                                   sizeof(*bit_lengths_sizes));
   bit_lengths = (uint8_t**)calloc(5 * histogram_image_size,
                                   sizeof(*bit_lengths));
   bit_codes = (uint16_t**)calloc(5 * histogram_image_size,
@@ -863,7 +863,7 @@ exit_label:
 }
 
 static inline void WriteImageSize(uint32_t xsize, uint32_t ysize,
-                                  BitWriter *bw) {
+                                  BitWriter* bw) {
   --xsize;
   --ysize;
   VERIFY(xsize < 0x4000 && ysize < 0x4000);
@@ -872,9 +872,9 @@ static inline void WriteImageSize(uint32_t xsize, uint32_t ysize,
 }
 
 // Returns 1 on success.
-int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
-                      EncodingStrategy *strategy,
-                      size_t *num_bytes, uint8_t **bytes) {
+int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
+                      EncodingStrategy* strategy,
+                      size_t* num_bytes, uint8_t* *bytes) {
   int i;
   int ok = 1;
   const int quality = strategy->quality;
@@ -887,7 +887,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   const int cross_color_transform = strategy->cross_color_transform;
   const int cross_color_transform_bits = strategy->cross_color_transform_bits;
   int use_emerging_palette = 1;
-  uint32_t* argb = (uint32_t *)malloc(xsize * ysize * sizeof(*argb));
+  uint32_t* argb = (uint32_t*)malloc(xsize * ysize * sizeof(*argb));
   const int kEstmatedEncodeSize = 0.5 * xsize * ysize;  // 4 bpp.
   int palette_size;
   uint32_t palette[256];
@@ -903,8 +903,8 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
-    Histogram *after = (Histogram *)malloc(sizeof(*after));
-    Histogram *before = (Histogram *)malloc(sizeof(*before));
+    Histogram* after = (Histogram*)malloc(sizeof(*after));
+    Histogram* before = (Histogram*)malloc(sizeof(*before));
     if (!after || !before) {
       free(after);
       free(before);
@@ -1007,7 +1007,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     const int color_space_image_size =
         MetaSize(xsize, cross_color_transform_bits) *
         MetaSize(ysize, cross_color_transform_bits);
-    uint32_t* color_space_image = (uint32_t *)
+    uint32_t* color_space_image = (uint32_t*)
         malloc(color_space_image_size * sizeof(*color_space_image));
     if (!color_space_image) {
       ok = 0;
@@ -1058,7 +1058,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
   argb = NULL;
   {
     const size_t webpll_size = BitWriterNumBytes(&bw);
-    uint8_t *webpll_data = BitWriterFinish(&bw);
+    uint8_t* webpll_data = BitWriterFinish(&bw);
     if (bw.error_) {
       ok = 0;
       goto exit_label;
@@ -1067,7 +1067,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t *argb_orig,
     // TODO(vikasa): This memory allocation can be avoided, if RIFF header is
     // writen to BitWriter in the begining and BitWriter's buffer can be owned
     // and passed back instead.
-    *bytes = (uint8_t *)malloc(*num_bytes);
+    *bytes = (uint8_t*)malloc(*num_bytes);
     if (*bytes == NULL) {
       ok = 0;
       goto exit_label;
@@ -1081,7 +1081,7 @@ exit_label:
   return ok;
 }
 
-void EncodingStrategyPhotographic(EncodingStrategy *p) {
+void EncodingStrategyPhotographic(EncodingStrategy* p) {
   p->quality = 95;
   p->use_lz77 = 1;
   p->use_small_palette = 0;
@@ -1093,7 +1093,7 @@ void EncodingStrategyPhotographic(EncodingStrategy *p) {
   p->cross_color_transform_bits = 4;
 }
 
-void EncodingStrategyGraphical(EncodingStrategy *p) {
+void EncodingStrategyGraphical(EncodingStrategy* p) {
   EncodingStrategyPhotographic(p);
   p->use_small_palette = 0;
   p->predict = 0;
