@@ -185,7 +185,8 @@ static int ReadHuffmanCodeLengths(
   const int use_length = VP8LReadBits(br, 1);
   HuffmanTree tree;
 
-  if (!HuffmanTreeBuild(&tree, code_length_code_lengths, num_codes)) {
+  if (!HuffmanTreeBuild(code_length_code_lengths, NULL, NULL, num_codes,
+                        &tree)) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     return 0;
   }
@@ -229,36 +230,46 @@ static int ReadHuffmanCodeLengths(
 
 static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
                            HuffmanTree* const tree) {
+  int* symbols = NULL;
+  int* codes = NULL;
+  uint32_t* code_lengths = NULL;
+  int num_symbols;
   int ok = 1;
   BitReader* const br = dec->br_;
   const int simple_code = VP8LReadBits(br, 1);
 
   if (simple_code) {
-    // For simple_code case, build the tree by calling 'AddSymbol' with simple
-    // codes. Call to Huffman's BuildTree will assign symbol codes as per it's
-    // symbol code logic and will not match the expected symbol codes intended
-    // for this case.
-    const int num_symbols = VP8LReadBits(br, 1) + 1;
-    const int nbits = VP8LReadBits(br, 3);
+    // Read symbols, codes & code lengths directly.
+    int nbits;
+    num_symbols = VP8LReadBits(br, 1) + 1;
+    nbits = VP8LReadBits(br, 3);
+    if (nbits == 0) num_symbols = 1;
+
+    symbols = (int*)malloc(num_symbols * sizeof(*symbols));
+    codes = (int*)malloc(num_symbols * sizeof(*codes));
+    code_lengths = (uint32_t*)malloc(num_symbols * sizeof(*code_lengths));
+    if (symbols == NULL || codes == NULL || code_lengths == NULL) {
+      free(symbols); free(codes); free(code_lengths);
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      return 0;
+    }
+
     if (nbits == 0) {
-      ok = HuffmanTreeInit(tree, 1);
-      ok = ok && HuffmanTreeAddSymbol(tree, 0, 0, 0);
-      // Note: 'tree' is trivially full here, no need to check.
+      symbols[0] = 0; codes[0] = 0; code_lengths[0] = 0;
     } else {
-      int sym_idx;
       const int num_bits = (nbits - 1) * 2 + 4;
-      ok = HuffmanTreeInit(tree, num_symbols);
-      for (sym_idx = 0; ok && sym_idx < num_symbols; ++sym_idx) {
-        ok = HuffmanTreeAddSymbol(tree, VP8LReadBits(br, num_bits),
-                                  num_symbols - 1, sym_idx);
+      int i;
+      for (i = 0; i < num_symbols; ++i) {
+        symbols[i] = VP8LReadBits(br, num_bits);
+        codes[i] = i;
+        code_lengths[i] = num_symbols - 1;
       }
-      ok = ok && HuffmanTreeIsFull(tree);
     }
   } else {
+    // Decode Huffman-coded code lengths.
     uint32_t code_idx;
     uint32_t code_length_code_lengths[NUM_CODE_LENGTH_CODES] = { 0 };
     const uint32_t num_codes = VP8LReadBits(br, 4) + 4;
-    uint32_t* code_lengths = NULL;
 
     if (num_codes > NUM_CODE_LENGTH_CODES) {
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
@@ -278,10 +289,13 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
     ok = ReadHuffmanCodeLengths(dec, code_length_code_lengths,
                                 NUM_CODE_LENGTH_CODES,
                                 alphabet_size, &code_lengths);
-    ok = ok && HuffmanTreeBuild(tree, code_lengths, alphabet_size);
-
-    free(code_lengths);
+    num_symbols = alphabet_size;
   }
+
+  // Build Huffman tree.
+  ok = ok && HuffmanTreeBuild(code_lengths, codes, symbols, num_symbols, tree);
+  free(symbols); free(codes); free(code_lengths);
+
   if (br->error_) {
     ok = 0;
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;

@@ -11,26 +11,26 @@
 
 // There are two ways of using this API:
 //
-// (1) Build a tree given a list of code lengths in symbol order.
-// Code Example:
-// uint32_t code_lengths[] = // list of code lengths
-// size_t code_lengths_size = // size of code length array
-// HuffmanTree tree;
-// HuffmanTreeBuild(&tree, code_lengths, code_lengths_size);
-// // Use 'tree' to decode some data.
-// HuffmanTreeRelease(&tree);
+// (1) Build a tree with explicitly given list of symbols, codes & code lengths.
 //
-// (2) Build a tree by adding one symbol at a time.
 // Code Example:
 // int symbols[] = // List of symbols
 // uint32_t code_lengths[] = // Corresponding list of code lengths
 // int codes[] = // Corresponding list of codes
+// size_t num_symbols = // size of symbols array
 // HuffmanTree tree;
-// HuffmanTreeInit(&tree, num_symbols);
-// for (int i = 0; i < num_symbols; ++i) {
-//   HuffmanTreeAddSymbol(tree, symbols[i], code_lengths[i], codes[i]);
-// }
-// HuffmanTreeIsFull(tree);
+// HuffmanTreeBuild(code_lengths, codes, symbols, num_symbols, &tree);
+// // Use 'tree' to decode some data.
+// HuffmanTreeRelease(&tree);
+//
+// (2) Build a tree given a list of code lengths in symbol order. Here the
+// symbols & codes are implicitly calculated from code lengths.
+//
+// Code Example:
+// uint32_t code_lengths[] = // list of code lengths
+// size_t num_symbols = // size of code length array
+// HuffmanTree tree;
+// HuffmanTreeBuild(code_lengths, NULL, NULL, num_symbols, &tree);
 // // Use 'tree' to decode some data.
 // HuffmanTreeRelease(&tree);
 
@@ -68,13 +68,6 @@ static WEBP_INLINE int HuffmanTreeNodeIsLeaf(
           node->child_[0] == NULL);  // Implies that node->child_[1] == NULL.
 }
 
-// Initializes a Huffman tree given the required num_leaves.
-// Returns true on success.
-int HuffmanTreeInit(HuffmanTree* const tree, size_t num_leaves);
-
-// Returns a newly allocated Huffman tree on success; and NULL on error.
-HuffmanTree* HuffmanTreeNew(size_t num_leaves);
-
 // Releases the nodes of the Huffman tree.
 // Note: It does NOT free 'tree' itself.
 void HuffmanTreeRelease(HuffmanTree* const tree);
@@ -85,22 +78,18 @@ void HuffmanTreeRelease(HuffmanTree* const tree);
 int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
                               size_t code_lengths_size, int* const huff_codes);
 
-// Adds the given symbol 'symbol' with Huffman code 'code' and code length
-// 'code_length' to the Huffman tree.
-// Note: Tree must be pre-initialized with HuffmanTreeInit().
-// Returns true on success.
-int HuffmanTreeAddSymbol(HuffmanTree* const tree, int symbol,
-                         uint32_t code_length, int code);
-
-// Builds a Huffman tree given the 'code_lengths' list (having size
-// 'code_lengths_size').
-// Returns true on success.
-int HuffmanTreeBuild(HuffmanTree* const tree,
-                     const uint32_t* const code_lengths,
-                     size_t code_lengths_size);
-
-// Returns 1 if the Huffman tree is completely filled.
-int HuffmanTreeIsFull(const HuffmanTree* const tree);
+// Builds a Huffman tree given 'num_symbols' and the lists 'code_lengths',
+// 'codes' & 'symbols'.
+// 'symbols' & 'codes' (both together) can be passed NULL, in which case they
+// are calculated implicitly assuming that 'code_lengths' is in symbol order.
+// Returns false in one of the following cases:
+//   - If tree or code_lengths is NULL or if num_symbols == 0
+//   - If exactly one of codes or code_lengths is NULL.
+//   - If the given input results in an invalid tree.
+// Otherwise returns true.
+int HuffmanTreeBuild(const uint32_t* const code_lengths, const int* const codes,
+                     const int* const symbols, size_t num_symbols,
+                     HuffmanTree* const tree);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
