@@ -26,7 +26,7 @@ typedef unsigned int argb_t;
 #define NUM_TRANSFORMS              16
 #define HUFFMAN_CODES_PER_META_CODE  5
 
-struct HuffmanTreeNode;
+struct HuffmanTree;
 
 typedef enum ImageTransformType {
   PREDICTOR_TRANSFORM = 0,
@@ -66,8 +66,8 @@ struct VP8LDecoder {
   uint32_t        huffman_xsize_;
   uint32_t        *meta_codes_;
   uint32_t        *huffman_image_;
-  struct HuffmanTreeNode *htrees_;
-  struct HuffmanTreeNode *meta_htrees_[HUFFMAN_CODES_PER_META_CODE];
+  struct HuffmanTree *htrees_;
+  struct HuffmanTree *meta_htrees_[HUFFMAN_CODES_PER_META_CODE];
 
   int             next_transform_;
   VP8LTransform transforms_[NUM_TRANSFORMS];
