@@ -26,16 +26,16 @@ static const uint32_t kHashMul = 0x1e35a7bd;
 static const uint32_t kNotInitialized = 0x1e35a7bd;
 
 typedef struct {
-  uint32_t *data_;
+  uint32_t* data_;
   uint32_t hash_shift_;
   uint32_t hash_size_;
 } VP8LColorCacheColumn;
 
-static int VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
+static int VP8LColorCacheColumnInit(VP8LColorCacheColumn* p, int hash_bits) {
   uint32_t i;
   p->hash_shift_ = 32 - hash_bits;
   p->hash_size_ = 1 << hash_bits;
-  p->data_ = (uint32_t *)malloc(p->hash_size_ * sizeof(p->data_[0]));
+  p->data_ = (uint32_t*)malloc(p->hash_size_ * sizeof(p->data_[0]));
   if (p->data_ == NULL) {
     return 0;
   }
@@ -45,24 +45,24 @@ static int VP8LColorCacheColumnInit(VP8LColorCacheColumn *p, int hash_bits) {
   return 1;
 }
 
-static void VP8LColorCacheColumnDelete(VP8LColorCacheColumn *p) {
+static void VP8LColorCacheColumnDelete(VP8LColorCacheColumn* p) {
   if (p->data_) {
     free(p->data_);
   }
 }
 
-static void VP8LColorCacheColumnInsert(VP8LColorCacheColumn *p, uint32_t argb) {
+static void VP8LColorCacheColumnInsert(VP8LColorCacheColumn* p, uint32_t argb) {
   const uint32_t key = (kHashMul * argb) >> p->hash_shift_;
   p->data_[key] = argb;
 }
 
-static int VP8LColorCacheColumnIsInitialized(const VP8LColorCacheColumn *p,
+static int VP8LColorCacheColumnIsInitialized(const VP8LColorCacheColumn* p,
                                              uint32_t argb) {
   const uint32_t key = (kHashMul * argb) >> p->hash_shift_;
   return p->data_[key] != kNotInitialized;
 }
 
-static int VP8LColorCacheColumnContains(const VP8LColorCacheColumn *p,
+static int VP8LColorCacheColumnContains(const VP8LColorCacheColumn* p,
                                         uint32_t argb) {
   uint32_t key;
   if (argb == kNotInitialized) {
@@ -72,7 +72,7 @@ static int VP8LColorCacheColumnContains(const VP8LColorCacheColumn *p,
   return p->data_[key] == argb;
 }
 
-static int VP8LColorCacheColumnLookup(VP8LColorCacheColumn *p,
+static int VP8LColorCacheColumnLookup(VP8LColorCacheColumn* p,
                                       uint32_t key, uint32_t* argb) {
   assert(key < p->hash_size_);
   if (p->data_[key] != kNotInitialized) {
@@ -89,10 +89,10 @@ typedef struct {
   int hashers_size_;
 } VP8LColorCache;
 
-static inline int VP8LColorCacheInit(VP8LColorCache *p,
-                                      int xsize,
-                                      int x_downsample_bits,
-                                      int hash_bits) {
+static inline int VP8LColorCacheInit(VP8LColorCache* p,
+                                     int xsize,
+                                     int x_downsample_bits,
+                                     int hash_bits) {
   int i;
   if (hash_bits == 0) {
     hash_bits = 1;
@@ -102,7 +102,7 @@ static inline int VP8LColorCacheInit(VP8LColorCache *p,
   p->hashers_size_ =
       (xsize + (1 << x_downsample_bits) - 1) >> x_downsample_bits;
 
-  p->hashers_ = (VP8LColorCacheColumn *)
+  p->hashers_ = (VP8LColorCacheColumn*)
       malloc(p->hashers_size_ * sizeof(p->hashers_[0]));
   if (p->hashers_ == NULL) {
     return 0;
@@ -113,7 +113,7 @@ static inline int VP8LColorCacheInit(VP8LColorCache *p,
   return 1;
 }
 
-static inline void VP8LColorCacheDelete(VP8LColorCache *p) {
+static inline void VP8LColorCacheDelete(VP8LColorCache* p) {
   int i;
   if (p->hashers_) {
     for (i = 0; i < p->hashers_size_; ++i) {
@@ -123,19 +123,19 @@ static inline void VP8LColorCacheDelete(VP8LColorCache *p) {
   }
 }
 
-static inline void VP8LColorCacheInsert(VP8LColorCache *p,
+static inline void VP8LColorCacheInsert(VP8LColorCache* p,
                                         int x, uint32_t argb) {
   VP8LColorCacheColumnInsert(&p->hashers_[x >> p->x_downsample_bits_], argb);
 }
 
-static inline uint32_t VP8LColorCacheGetIndex(const VP8LColorCache *p,
+static inline uint32_t VP8LColorCacheGetIndex(const VP8LColorCache* p,
                                               uint32_t argb) {
   uint32_t val = kHashMul * argb;
   val >>= 32 - p->hash_bits_;
   return val;
 }
 
-static inline int VP8LColorCacheContains(VP8LColorCache *p,
+static inline int VP8LColorCacheContains(VP8LColorCache* p,
                                          int x, uint32_t argb) {
   int i;
   int ix = x >> p->x_downsample_bits_;
@@ -166,7 +166,7 @@ static inline int VP8LColorCacheContains(VP8LColorCache *p,
   return 0;
 }
 
-static inline uint32_t VP8LColorCacheLookup(VP8LColorCache *p,
+static inline uint32_t VP8LColorCacheLookup(VP8LColorCache* p,
                                             int x, uint32_t hash) {
   int i;
   int ix = x >> p->x_downsample_bits_;

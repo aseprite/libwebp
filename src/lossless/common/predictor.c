@@ -105,7 +105,7 @@ static uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1, uint32_t c2) {
   return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-uint32_t PredictValue(int mode, int xsize, const uint32_t *argb) {
+uint32_t PredictValue(int mode, int xsize, const uint32_t* argb) {
   switch (mode) {
     case 0: return ARGB_BLACK;
     case 1: return argb[-1];
@@ -129,9 +129,9 @@ uint32_t PredictValue(int mode, int xsize, const uint32_t *argb) {
 }
 
 void CopyTileWithPrediction(int xsize, int ysize,
-                            const uint32_t *from_argb,
+                            const uint32_t* from_argb,
                             int tile_x, int tile_y, int bits, int mode,
-                            uint32_t *to_argb) {
+                            uint32_t* to_argb) {
   int ymax = 1 << bits;
   int xmax = 1 << bits;
   int y;
@@ -166,7 +166,7 @@ void CopyTileWithPrediction(int xsize, int ysize,
 
 void PredictorInverseTransform(int xsize, int ysize, int bits,
                                const uint32_t* image,
-                               const uint32_t *from_argb,
+                               const uint32_t* from_argb,
                                uint32_t* to_argb) {
   int image_y;
   const int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
@@ -222,11 +222,11 @@ void PredictorInverseTransform(int xsize, int ysize, int bits,
 }
 
 void CopyTileWithColorTransform(int xsize, int ysize,
-                                const uint32_t *from_argb,
+                                const uint32_t* from_argb,
                                 int tile_x, int tile_y, int bits,
                                 ColorSpaceTransformElement color_transform,
                                 int inverse,
-                                uint32_t *to_argb) {
+                                uint32_t* to_argb) {
   int xscan = 1 << bits;
   int yscan = 1 << bits;
   tile_x <<= bits;
@@ -263,7 +263,7 @@ void CopyTileWithColorTransform(int xsize, int ysize,
 
 void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
                                 const uint32_t* image,
-                                const uint32_t *from_argb,
+                                const uint32_t* from_argb,
                                 uint32_t* to_argb) {
   const int tile_xsize = (xsize + (1 << bits) - 1) >> bits;
   const int tile_ysize = (ysize + (1 << bits) - 1) >> bits;
@@ -282,7 +282,7 @@ void ColorSpaceInverseTransform(int xsize, int ysize, int bits,
   }
 }
 
-void AddGreenToBlueAndRed(int n, uint32_t *argb_array) {
+void AddGreenToBlueAndRed(int n, uint32_t* argb_array) {
   int i;
   for (i = 0; i < n; ++i) {
     const uint32_t argb = argb_array[i];
