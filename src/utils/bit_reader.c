@@ -114,6 +114,7 @@ void VP8LInitBitReader(BitReader* const br,
   br->val_ = 0;
   br->pos_ = 0;
   br->bit_pos_ = 0;
+  br->eos_ = 0;
   br->error_ = 0;
   for (i = 0; i < sizeof(br->val_) && i < br->len_; ++i) {
     br->val_ |= ((uint64_t)br->buf_[br->pos_]) << (8 * i);
@@ -149,28 +150,55 @@ void VP8LFillBitWindow(BitReader* const br) {
     ShiftBytes(br);
 #endif
   }
+  if (br->pos_ == br->len_ && br->bit_pos_ == 64) {
+    br->eos_ = 1;
+  }
+}
+
+uint32_t VP8LReadOneBit(BitReader* const br) {
+  const uint32_t val = (br->val_ >> br->bit_pos_) & 1;
+  // Flag an error at end_of_stream.
+  if (!br->eos_) {
+    ++br->bit_pos_;
+    if (br->bit_pos_ >= 32) {
+      ShiftBytes(br);
+    }
+    // After this last bit is read, check if eos needs to be flagged.
+    if (br->pos_ == br->len_ && br->bit_pos_ == 64) {
+      br->eos_ = 1;
+    }
+  } else {
+    br->error_ = 1;
+  }
+  return val;
 }
 
 uint32_t VP8LReadBits(BitReader* const br, int n_bits) {
   uint32_t val = 0;
   assert(n_bits >= 0);
-  if (n_bits < MAX_NUM_BIT_READ) {
-    val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
-    br->bit_pos_ += n_bits;
-    if (br->bit_pos_ >= 40) {
-      if (br->pos_ < br->len_ - 5) {
-        br->val_ >>= 40;
-        br->val_ |=
-            (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
-            (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
-            (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
-            (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
-            (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
-        br->pos_ += 5;
-        br->bit_pos_ -= 40;
-      }
-      if (br->bit_pos_ >= 8) {
-        ShiftBytes(br);
+  // Flag an error if end_of_stream or n_bits is more than allowed limit.
+  if (!br->eos_ && n_bits < MAX_NUM_BIT_READ) {
+    // If this read is going to cross the read buffer, set the eos flag.
+    if (br->pos_ == br->len_ && (br->bit_pos_ + n_bits) >= 64) {
+      br->eos_ = 1;
+    } else {
+      val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
+      br->bit_pos_ += n_bits;
+      if (br->bit_pos_ >= 40) {
+        if (br->pos_ < br->len_ - 5) {
+          br->val_ >>= 40;
+          br->val_ |=
+              (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
+              (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
+              (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
+              (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
+              (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
+          br->pos_ += 5;
+          br->bit_pos_ -= 40;
+        }
+        if (br->bit_pos_ >= 8) {
+          ShiftBytes(br);
+        }
       }
     }
   } else {

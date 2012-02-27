@@ -157,6 +157,7 @@ typedef struct {
   size_t         len_;
   size_t         pos_;
   int            bit_pos_;
+  int            eos_;
   int            error_;
 } BitReader;
 
@@ -164,18 +165,27 @@ void VP8LInitBitReader(BitReader* const br,
                        const uint8_t* const start,
                        size_t length);
 
+// Reads the specified number of bits from Read Buffer.
+// Flags an error in case end_of_stream or n_bits is more than allowed limit.
+// Flags eos if this read attempt is going to cross the read buffer.
 uint32_t VP8LReadBits(BitReader* const br, int n_bits);
-void VP8LFillBitWindow(BitReader* const br);
 
-// If ReadOneBitUnsafe is much faster than ReadBits(..., 1), but it can be
-// called only 32 times after the last FillBitWindow, and consequent calls
-// may return invalid data.
+// Reads one bit from Read Buffer. Flags an error in case end_of_stream.
+// Flags eos after reading last bit from the buffer.
+uint32_t VP8LReadOneBit(BitReader* const br);
+
+
+// VP8LReadOneBitUnsafe is faster than VP8LReadOneBit, but it can be called only
+// 32 times after the last VP8LFillBitWindow. Any subsequent calls
+// (without VP8LFillBitWindow) will return invalid data.
 static WEBP_INLINE uint32_t VP8LReadOneBitUnsafe(BitReader* const br) {
   const uint32_t val = (br->val_ >> br->bit_pos_) & 1;
-  assert(br->bit_pos_ < 64);
   ++br->bit_pos_;
   return val;
 }
+
+// Advances the Read buffer by 4 bytes to make room for reading next 32 bits.
+void VP8LFillBitWindow(BitReader* const br);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"

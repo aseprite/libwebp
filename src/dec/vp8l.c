@@ -156,6 +156,24 @@ static WEBP_INLINE int ReadSymbol(const HuffmanTreeNode* root,
   return node->symbol_;
 }
 
+static WEBP_INLINE int ReadSymbolSafe(const HuffmanTreeNode* root,
+                                      BitReader* const br) {
+  const HuffmanTreeNode* node = root;
+  const int read_safe = (br->pos_ > br->len_ - 8);
+  if (read_safe) {
+    while (!HuffmanTreeNodeIsLeaf(node)) {
+      node = node->child_[VP8LReadOneBit(br)];
+    }
+  } else {
+    while (!HuffmanTreeNodeIsLeaf(node)) {
+      node = node->child_[VP8LReadOneBitUnsafe(br)];
+    }
+  }
+  assert(node);
+
+  return node->symbol_;
+}
+
 static int ReadHuffmanCodeLengths(
     VP8LDecoder* const dec, const uint32_t* const code_length_code_lengths,
     uint32_t num_codes, uint32_t num_symbols, uint32_t** const code_lengths) {
@@ -425,7 +443,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
 
   // TODO: Run this loop until all pixels are coverer or BitReader exhausts on
   // input (for incremental case).
-  while (pix_ix < num_pixs) {
+  while (!br->eos_ && pix_ix < num_pixs) {
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
@@ -433,14 +451,13 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
       UpdateHtreeForPos(dec, x, y);
     }
 
-    green = ReadSymbol(dec->meta_htrees_[GREEN], br);
+    green = ReadSymbolSafe(dec->meta_htrees_[GREEN], br);
     if (green < NUM_CODES_PER_BYTE) {
       // Literal.
       // Decode and save this pixel.
-      red = ReadSymbol(dec->meta_htrees_[RED], br);
-      VP8LFillBitWindow(br);
-      blue = ReadSymbol(dec->meta_htrees_[BLUE], br);
-      alpha = ReadSymbol(dec->meta_htrees_[ALPHA], br);
+      red = ReadSymbolSafe(dec->meta_htrees_[RED], br);
+      VP8LFillBitWindow(br); blue = ReadSymbolSafe(dec->meta_htrees_[BLUE], br);
+      alpha = ReadSymbolSafe(dec->meta_htrees_[ALPHA], br);
 
       data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
       if (color_cache) VP8LColorCacheInsert(color_cache, x, data[pix_ix]);
@@ -456,7 +473,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
       const int color_cache_key = green - NUM_CODES_PER_BYTE;
       argb_t argb;
       ok = VP8LColorCacheLookup(color_cache, x, color_cache_key, &argb);
-      if (!ok) goto End;
+      if (!ok) goto Error;
       data[pix_ix] = argb;
       VP8LColorCacheInsert(color_cache, x, argb);
 
@@ -471,16 +488,13 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
       uint32_t i, dist_code, dist;
       int length_sym = green - color_cache_limit;
       const uint32_t length = GetCopyLength(length_sym, br);
-      // Here, we have read the length code prefix + extra bits for the length,
-      // so reading the next 15 bits can exhaust the bit window.
-      // We must fill the window before the next read.
+      dist_symbol = ReadSymbolSafe(dec->meta_htrees_[DIST], br);
       VP8LFillBitWindow(br);
-      dist_symbol = ReadSymbol(dec->meta_htrees_[DIST], br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, dist_code);
       if ((dist > pix_ix) || (pix_ix + length > num_pixs)) {
         ok = 0;
-        goto End;
+        goto Error;
       }
 
       // Fill data for specified (backward-ref) length and update pix_ix, x & y.
@@ -505,28 +519,23 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
         }
       }
 
-      if (br->error_) {
-        ok = 0;
-        goto End;
-      }
+      if (br->error_) goto Error;
+
       if (pix_ix < num_pixs) {
         UpdateHtreeForPos(dec, x, y);
       }
     } else {
       // Code flow should not come here.
       ok = 0;
-      goto End;
+      goto Error;
     }
-  }
-  if (br->error_) {
-    ok = 0;
-    goto End;
   }
   dec->x_ix_ = x;
   dec->y_ix_ = y;
   dec->pix_ix_ = pix_ix;
- End:
-  if (!ok) {
+ Error:
+  if (br->error_ || !ok) {
+    ok = 0;
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
   }
   return ok;
