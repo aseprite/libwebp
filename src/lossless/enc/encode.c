@@ -245,7 +245,7 @@ static void StoreHuffmanTreeToBitMask(
 
 static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
                             BitWriter* const bw) {
-  int ok = 1;
+  int ok = 0;
   int count = 0;
   int symbols[2] = { 0, 0 };
   int i;
@@ -257,8 +257,7 @@ static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
   int huffman_tree_histogram[CODE_LENGTH_CODES];
   if (huffman_tree == NULL ||
       huffman_tree_extra_bits == NULL) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   for (i = 0; i < bit_lengths_size; ++i) {
     if (bit_lengths[i] != 0) {
@@ -294,11 +293,10 @@ static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
   }
   memset(code_length_bitdepth, 0, sizeof(code_length_bitdepth));
   memset(code_length_bitdepth_symbols, 0, sizeof(code_length_bitdepth_symbols));
-  ok = ok &&
-      CreateHuffmanTree(huffman_tree_histogram, CODE_LENGTH_CODES,
-                        7, code_length_bitdepth);
-  if (!ok) {
-    goto exit_label;
+
+  if (!CreateHuffmanTree(huffman_tree_histogram, CODE_LENGTH_CODES,
+                         7, code_length_bitdepth)) {
+    goto Error;
   }
   ConvertBitDepthsToSymbols(code_length_bitdepth, CODE_LENGTH_CODES,
                             code_length_bitdepth_symbols);
@@ -341,7 +339,8 @@ static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
                               code_length_bitdepth_symbols,
                               bw);
   }
-exit_label:
+  ok = 1;
+Error:
   free(huffman_tree);
   free(huffman_tree_extra_bits);
   return ok;
@@ -521,19 +520,17 @@ static int GetBackwardReferences(int xsize, int ysize,
   PixOrCopy* backward_refs_rle_only = (PixOrCopy*)
       malloc(xsize * ysize * sizeof(*backward_refs_rle_only));
   int backward_refs_lz77_size;
-  int ok = 1;
+  int ok = 0;
   *backward_refs = NULL;
   if (histo_rle == NULL || histo_lz77 == NULL ||
       backward_refs_lz77 == NULL || backward_refs_rle_only == NULL) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   if (!BackwardReferencesHashChain(xsize, ysize, use_palette,
                                    argb, palette_bits,
                                    backward_refs_lz77,
                                    &backward_refs_lz77_size)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   Histogram_Init(histo_lz77, palette_bits);
   Histogram_Build(histo_lz77, backward_refs_lz77, backward_refs_lz77_size);
@@ -562,8 +559,7 @@ static int GetBackwardReferences(int xsize, int ysize,
                                           argb, palette_bits,
                                           *backward_refs,
                                           backward_refs_size)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
   } else {
     if (lz77_is_useful) {
@@ -585,7 +581,8 @@ static int GetBackwardReferences(int xsize, int ysize,
     // Use backward reference with 2D locality.
     BackwardReferences2DLocality(xsize, *backward_refs_size, *backward_refs);
   }
-exit_label:
+  ok = 1;
+Error:
   free(histo_rle);
   free(histo_lz77);
   if (!ok) {
@@ -605,7 +602,7 @@ static int GetHistImageSymbols(int xsize, int ysize,
                                Histogram*** histogram_image,
                                uint32_t* histogram_symbols) {
   // Build histogram image.
-  int ok = 1;
+  int ok = 0;
   const int max_refinement_iters = 1;
   Histogram** histogram_image_raw = NULL;
   int histogram_image_raw_size;
@@ -615,16 +612,14 @@ static int GetHistImageSymbols(int xsize, int ysize,
                            backward_refs, backward_refs_size,
                            &histogram_image_raw,
                            &histogram_image_raw_size)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // Collapse similar histograms.
   if (!CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
                              quality, palette_bits,
                              histogram_image,
                              histogram_image_size)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // Refine histogram image.
   for (i = 0; i < histogram_image_raw_size; ++i) {
@@ -639,7 +634,8 @@ static int GetHistImageSymbols(int xsize, int ysize,
       break;
     }
   }
-exit_label:
+  ok = 1;
+Error:
   if (!ok) {
     DeleteHistograms(*histogram_image_size, *histogram_image);
   }
@@ -715,7 +711,7 @@ static int EncodeImageInternal(int xsize, int ysize,
                                const uint32_t* argb, int quality,
                                int palette_bits, int histogram_bits,
                                int use_2d_locality, BitWriter* bw) {
-  int ok = 1;
+  int ok = 0;
 
   int histogram_image_size;
   Histogram** histogram_image;
@@ -738,8 +734,7 @@ static int EncodeImageInternal(int xsize, int ysize,
   if (!GetBackwardReferences(xsize, ysize, argb, quality,
                              use_palette, palette_bits, use_2d_locality,
                              &backward_refs_size, &backward_refs)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // Build histogram image & symbols from backward references.
   if (!GetHistImageSymbols(xsize, ysize, backward_refs, backward_refs_size,
@@ -748,8 +743,7 @@ static int EncodeImageInternal(int xsize, int ysize,
                            &histogram_image_size,
                            &histogram_image,
                            histogram_symbols)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // Create Huffman bit lengths & codes for each histogram image.
   bit_lengths_sizes = (int*)calloc(5 * histogram_image_size,
@@ -762,8 +756,7 @@ static int EncodeImageInternal(int xsize, int ysize,
       !GetHuffBitLengthsAndCodes(histogram_image_size, histogram_image,
                                  use_palette, &bit_lengths_sizes,
                                  &bit_lengths, &bit_codes)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // No transforms.
   WriteBits(1, 0, bw);
@@ -778,8 +771,7 @@ static int EncodeImageInternal(int xsize, int ysize,
     uint32_t* histogram_argb = (uint32_t*)
         malloc(histogram_image_xysize * sizeof(*histogram_argb));
     if (!histogram_argb) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     memcpy(histogram_argb, histogram_symbols,
            histogram_image_xysize * sizeof(*histogram_argb));
@@ -794,8 +786,7 @@ static int EncodeImageInternal(int xsize, int ysize,
                              0,      // no histogram bits
                              1,   // use_2d_locality
                              bw)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     image_size_bits = BitsLog2Ceiling(histogram_image_size - 1);
     WriteBits(4, image_size_bits, bw);
@@ -822,19 +813,16 @@ static int EncodeImageInternal(int xsize, int ysize,
     uint8_t* literal_lengths;
     if (!PackLiteralBitLengths(bit_lengths[5 * i], palette_bits, use_palette,
                                &literal_lengths_size, &literal_lengths)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     if (!StoreHuffmanCode(literal_lengths, literal_lengths_size, bw)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     free(literal_lengths);
     for (k = 1; k < 5; ++k) {
       if (!StoreHuffmanCode(bit_lengths[5 * i + k],
                             bit_lengths_sizes[5 * i + k], bw)) {
-        ok = 0;
-        goto exit_label;
+        goto Error;
       }
     }
   }
@@ -851,7 +839,8 @@ static int EncodeImageInternal(int xsize, int ysize,
   StoreImageToBitMask(xsize, histogram_bits, palette_bits,
                       backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
-exit_label:
+  ok = 1;
+Error:
   for (i = 0; i < 5 * histogram_image_size; ++i) {
     if (bit_lengths) free(bit_lengths[i]);
     if (bit_codes) free(bit_codes[i]);
@@ -876,7 +865,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                       EncodingStrategy* strategy,
                       size_t* num_bytes, uint8_t* *bytes) {
   int i;
-  int ok = 1;
+  int ok = 0;
   const int quality = strategy->quality;
   //  const int use_lz77 = strategy->use_lz77;
   int palette_bits = strategy->palette_bits;
@@ -894,8 +883,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
   BitWriter bw;
   if (!BitWriterInit(&bw, kEstmatedEncodeSize)) return 0;
   if (!argb) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   memcpy(argb, argb_orig, xsize * ysize * sizeof(*argb));
 
@@ -908,8 +896,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     if (!after || !before) {
       free(after);
       free(before);
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     Histogram_Init(before, 1);
     for (i = 0; i < xsize * ysize; ++i) {
@@ -950,8 +937,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     }
     if (!EncodeImageInternal(palette_size, 1, palette,
                              quality, 0, 0, 1, &bw)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     use_emerging_palette = 0;
     if (palette_size <= 16) {
@@ -977,8 +963,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     if (!predictor_image || !from_argb) {
       free(from_argb);
       free(predictor_image);
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     memcpy(from_argb, argb, xsize * ysize * sizeof(*argb));
     PredictorImage(xsize, ysize, predict_bits,
@@ -996,8 +981,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                              0,      // no histogram bits
                              1,   // use_2d_locality
                              &bw)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     free(from_argb);
     free(predictor_image);
@@ -1010,8 +994,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     uint32_t* color_space_image = (uint32_t*)
         malloc(color_space_image_size * sizeof(*color_space_image));
     if (!color_space_image) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     ColorSpaceTransform(xsize, ysize, cross_color_transform_bits,
                         argb,
@@ -1029,8 +1012,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                              0,      // no histogram bits
                              1,   // use_2d_locality
                              &bw)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     free(color_space_image);
   }
@@ -1041,8 +1023,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
       palette_bits = 7;
     } else {
       if (!CalculateEstimateForPaletteSize(argb, xsize, ysize, &palette_bits)) {
-        ok = 0;
-        goto exit_label;
+        goto Error;
       }
     }
   }
@@ -1051,8 +1032,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                            histogram_bits,
                            1,   // use_2d_locality
                            &bw)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   free(argb);
   argb = NULL;
@@ -1060,8 +1040,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     const size_t webpll_size = BitWriterNumBytes(&bw);
     uint8_t* webpll_data = BitWriterFinish(&bw);
     if (bw.error_) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     *num_bytes = HEADER_SIZE + SIGNATURE_SIZE + webpll_size;
     // TODO(vikasa): This memory allocation can be avoided, if RIFF header is
@@ -1069,13 +1048,13 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     // and passed back instead.
     *bytes = (uint8_t*)malloc(*num_bytes);
     if (*bytes == NULL) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     PutRiffHeader(*bytes, webpll_size);
     memcpy(*bytes + HEADER_SIZE + SIGNATURE_SIZE, webpll_data, webpll_size);
   }
-exit_label:
+  ok = 1;
+Error:
   BitWriterDestroy(&bw);
   free(argb);
   return ok;

@@ -18,8 +18,7 @@
 #include "../common/integral_types.h"
 #include "../common/predictor.h"
 
-static double PredictionCostSpatial(int* counts, int weight_0,
-                                    double exp_val) {
+static double PredictionCostSpatial(int* counts, int weight_0, double exp_val) {
   const int significant_symbols = 16;
   const double exp_decay_factor = 0.6;
   double bits = weight_0 * counts[0];
@@ -101,8 +100,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   return best_mode;
 }
 
-void PredictorImage(int xsize, int ysize, int bits,
-                    const uint32_t* from_argb,
+void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
                     uint32_t* to_argb, uint32_t* image) {
   const int max_tile_size = 1 << bits;
   const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
@@ -356,8 +354,8 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
                                  tile_x, tile_y, bits, color_transform,
                                  0,  // forward transform
                                  to_argb);
-      // Gather accumulated histogram data.
 
+      // Gather accumulated histogram data.
       all_x_max = tile_x_offset + max_tile_size;
       if (all_x_max > xsize) {
         all_x_max = xsize;

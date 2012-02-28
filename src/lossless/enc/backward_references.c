@@ -212,15 +212,14 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
                                  PixOrCopy* stream, int* stream_size) {
   const int pix_count = xsize * ysize;
   int i;
-  int ok = 1;
+  int ok = 0;
   VP8LHashChain* hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LColorCache hashers;
   if (!hash_chain ||
       !VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits) ||
       !VP8LHashChain_Init(hash_chain, pix_count)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   *stream_size = 0;
   for (i = 0; i < pix_count; ) {
@@ -294,7 +293,8 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       ++i;
     }
   }
-exit_label:
+  ok = 1;
+Error:
   VP8LHashChain_Delete(hash_chain);
   free(hash_chain);
   VP8LColorCacheDelete(&hashers);
@@ -313,14 +313,13 @@ typedef struct {
 static int CostModel_Build(CostModel* p, int xsize, int ysize,
                            int recursion_level, int use_palette,
                            const uint32_t* argb, int palette_bits) {
-  int ok = 1;
+  int ok = 0;
   int stream_size;
   Histogram histo;
   int i;
   PixOrCopy* stream = (PixOrCopy*)malloc(xsize * ysize * sizeof(*stream));
   if (stream == NULL) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   p->palette_bits_ = palette_bits;
   if (recursion_level > 0) {
@@ -328,14 +327,12 @@ static int CostModel_Build(CostModel* p, int xsize, int ysize,
                                           use_palette, argb,
                                           palette_bits,
                                           &stream[0], &stream_size)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
   } else {
     if (!BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
                                      palette_bits, &stream[0], &stream_size)) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
   }
   Histogram_Init(&histo, palette_bits);
@@ -353,7 +350,8 @@ static int CostModel_Build(CostModel* p, int xsize, int ysize,
       VALUES_IN_BYTE, &histo.alpha_[0], &p->alpha_[0]);
   ConvertPopulationCountTableToBitEstimates(
       DISTANCE_CODES_MAX, &histo.distance_[0], &p->distance_[0]);
-exit_label:
+  ok = 1;
+Error:
   free(stream);
   return ok;
 }
@@ -398,14 +396,13 @@ static int BackwardReferencesHashChainDistanceOnly(
 
   VP8LColorCache hashers;
   VP8LHashChain* hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
-  int ok = 1;
+  int ok = 0;
   if (cost == NULL ||
       cost_model == NULL ||
       hash_chain == NULL ||
       !VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   VP8LHashChain_Init(hash_chain, pix_count);
   CostModel_Build(cost_model, xsize, ysize, recursive_cost_model,
@@ -494,7 +491,8 @@ static int BackwardReferencesHashChainDistanceOnly(
   }
   // Last pixel still to do, it can only be a single step if not reached
   // through cheaper means already.
- exit_label: ;
+  ok = 1;
+Error:
   if (hash_chain) VP8LHashChain_Delete(hash_chain);
   free(hash_chain);
   free(cost_model);
@@ -526,7 +524,7 @@ static void TraceBackwards(const uint32_t* dist_array, int dist_array_size,
   }
 }
 
-static void BackwardReferencesHashChainFollowChosenPath(
+static int BackwardReferencesHashChainFollowChosenPath(
     int xsize,
     int ysize,
     int use_palette,
@@ -540,15 +538,14 @@ static void BackwardReferencesHashChainFollowChosenPath(
   int i = 0;
   int k;
   int ix;
-  int error = 0;
+  int ok = 0;
   VP8LColorCache hashers;
   VP8LHashChain* hash_chain = (VP8LHashChain*)malloc(sizeof(*hash_chain));
   VP8LHashChain_Init(hash_chain, pix_count);
   if (hash_chain == NULL ||
       !VP8LColorCacheInit(&hashers, xsize,
                           kRowHasherXSubsampling, palette_bits)) {
-    error = 1;
-    goto exit_label;
+    goto Error;
   }
   *stream_size = 0;
   for (ix = 0; ix < chosen_path_size; ++ix) {
@@ -586,15 +583,17 @@ static void BackwardReferencesHashChainFollowChosenPath(
       ++i;
     }
   }
- exit_label: ;
+  ok = 1;
+Error:
   VP8LHashChain_Delete(hash_chain);
   if (hash_chain) {
     free(hash_chain);
   }
   VP8LColorCacheDelete(&hashers);
+  return ok;
 }
 
-
+// Returns 1 on success.
 int BackwardReferencesTraceBackwards(int xsize, int ysize,
                                      int recursive_cost_model,
                                      int use_palette,
@@ -602,29 +601,34 @@ int BackwardReferencesTraceBackwards(int xsize, int ysize,
                                      int palette_bits,
                                      PixOrCopy* stream,
                                      int* stream_size) {
+  int ok = 0;
   const int dist_array_size = xsize * ysize;
   uint32_t* chosen_path = NULL;
   int chosen_path_size = 0;
   uint32_t* const dist_array = (uint32_t*)
       malloc(dist_array_size * sizeof(*dist_array));
   if (dist_array == NULL) {
-    return 1;
+    goto Error;
   }
   *stream_size = 0;
   if (!BackwardReferencesHashChainDistanceOnly(
           xsize, ysize, recursive_cost_model, use_palette, argb, palette_bits,
           dist_array)) {
     free(dist_array);
-    return 0;
+    goto Error;
   }
   TraceBackwards(dist_array, dist_array_size, &chosen_path, &chosen_path_size);
   free(dist_array);
-  BackwardReferencesHashChainFollowChosenPath(
-      xsize, ysize, use_palette, argb, palette_bits,
-      chosen_path, chosen_path_size,
-      stream, stream_size);
+  if (!BackwardReferencesHashChainFollowChosenPath(
+          xsize, ysize, use_palette, argb, palette_bits,
+          chosen_path, chosen_path_size,
+          stream, stream_size)) {
+    goto Error;
+  }
+  ok = 1;
+Error:
   free(chosen_path);
-  return 1;
+  return ok;
 }
 
 void BackwardReferences2DLocality(int xsize, int data_size, PixOrCopy* data) {
@@ -747,7 +751,7 @@ static int ComputePaletteHistogram(const uint32_t* argb, int xsize, int ysize,
 int CalculateEstimateForPaletteSize(const uint32_t* argb,
                                     int xsize, int ysize,
                                     int* best_palette_bits) {
-  int ok = 1;
+  int ok = 0;
   int palette_bits;
   double lowest_entropy = 1e99;
   PixOrCopy* stream = (PixOrCopy*)malloc(xsize * ysize * sizeof(*stream));
@@ -756,8 +760,7 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
   if (stream == NULL ||
       !BackwardReferencesHashChain(xsize, ysize,
                                    0, argb, 0, stream, &stream_size)) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     double cur_entropy;
@@ -772,7 +775,8 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
       lowest_entropy = cur_entropy;
     }
   }
-exit_label:
+  ok = 1;
+Error:
   free(stream);
   return ok;
 }

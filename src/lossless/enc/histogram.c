@@ -348,7 +348,7 @@ int CombineHistogramImage(Histogram** in,
                           int palettebits,
                           Histogram*** out_arg,
                           int* out_size) {
-  int ok = 1;
+  int ok = 0;
   int i;
   unsigned int seed = 0;
   int tries_with_no_success = 0;
@@ -359,15 +359,13 @@ int CombineHistogramImage(Histogram** in,
   *out_arg = out;
   *out_size = in_size;
   if (bit_costs == NULL || out == NULL) {
-    ok = 0;
-    goto exit_label;
+    goto Error;
   }
   // Copy
   for (i = 0; i < in_size; ++i) {
     Histogram* new_histo = (Histogram*)malloc(sizeof(*new_histo));
     if (new_histo == NULL) {
-      ok = 0;
-      goto exit_label;
+      goto Error;
     }
     Histogram_Init(new_histo, palettebits);
     *new_histo = *(in[i]);
@@ -397,8 +395,7 @@ int CombineHistogramImage(Histogram** in,
       }
       combo = (Histogram*)malloc(sizeof(*combo));
       if (combo == NULL) {
-        ok = 0;
-        goto exit_label;
+        goto Error;
       }
       Histogram_Init(combo, palettebits);
       *combo = *out[ix0];
@@ -429,7 +426,8 @@ int CombineHistogramImage(Histogram** in,
       break;
     }
   }
- exit_label:
+  ok = 1;
+Error:
   free(bit_costs);
   if (!ok) {
     if (out) {
