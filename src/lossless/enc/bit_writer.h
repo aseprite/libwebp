@@ -40,8 +40,9 @@ typedef struct {
 
   // After all bits are written, the caller must observe the state of
   // error_. A value of 1 indicates that a memory allocation failure
-  // has happened during bit writing.
-  char error_;
+  // has happened during bit writing. A value of 0 indicates successful
+  // writing of bits.
+  uint32_t error_;
 } BitWriter;
 
 static inline size_t BitWriterNumBytes(BitWriter* const bw) {

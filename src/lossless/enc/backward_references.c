@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "backward_references.h"
@@ -17,7 +18,7 @@
 
 #define VALUES_IN_BYTE 256
 
-static const unsigned char plane_to_code_lut[128] = {
+static const uint8_t plane_to_code_lut[128] = {
  96,   73,  55,  39,  23,  13,   5,  1,  255, 255, 255, 255, 255, 255, 255, 255,
  101,  78,  58,  42,  26,  16,   8,  2,    0,   3,  9,   17,  27,  43,  59,  79,
  102,  86,  62,  46,  32,  20,  10,  6,    4,   7,  11,  21,  33,  47,  63,  87,

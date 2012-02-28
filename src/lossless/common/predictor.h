@@ -18,9 +18,8 @@
 extern "C" {
 #endif
 
-static inline uint32_t ColorTransformDelta(signed char transform,
-                                           signed char color) {
-  return (uint32_t)((int)(transform) * color) >> 5;
+static inline uint32_t ColorTransformDelta(int8_t transform, int8_t color) {
+  return (uint32_t)(transform * color) >> 5;
 }
 
 uint32_t PredictValue(int mode, int xsize, const uint32_t* argb);

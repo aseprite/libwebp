@@ -12,6 +12,7 @@
 
 #include "./encode.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,7 +56,7 @@ static int OptimizeHuffmanForRle(int length, int* counts) {
   int stride;
   int limit;
   int sum;
-  char* good_for_rle;
+  uint8_t* good_for_rle;
   // Let's make the Huffman code more compatible with rle encoding.
   int i;
   for (; length >= 0; --length) {
@@ -69,7 +70,7 @@ static int OptimizeHuffmanForRle(int length, int* counts) {
   }
   // 2) Let's mark all population counts that already can be encoded
   // with an rle code.
-  good_for_rle = (char*)malloc(length);
+  good_for_rle = (uint8_t*)malloc(length);
   if (!good_for_rle) {
     return 0;
   }
