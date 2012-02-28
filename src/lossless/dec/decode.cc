@@ -18,15 +18,20 @@
 #include "./constants.h"
 #include "./huffman.h"
 #include "./image_transform.h"
-#include "../common/integral_types.h"
 #include "../common/color_cache.h"
 
-// TODO(jyrki): Move these to some 'common' Header file.
 #define TAG_SIZE 4
 #define CHUNK_HEADER_SIZE 8
 #define RIFF_HEADER_SIZE 12
 #define HEADER_SIZE      (RIFF_HEADER_SIZE + CHUNK_HEADER_SIZE)
 #define SIGNATURE_SIZE   1
+
+#define VERIFY(a) \
+  if (!(a)) { \
+    fprintf(stderr, "Failed at %s:%d\n", __FILE__, __LINE__); \
+    perror("Unrecoverable error"); \
+    abort(); \
+  };
 
 static const int kMaxImageTransforms = 100;
 

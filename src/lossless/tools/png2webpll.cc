@@ -19,6 +19,13 @@
 #include "../enc/histogram.h"
 #include "../common/predictor.h"
 
+#define VERIFY(a) \
+  if (!(a)) { \
+    fprintf(stderr, "Failed at %s:%d\n", __FILE__, __LINE__); \
+    perror("Unrecoverable error"); \
+    abort(); \
+  };
+
 // Take in a png data in a string. Give an easy access to the png
 // data through the methods.
 //

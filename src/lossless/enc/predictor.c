@@ -9,13 +9,13 @@
 
 #include "./predictor.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <math.h>
 
 #include "./backward_references.h"
 #include "./histogram.h"
-#include "../common/integral_types.h"
 #include "../common/predictor.h"
 
 static double PredictionCostSpatial(int* counts, int weight_0, double exp_val) {
@@ -153,7 +153,7 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
     PredictorInverseTransform(xsize, ysize, bits, image,
                               &argb[0], &argb[0]);
     for (i = 0; i < xsize * ysize; ++i) {
-      VERIFY(argb[i] == argb_orig[i]);
+      assert(argb[i] == argb_orig[i]);
     }
     free(argb);
   }
@@ -393,7 +393,7 @@ void ColorSpaceTransform(int xsize, int ysize, int bits,
     memcpy(argb, to_argb, sizeof(to_argb[0]) * xsize * ysize);
     ColorSpaceInverseTransform(xsize, ysize, bits, image, &argb[0], &argb[0]);
     for (i = 0; i < xsize * ysize; ++i) {
-      VERIFY(argb[i] == argb_orig[i]);
+      assert(argb[i] == argb_orig[i]);
     }
     free(argb);
   }

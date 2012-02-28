@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../common/integral_types.h"
 #include "../common/predictor.h"
 #include "./backward_references.h"
 #include "./bit_writer.h"
@@ -573,8 +572,7 @@ static int GetBackwardReferences(int xsize, int ysize,
     }
   }
 
-  // Verify.
-  VERIFY(VerifyBackwardReferences(argb, xsize, ysize, palette_bits,
+  assert(VerifyBackwardReferences(argb, xsize, ysize, palette_bits,
                                   *backward_refs, *backward_refs_size));
 
   if (use_2d_locality) {
@@ -855,7 +853,7 @@ static inline void WriteImageSize(uint32_t xsize, uint32_t ysize,
                                   BitWriter* bw) {
   --xsize;
   --ysize;
-  VERIFY(xsize < 0x4000 && ysize < 0x4000);
+  assert(xsize < 0x4000 && ysize < 0x4000);
   WriteBits(14, xsize, bw);
   WriteBits(14, ysize, bw);
 }

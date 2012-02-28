@@ -10,9 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../common/integral_types.h"
 #include "../dec/decode.h"
 #include "png.h"
+
+#define VERIFY(a) \
+  if (!(a)) { \
+    fprintf(stderr, "Failed at %s:%d\n", __FILE__, __LINE__); \
+    perror("Unrecoverable error"); \
+    abort(); \
+  };
 
 static void ReadFileToString(const char* const path,
                              int * const output_size,

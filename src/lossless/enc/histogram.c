@@ -13,7 +13,6 @@
 #include <stdio.h>
 
 #include "backward_references.h"
-#include "../common/integral_types.h"
 
 // A lookup table for small values of log(int) to be used in entropy
 // computation.

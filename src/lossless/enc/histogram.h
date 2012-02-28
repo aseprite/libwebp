@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../common/integral_types.h"
 #include "backward_references.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)

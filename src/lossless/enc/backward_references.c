@@ -7,12 +7,12 @@
 //
 // Author: jyrki@google.com (Jyrki Alakuijala)
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 
 #include "backward_references.h"
 #include "histogram.h"
-#include "../common/integral_types.h"
 #include "../common/color_cache.h"
 
 #define VALUES_IN_BYTE 256
@@ -570,7 +570,7 @@ static int BackwardReferencesHashChainFollowChosenPath(
           VP8LColorCacheContains(&hashers, i % xsize, argb[i])) {
         // push pixel as a palette pixel
         int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
-        VERIFY(VP8LColorCacheLookup(&hashers, i % xsize, ix) == argb[i]);
+        assert(VP8LColorCacheLookup(&hashers, i % xsize, ix) == argb[i]);
         stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
       } else {
         stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
@@ -742,7 +742,8 @@ static int ComputePaletteHistogram(const uint32_t* argb, int xsize, int ysize,
       ++pixel_index;
     }
   }
-  VERIFY(pixel_index == xsize * ysize);
+  assert(pixel_index == xsize * ysize);
+  (void)ysize;  // ysize is not used in non-debug compilations otherwise.
   VP8LColorCacheDelete(&hashers);
   return 1;
 }
