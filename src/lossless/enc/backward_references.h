@@ -97,16 +97,15 @@ typedef struct {
   uint32_t argb_or_offset;
 } PixOrCopy;
 
-static inline PixOrCopy PixOrCopy_CreateCopy(uint32_t offset_arg,
-                                             uint16_t len_arg) {
+static inline PixOrCopy PixOrCopyCreateCopy(uint32_t offset, uint16_t len) {
   PixOrCopy retval;
   retval.mode = kCopy;
-  retval.argb_or_offset = offset_arg;
-  retval.len = len_arg;
+  retval.argb_or_offset = offset;
+  retval.len = len;
   return retval;
 }
 
-static inline PixOrCopy PixOrCopy_CreatePaletteIx(int ix) {
+static inline PixOrCopy PixOrCopyCreatePaletteIx(int ix) {
   PixOrCopy retval;
   assert(ix >= 0);
   assert(ix < (1 << kPaletteCodeBitsMax));
@@ -116,52 +115,52 @@ static inline PixOrCopy PixOrCopy_CreatePaletteIx(int ix) {
   return retval;
 }
 
-static inline PixOrCopy PixOrCopy_CreateLiteral(uint32_t argb_arg) {
+static inline PixOrCopy PixOrCopyCreateLiteral(uint32_t argb) {
   PixOrCopy retval;
   retval.mode = kLiteral;
-  retval.argb_or_offset = argb_arg;
+  retval.argb_or_offset = argb;
   retval.len = 1;
   return retval;
 }
 
-static inline int PixOrCopy_IsLiteral(const PixOrCopy *p) {
+static inline int PixOrCopyIsLiteral(const PixOrCopy *p) {
   return p->mode == kLiteral;
 }
 
-static inline int PixOrCopy_IsPaletteIx(const PixOrCopy *p) {
+static inline int PixOrCopyIsPaletteIx(const PixOrCopy *p) {
   return p->mode == kPaletteIx;
 }
 
-static inline int PixOrCopy_IsCopy(const PixOrCopy *p) {
+static inline int PixOrCopyIsCopy(const PixOrCopy *p) {
   return p->mode == kCopy;
 }
 
-static inline uint32_t PixOrCopy_Literal(const PixOrCopy *p, int component) {
+static inline uint32_t PixOrCopyLiteral(const PixOrCopy *p, int component) {
   assert(p->mode == kLiteral);
   return (p->argb_or_offset >> (component * 8)) & 0xff;
 }
 
-static inline uint32_t PixOrCopy_Length(const PixOrCopy *p) {
+static inline uint32_t PixOrCopyLength(const PixOrCopy *p) {
   return p->len;
 }
 
-static inline uint32_t PixOrCopy_Argb(const PixOrCopy *p) {
+static inline uint32_t PixOrCopyArgb(const PixOrCopy *p) {
   assert(p->mode == kLiteral);
   return p->argb_or_offset;
 }
 
-static inline uint32_t PixOrCopy_PaletteIx(const PixOrCopy *p) {
+static inline uint32_t PixOrCopyPaletteIx(const PixOrCopy *p) {
   assert(p->mode == kPaletteIx);
   assert(p->argb_or_offset < (1 << kPaletteCodeBitsMax));
   return p->argb_or_offset;
 }
 
-static inline uint32_t PixOrCopy_Distance(const PixOrCopy *p) {
+static inline uint32_t PixOrCopyDistance(const PixOrCopy *p) {
   assert(p->mode == kCopy);
   return p->argb_or_offset;
 }
 
-static inline void PixOrCopy_LengthCodeAndBits(
+static inline void PixOrCopyLengthCodeAndBits(
     const PixOrCopy *p, int *code, int *n_bits, int *bits) {
   assert(p->len >= 1 && p->len <= kMaxLength);
   PrefixEncode(p->len, code, n_bits, bits);

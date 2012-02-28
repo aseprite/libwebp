@@ -34,12 +34,12 @@ static double PredictionCostSpatialHistogram(Histogram* accumulated,
                                              Histogram* tile) {
   const double exp_val = 0.94;
   Histogram combo;
-  Histogram_Init(&combo, 0);
-  Histogram_Add(&combo, accumulated);
-  Histogram_Add(&combo, tile);
+  HistogramInit(&combo, 0);
+  HistogramAdd(&combo, accumulated);
+  HistogramAdd(&combo, tile);
   return
-      Histogram_EstimateBitsBulk(tile) +
-      Histogram_EstimateBitsBulk(&combo) +
+      HistogramEstimateBitsBulk(tile) +
+      HistogramEstimateBitsBulk(&combo) +
       PredictionCostSpatial(tile->alpha_, 1, exp_val) +
       PredictionCostSpatial(tile->literal_, 1, exp_val) +
       PredictionCostSpatial(tile->red_, 1, exp_val) +
@@ -68,7 +68,7 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   for (mode = 0; mode < num_pred_modes; ++mode) {
     int all_y;
     Histogram histo;
-    Histogram_Init(&histo, 0);  // 0 is for only 1 (unused) palette value.
+    HistogramInit(&histo, 0);  // 0 is for only 1 (unused) palette value.
     for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       int all_x;
       for (all_x = tile_x_offset; all_x < all_x_max; ++all_x) {
@@ -87,8 +87,8 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
         }
         predict_diff =
             Subtract(argb[all_y * xsize + all_x], predict);
-        Histogram_AddSinglePixOrCopy(
-            &histo, PixOrCopy_CreateLiteral(predict_diff));
+        HistogramAddSinglePixOrCopy(
+            &histo, PixOrCopyCreateLiteral(predict_diff));
       }
     }
     cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
@@ -112,7 +112,7 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
       malloc(sizeof(from_argb[0]) * xsize * ysize);
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
 #endif
-  Histogram_Init(&histo, 0);
+  HistogramInit(&histo, 0);
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     const int tile_y_offset = tile_y * max_tile_size;
     int tile_x;
@@ -139,8 +139,8 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
         }
         ix = all_y * xsize + tile_x_offset;
         for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          Histogram_AddSinglePixOrCopy(
-              &histo, PixOrCopy_CreateLiteral(to_argb[ix]));
+          HistogramAddSinglePixOrCopy(
+              &histo, PixOrCopyCreateLiteral(to_argb[ix]));
         }
       }
     }

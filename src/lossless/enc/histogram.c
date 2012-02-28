@@ -144,33 +144,33 @@ void ConvertPopulationCountTableToBitEstimates(
   }
 }
 
-void Histogram_AddSinglePixOrCopy(Histogram* const p, const PixOrCopy v) {
-  if (PixOrCopy_IsLiteral(&v)) {
-    ++p->alpha_[PixOrCopy_Literal(&v, 3)];
-    ++p->red_[PixOrCopy_Literal(&v, 2)];
-    ++p->literal_[PixOrCopy_Literal(&v, 1)];
-    ++p->blue_[PixOrCopy_Literal(&v, 0)];
-  } else if (PixOrCopy_IsPaletteIx(&v)) {
-    int literal_ix = 256 + PixOrCopy_PaletteIx(&v);
+void HistogramAddSinglePixOrCopy(Histogram* const p, const PixOrCopy v) {
+  if (PixOrCopyIsLiteral(&v)) {
+    ++p->alpha_[PixOrCopyLiteral(&v, 3)];
+    ++p->red_[PixOrCopyLiteral(&v, 2)];
+    ++p->literal_[PixOrCopyLiteral(&v, 1)];
+    ++p->blue_[PixOrCopyLiteral(&v, 0)];
+  } else if (PixOrCopyIsPaletteIx(&v)) {
+    int literal_ix = 256 + PixOrCopyPaletteIx(&v);
     ++p->literal_[literal_ix];
   } else {
     int code, extra_bits_count, extra_bits_value;
-    PrefixEncode(PixOrCopy_Length(&v),
+    PrefixEncode(PixOrCopyLength(&v),
                  &code, &extra_bits_count, &extra_bits_value);
     ++p->literal_[256 + (1 << p->palette_code_bits_) + code];
-    PrefixEncode(PixOrCopy_Distance(&v),
+    PrefixEncode(PixOrCopyDistance(&v),
                  &code, &extra_bits_count, &extra_bits_value);
     ++p->distance_[code];
   }
 }
 
-void Histogram_Build(Histogram* const p,
-                     const PixOrCopy* const literal_and_length,
-                     int n_literal_and_length) {
+void HistogramBuild(Histogram* const p,
+                    const PixOrCopy* const literal_and_length,
+                    int n_literal_and_length) {
   int i;
-  Histogram_Clear(p);
+  HistogramClear(p);
   for (i = 0; i < n_literal_and_length; ++i) {
-    Histogram_AddSinglePixOrCopy(p, literal_and_length[i]);
+    HistogramAddSinglePixOrCopy(p, literal_and_length[i]);
   }
 }
 
@@ -224,9 +224,8 @@ double BitsEntropy(const int* const array, int n) {
   return retval;
 }
 
-double Histogram_EstimateBitsBulk(const Histogram* const p) {
-  double retval = BitsEntropy(&p->literal_[0],
-                              Histogram_NumPixOrCopyCodes(p)) +
+double HistogramEstimateBitsBulk(const Histogram* const p) {
+  double retval = BitsEntropy(&p->literal_[0], HistogramNumPixOrCopyCodes(p)) +
       BitsEntropy(&p->red_[0], 256) +
       BitsEntropy(&p->blue_[0], 256) +
       BitsEntropy(&p->alpha_[0], 256) +
@@ -243,8 +242,8 @@ double Histogram_EstimateBitsBulk(const Histogram* const p) {
   return retval;
 }
 
-double Histogram_EstimateBits(const Histogram* const p) {
-  return Histogram_EstimateBitsHeader(p) + Histogram_EstimateBitsBulk(p);
+double HistogramEstimateBits(const Histogram* const p) {
+  return HistogramEstimateBitsHeader(p) + HistogramEstimateBitsBulk(p);
 }
 
 // Returns the cost encode the rle-encoded entropy code.
@@ -286,10 +285,10 @@ static double HuffmanCost(const int* const population, int length) {
   return retval;
 }
 
-double Histogram_EstimateBitsHeader(const Histogram* const p) {
+double HistogramEstimateBitsHeader(const Histogram* const p) {
   return HuffmanCost(&p->alpha_[0], 256) +
       HuffmanCost(&p->red_[0], 256) +
-      HuffmanCost(&p->literal_[0], Histogram_NumPixOrCopyCodes(p)) +
+      HuffmanCost(&p->literal_[0], HistogramNumPixOrCopyCodes(p)) +
       HuffmanCost(&p->blue_[0], 256) +
       HuffmanCost(&p->distance_[0], DISTANCE_CODES_MAX);
 }
@@ -323,15 +322,15 @@ int BuildHistogramImage(int xsize, int ysize,
       free(image);
       return 0;
     }
-    Histogram_Init(image[i], palettebits);
+    HistogramInit(image[i], palettebits);
   }
   // x and y trace the position in the image.
   for (i = 0; i < backward_refs_size; ++i) {
     const PixOrCopy v = backward_refs[i];
     const int ix =
         histobits ? (y >> histobits) * histo_xsize + (x >> histobits) : 0;
-    Histogram_AddSinglePixOrCopy(image[ix], v);
-    x += PixOrCopy_Length(&v);
+    HistogramAddSinglePixOrCopy(image[ix], v);
+    x += PixOrCopyLength(&v);
     while (x >= xsize) {
       x -= xsize;
       ++y;
@@ -366,10 +365,10 @@ int CombineHistogramImage(Histogram** in,
     if (new_histo == NULL) {
       goto Error;
     }
-    Histogram_Init(new_histo, palettebits);
+    HistogramInit(new_histo, palettebits);
     *new_histo = *(in[i]);
     out[i] = new_histo;
-    bit_costs[i] = Histogram_EstimateBits(out[i]);
+    bit_costs[i] = HistogramEstimateBits(out[i]);
   }
   // Collapse similar histograms.
   for (iter = 0; iter < in_size * 3 && *out_size >= 2; ++iter) {
@@ -396,11 +395,10 @@ int CombineHistogramImage(Histogram** in,
       if (combo == NULL) {
         goto Error;
       }
-      Histogram_Init(combo, palettebits);
+      HistogramInit(combo, palettebits);
       *combo = *out[ix0];
-      Histogram_Add(combo, out[ix1]);
-      cost_val =
-          Histogram_EstimateBits(combo) - bit_costs[ix0] - bit_costs[ix1];
+      HistogramAdd(combo, out[ix1]);
+      cost_val = HistogramEstimateBits(combo) - bit_costs[ix0] - bit_costs[ix1];
       if (best_val > cost_val) {
         best_val = cost_val;
         best_ix0 = ix0;
@@ -409,7 +407,7 @@ int CombineHistogramImage(Histogram** in,
       free(combo);
     }
     if (best_val < 0.0) {
-      Histogram_Add(out[best_ix0], out[best_ix1]);
+      HistogramAdd(out[best_ix0], out[best_ix1]);
       bit_costs[best_ix0] =
           best_val + bit_costs[best_ix0] + bit_costs[best_ix1];
       // Erase (*out)[best_ix1]
@@ -453,23 +451,23 @@ static double HistogramDistance(const Histogram* const square_histogram,
     return 0;  // Going nowhere. No savings.
   }
   previous_bit_cost =
-      Histogram_EstimateBits(candidate_histograms[candidate_symbol]);
+      HistogramEstimateBits(candidate_histograms[candidate_symbol]);
   if (cur_symbol != -1) {
     previous_bit_cost +=
-        Histogram_EstimateBits(candidate_histograms[cur_symbol]);
+        HistogramEstimateBits(candidate_histograms[cur_symbol]);
   }
 
-  Histogram_Init(&modified, square_histogram->palette_code_bits_);
+  HistogramInit(&modified, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
   modified = *candidate_histograms[candidate_symbol];
-  Histogram_Add(&modified, square_histogram);
-  new_bit_cost = Histogram_EstimateBits(&modified);
+  HistogramAdd(&modified, square_histogram);
+  new_bit_cost = HistogramEstimateBits(&modified);
 
   // Compute the bit cost of the histogram where the data moves away.
   if (cur_symbol != -1) {
     modified = *candidate_histograms[cur_symbol];
-    Histogram_Remove(&modified, square_histogram);
-    new_bit_cost += Histogram_EstimateBits(&modified);
+    HistogramRemove(&modified, square_histogram);
+    new_bit_cost += HistogramEstimateBits(&modified);
   }
   return new_bit_cost - previous_bit_cost;
 }
@@ -497,9 +495,9 @@ void RefineHistogramImage(Histogram** raw,
 
   // Recompute each out based on raw and symbols.
   for (i = 0; i < out_size; ++i) {
-    Histogram_Clear(out[i]);
+    HistogramClear(out[i]);
   }
   for (i = 0; i < raw_size; ++i) {
-    Histogram_Add(out[symbols[i]], raw[i]);
+    HistogramAdd(out[symbols[i]], raw[i]);
   }
 }

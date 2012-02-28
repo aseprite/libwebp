@@ -177,12 +177,12 @@ static inline void PushBackCopy(int length,
                                 PixOrCopy* stream,
                                 int* stream_size) {
   while (length >= kMaxLength) {
-    stream[*stream_size] = PixOrCopy_CreateCopy(1, kMaxLength);
+    stream[*stream_size] = PixOrCopyCreateCopy(1, kMaxLength);
     ++(*stream_size);
     length -= kMaxLength;
   }
   if (length > 0) {
-    stream[*stream_size] = PixOrCopy_CreateCopy(1, length);
+    stream[*stream_size] = PixOrCopyCreateCopy(1, length);
     ++(*stream_size);
   }
 }
@@ -199,7 +199,7 @@ void BackwardReferencesRle(int xsize, int ysize, const uint32_t* argb,
     } else {
       PushBackCopy(streak, stream, stream_size);
       streak = 0;
-      stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
+      stream[*stream_size] = PixOrCopyCreateLiteral(argb[i]);
       ++(*stream_size);
     }
   }
@@ -253,9 +253,9 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
           if (use_palette &&
               VP8LColorCacheContains(&hashers, x, argb[i])) {
             const int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
-            stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
+            stream[*stream_size] = PixOrCopyCreatePaletteIx(ix);
           } else {
-            stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
+            stream[*stream_size] = PixOrCopyCreateLiteral(argb[i]);
           }
           ++(*stream_size);
           VP8LColorCacheInsert(&hashers, x, argb[i]);
@@ -267,7 +267,7 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       if (len >= kMaxLength) {
         len = kMaxLength - 1;
       }
-      stream[*stream_size] = PixOrCopy_CreateCopy(offset, len);
+      stream[*stream_size] = PixOrCopyCreateCopy(offset, len);
       ++(*stream_size);
       for (k = 0; k < len; ++k) {
         VP8LColorCacheInsert(&hashers, (i + k) % xsize, argb[i + k]);
@@ -281,9 +281,9 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       if (use_palette && VP8LColorCacheContains(&hashers, x, argb[i])) {
         // push pixel as a palette pixel
         int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
-        stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
+        stream[*stream_size] = PixOrCopyCreatePaletteIx(ix);
       } else {
-        stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
+        stream[*stream_size] = PixOrCopyCreateLiteral(argb[i]);
       }
       ++(*stream_size);
       VP8LColorCacheInsert(&hashers, x, argb[i]);
@@ -335,12 +335,12 @@ static int CostModel_Build(CostModel* p, int xsize, int ysize,
       goto Error;
     }
   }
-  Histogram_Init(&histo, palette_bits);
+  HistogramInit(&histo, palette_bits);
   for (i = 0; i < stream_size; ++i) {
-    Histogram_AddSinglePixOrCopy(&histo, stream[i]);
+    HistogramAddSinglePixOrCopy(&histo, stream[i]);
   }
   ConvertPopulationCountTableToBitEstimates(
-      Histogram_NumPixOrCopyCodes(&histo),
+      HistogramNumPixOrCopyCodes(&histo),
       &histo.literal_[0], &p->literal_[0]);
   ConvertPopulationCountTableToBitEstimates(
       VALUES_IN_BYTE, &histo.red_[0], &p->red_[0]);
@@ -555,7 +555,7 @@ static int BackwardReferencesHashChainFollowChosenPath(
     if (maxlen != 1) {
       VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen, &offset, &len);
       assert(len == maxlen);
-      stream[*stream_size] = PixOrCopy_CreateCopy(offset, len);
+      stream[*stream_size] = PixOrCopyCreateCopy(offset, len);
       ++(*stream_size);
       for (k = 0; k < len; ++k) {
         VP8LColorCacheInsert(&hashers, (i + k) % xsize, argb[i + k]);
@@ -571,9 +571,9 @@ static int BackwardReferencesHashChainFollowChosenPath(
         // push pixel as a palette pixel
         int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
         assert(VP8LColorCacheLookup(&hashers, i % xsize, ix) == argb[i]);
-        stream[*stream_size] = PixOrCopy_CreatePaletteIx(ix);
+        stream[*stream_size] = PixOrCopyCreatePaletteIx(ix);
       } else {
-        stream[*stream_size] = PixOrCopy_CreateLiteral(argb[i]);
+        stream[*stream_size] = PixOrCopyCreateLiteral(argb[i]);
       }
       ++(*stream_size);
       VP8LColorCacheInsert(&hashers, i % xsize, argb[i]);
@@ -634,7 +634,7 @@ Error:
 void BackwardReferences2DLocality(int xsize, int data_size, PixOrCopy* data) {
   int i;
   for (i = 0; i < data_size; ++i) {
-    if (PixOrCopy_IsCopy(&data[i])) {
+    if (PixOrCopyIsCopy(&data[i])) {
       int dist = data[i].argb_or_offset;
       int transformed_dist = DistanceToPlaneCode(xsize, dist);
       data[i].argb_or_offset = transformed_dist;
@@ -652,43 +652,43 @@ int VerifyBackwardReferences(const uint32_t* argb, int xsize, int ysize,
   VP8LColorCacheInit(&hashers, xsize,
                      kRowHasherXSubsampling, palette_bits);
   for (i = 0; i < lit_size; ++i) {
-    if (PixOrCopy_IsLiteral(&lit[i])) {
-      if (argb[num_pixels] != PixOrCopy_Argb(&lit[i])) {
+    if (PixOrCopyIsLiteral(&lit[i])) {
+      if (argb[num_pixels] != PixOrCopyArgb(&lit[i])) {
         printf("i %d, pixel %d, original: 0x%08x, literal: 0x%08x\n",
-               i, num_pixels, argb[num_pixels], PixOrCopy_Argb(&lit[i]));
+               i, num_pixels, argb[num_pixels], PixOrCopyArgb(&lit[i]));
         VP8LColorCacheDelete(&hashers);
         return 0;
       }
       VP8LColorCacheInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
-    } else if (PixOrCopy_IsPaletteIx(&lit[i])) {
+    } else if (PixOrCopyIsPaletteIx(&lit[i])) {
       uint32_t palette_entry =
           VP8LColorCacheLookup(&hashers, num_pixels % xsize,
-                                    PixOrCopy_PaletteIx(&lit[i]));
+                               PixOrCopyPaletteIx(&lit[i]));
       if (argb[num_pixels] != palette_entry) {
         printf("i %d, pixel %d, original: 0x%08x, palette_ix: %d, "
                "palette_entry: 0x%08x\n",
-               i, num_pixels, argb[num_pixels], PixOrCopy_PaletteIx(&lit[i]),
+               i, num_pixels, argb[num_pixels], PixOrCopyPaletteIx(&lit[i]),
                palette_entry);
         VP8LColorCacheDelete(&hashers);
         return 0;
       }
       VP8LColorCacheInsert(&hashers, num_pixels % xsize, argb[num_pixels]);
       ++num_pixels;
-    } else if (PixOrCopy_IsCopy(&lit[i])) {
+    } else if (PixOrCopyIsCopy(&lit[i])) {
       int k;
-      if (PixOrCopy_Distance(&lit[i]) == 0) {
+      if (PixOrCopyDistance(&lit[i]) == 0) {
         printf("Bw reference with zero distance.\n");
         VP8LColorCacheDelete(&hashers);
         return 0;
       }
       for (k = 0; k < lit[i].len; ++k) {
         if (argb[num_pixels] !=
-            argb[num_pixels - PixOrCopy_Distance(&lit[i])]) {
+            argb[num_pixels - PixOrCopyDistance(&lit[i])]) {
           printf("i %d, pixel %d, original: 0x%08x, copied: 0x%08x, dist: %d\n",
                  i, num_pixels, argb[num_pixels],
-                 argb[num_pixels - PixOrCopy_Distance(&lit[i])],
-                 PixOrCopy_Distance(&lit[i]));
+                 argb[num_pixels - PixOrCopyDistance(&lit[i])],
+                 PixOrCopyDistance(&lit[i]));
           VP8LColorCacheDelete(&hashers);
           return 0;
         }
@@ -724,20 +724,20 @@ static int ComputePaletteHistogram(const uint32_t* argb, int xsize, int ysize,
   }
   for (i = 0; i < stream_size; ++i) {
     const PixOrCopy v = stream[i];
-    if (PixOrCopy_IsLiteral(&v)) {
+    if (PixOrCopyIsLiteral(&v)) {
       const int x = pixel_index % xsize;
       if (palette_bits != 0 &&
           VP8LColorCacheContains(&hashers, x, argb[pixel_index])) {
         // push pixel as a palette pixel
         const int ix = VP8LColorCacheGetIndex(&hashers, argb[pixel_index]);
-        Histogram_AddSinglePixOrCopy(histo, PixOrCopy_CreatePaletteIx(ix));
+        HistogramAddSinglePixOrCopy(histo, PixOrCopyCreatePaletteIx(ix));
       } else {
-        Histogram_AddSinglePixOrCopy(histo, v);
+        HistogramAddSinglePixOrCopy(histo, v);
       }
     } else {
-      Histogram_AddSinglePixOrCopy(histo, v);
+      HistogramAddSinglePixOrCopy(histo, v);
     }
-    for (k = 0; k < PixOrCopy_Length(&v); ++k) {
+    for (k = 0; k < PixOrCopyLength(&v); ++k) {
       VP8LColorCacheInsert(&hashers, pixel_index % xsize, argb[pixel_index]);
       ++pixel_index;
     }
@@ -757,7 +757,7 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
   double lowest_entropy = 1e99;
   PixOrCopy* stream = (PixOrCopy*)malloc(xsize * ysize * sizeof(*stream));
   int stream_size;
-  static const double kMakeLargePaletteSlightlyLessFavorable = 4.0;
+  static const double kSmallPenaltyForLargePalette = 4.0;
   if (stream == NULL ||
       !BackwardReferencesHashChain(xsize, ysize,
                                    0, argb, 0, stream, &stream_size)) {
@@ -766,11 +766,11 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
     double cur_entropy;
     Histogram histo;
-    Histogram_Init(&histo, palette_bits);
+    HistogramInit(&histo, palette_bits);
     ComputePaletteHistogram(argb, xsize, ysize, &stream[0], stream_size,
                             palette_bits, &histo);
-    cur_entropy = Histogram_EstimateBits(&histo) +
-        kMakeLargePaletteSlightlyLessFavorable * palette_bits;
+    cur_entropy = HistogramEstimateBits(&histo) +
+        kSmallPenaltyForLargePalette * palette_bits;
     if (palette_bits == 0 || cur_entropy < lowest_entropy) {
       *best_palette_bits = palette_bits;
       lowest_entropy = cur_entropy;

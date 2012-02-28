@@ -365,16 +365,16 @@ static void StoreImageToBitMask(
     int histogram_ix = histogram_symbols[histo_bits ?
                                         (y >> histo_bits) * histo_xsize +
                                         (x >> histo_bits) : 0];
-    if (PixOrCopy_IsPaletteIx(&v)) {
-      const int code = PixOrCopy_PaletteIx(&v);
+    if (PixOrCopyIsPaletteIx(&v)) {
+      const int code = PixOrCopyPaletteIx(&v);
       int literal_ix = 256 + code;
       WriteBits(bitdepths[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix], bw);
-    } else if (PixOrCopy_IsLiteral(&v)) {
+    } else if (PixOrCopyIsLiteral(&v)) {
       static const int order[] = {1, 2, 0, 3};
       int k;
       for (k = 0; k < 4; ++k) {
-        const int code = PixOrCopy_Literal(&v, order[k]);
+        const int code = PixOrCopyLiteral(&v, order[k]);
         WriteBits(bitdepths[5 * histogram_ix + k][code],
                   bit_symbols[5 * histogram_ix + k][code], bw);
       }
@@ -384,19 +384,19 @@ static void StoreImageToBitMask(
       int bits;
       int distance;
       int len_ix;
-      PixOrCopy_LengthCodeAndBits(&v, &code, &n_bits, &bits);
+      PixOrCopyLengthCodeAndBits(&v, &code, &n_bits, &bits);
       len_ix = 256 + (1 << palette_bits) + code;
       WriteBits(bitdepths[5 * histogram_ix][len_ix],
                 bit_symbols[5 * histogram_ix][len_ix], bw);
       WriteBits(n_bits, bits, bw);
 
-      distance = PixOrCopy_Distance(&v);
+      distance = PixOrCopyDistance(&v);
       PrefixEncode(distance, &code, &n_bits, &bits);
       WriteBits(bitdepths[5 * histogram_ix + 4][code],
                 bit_symbols[5 * histogram_ix + 4][code], bw);
       WriteBits(n_bits, bits, bw);
     }
-    x += PixOrCopy_Length(&v);
+    x += PixOrCopyLength(&v);
     while (x >= xsize) {
       x -= xsize;
       ++y;
@@ -531,20 +531,20 @@ static int GetBackwardReferences(int xsize, int ysize,
                                    &backward_refs_lz77_size)) {
     goto Error;
   }
-  Histogram_Init(histo_lz77, palette_bits);
-  Histogram_Build(histo_lz77, backward_refs_lz77, backward_refs_lz77_size);
+  HistogramInit(histo_lz77, palette_bits);
+  HistogramBuild(histo_lz77, backward_refs_lz77, backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
   BackwardReferencesRle(xsize, ysize, argb, backward_refs_rle_only,
                         &backward_refs_rle_only_size);
 
-  Histogram_Init(histo_rle, palette_bits);
-  Histogram_Build(histo_rle,
+  HistogramInit(histo_rle, palette_bits);
+  HistogramBuild(histo_rle,
                   backward_refs_rle_only, backward_refs_rle_only_size);
 
   // Check if LZ77 is useful.
   lz77_is_useful =
-      (Histogram_EstimateBits(histo_rle) > Histogram_EstimateBits(histo_lz77));
+      (HistogramEstimateBits(histo_rle) > HistogramEstimateBits(histo_lz77));
 
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
@@ -653,7 +653,7 @@ static int GetHuffBitLengthsAndCodes(
   int k;
   int ok = 1;
   for (i = 0; i < histogram_image_size; ++i) {
-    const int lit_len = Histogram_NumPixOrCopyCodes(histogram_image[i]);
+    const int lit_len = HistogramNumPixOrCopyCodes(histogram_image[i]);
     (*bit_length_sizes)[5 * i] = lit_len;
     (*bit_lengths)[5 * i] = (uint8_t*)calloc(lit_len, 1);
     (*bit_codes)[5 * i] = (uint16_t*)
@@ -896,16 +896,16 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
       free(before);
       goto Error;
     }
-    Histogram_Init(before, 1);
+    HistogramInit(before, 1);
     for (i = 0; i < xsize * ysize; ++i) {
-      Histogram_AddSinglePixOrCopy(before, PixOrCopy_CreateLiteral(argb[i]));
+      HistogramAddSinglePixOrCopy(before, PixOrCopyCreateLiteral(argb[i]));
     }
     SubtractGreenFromBlueAndRed(xsize * ysize, argb);
-    Histogram_Init(after, 1);
+    HistogramInit(after, 1);
     for (i = 0; i < xsize * ysize; ++i) {
-      Histogram_AddSinglePixOrCopy(after, PixOrCopy_CreateLiteral(argb[i]));
+      HistogramAddSinglePixOrCopy(after, PixOrCopyCreateLiteral(argb[i]));
     }
-    if (Histogram_EstimateBits(after) < Histogram_EstimateBits(before)) {
+    if (HistogramEstimateBits(after) < HistogramEstimateBits(before)) {
       WriteBits(1, 1, &bw);
       WriteBits(3, 2, &bw);
     } else {
