@@ -254,14 +254,13 @@ static int ReadHuffmanCode(int alphabet_size,
   int ok = 1;
   const int simple_code = ReadBits(br, 1);
   if (simple_code) {
-    // Note: num_symbols is unused in case of nbits==0
-    const int num_symbols = ReadBits(br, 1) + 1;
     const int nbits = ReadBits(br, 3);
     if (nbits == 0) {
       ok = root->AddSymbol(0, 0, 0);
     } else {
       int i;
       const int num_bits = (nbits - 1) * 2 + 4;
+      const int num_symbols = ReadBits(br, 1) + 1;
       VERIFY(num_bits <= 12);
       for (i = 0; ok && i < num_symbols; ++i) {
         ok = root->AddSymbol(ReadBits(br, num_bits), num_symbols - 1, i);

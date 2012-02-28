@@ -270,12 +270,12 @@ static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
     // 0, 1 or 2 symbols to encode.
     WriteBits(1, 1, bw);
     if (count == 0) {
-      WriteBits(4, 0, bw);
+      WriteBits(3, 0, bw);
       return 1;
     }
-    WriteBits(1, count - 1, bw);
     while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
     WriteBits(3, (num_bits - 4) / 2 + 1, bw);
+    WriteBits(1, count - 1, bw);
     for (i = 0; i < count; ++i) {
       WriteBits(num_bits, symbols[i], bw);
     }
