@@ -241,9 +241,12 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
   if (simple_code) {
     // Read symbols, codes & code lengths directly.
     int nbits;
-    num_symbols = VP8LReadBits(br, 1) + 1;
     nbits = VP8LReadBits(br, 3);
-    if (nbits == 0) num_symbols = 1;
+    if (nbits == 0) {
+      num_symbols = 1;
+    } else {
+      num_symbols = VP8LReadBits(br, 1) + 1;
+    }
 
     symbols = (int*)malloc(num_symbols * sizeof(*symbols));
     codes = (int*)malloc(num_symbols * sizeof(*codes));
