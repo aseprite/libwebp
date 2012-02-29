@@ -73,9 +73,12 @@ struct VP8LDecoder {
   VP8LDecodeState  action_;
   VP8LDecodeState  state_;
 
-  argb_t           *argb_;
+  argb_t           *argb_;  // Internal data: always in BGRA color mode.
   BitReader        br_;
   BitReader        br_check_point_;
+
+  WEBP_CSP_MODE    output_colorspace_;
+  uint8_t*         decoded_data_;  // Output in 'output_colorspace_' color mode.
 
   int              width_;
   int              height_;
@@ -98,16 +101,16 @@ struct VP8LDecoder {
 // in vp8l.c
 
 // Validates the VP8L data-header and retrieves basic header information viz
-// width and height. Returns 0 in case of formatting error. *width/*height
+// width and height. Returns 0 in case of formatting error. width/height
 // can be passed NULL.
 int VP8LGetInfo(const uint8_t* data,
                 uint32_t data_size,    // data available so far
                 int *width, int *height);
 
-// Initializes the decoder object.
-void VP8LInitDecoder(VP8LDecoder* const dec);
+// Initializes the decoder object with the given output colorspace.
+void VP8LInitDecoder(VP8LDecoder* const dec, WEBP_CSP_MODE out_colorspace);
 
-// Decode a picture. Returns false in case of error.
+// Decodes a picture. Returns false in case of error.
 int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
 
 // Decode image pixels.

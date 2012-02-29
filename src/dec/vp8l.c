@@ -240,8 +240,7 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
 
   if (simple_code) {
     // Read symbols, codes & code lengths directly.
-    int nbits;
-    nbits = VP8LReadBits(br, 3);
+    const int nbits = VP8LReadBits(br, 3);
     if (nbits == 0) {
       num_symbols = 1;
     } else {
@@ -252,13 +251,17 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
     codes = (int*)malloc(num_symbols * sizeof(*codes));
     code_lengths = (uint32_t*)malloc(num_symbols * sizeof(*code_lengths));
     if (symbols == NULL || codes == NULL || code_lengths == NULL) {
-      free(symbols); free(codes); free(code_lengths);
+      free(symbols);
+      free(codes);
+      free(code_lengths);
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       return 0;
     }
 
     if (nbits == 0) {
-      symbols[0] = 0; codes[0] = 0; code_lengths[0] = 0;
+      symbols[0] = 0;
+      codes[0] = 0;
+      code_lengths[0] = 0;
     } else {
       const int num_bits = (nbits - 1) * 2 + 4;
       int i;
@@ -939,7 +942,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
   return ok;
 }
 
-void VP8LInitDecoder(VP8LDecoder* const dec) {
+void VP8LInitDecoder(VP8LDecoder* const dec, WEBP_CSP_MODE out_colorspace) {
   VP8LMetadata* const hdr = &dec->hdr_;
   dec->xsize_ = 0;
   dec->ysize_ = 0;
@@ -948,6 +951,9 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
   dec->level_ = 0;
+  dec->decoded_data_ = NULL;
+  dec->output_colorspace_ = out_colorspace;
+  dec->action_ = READ_DATA;
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = NULL;
@@ -1108,9 +1114,94 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
   return ok;
 }
 
+static int IsAlphaMode(WEBP_CSP_MODE mode) {
+  return (mode == MODE_RGBA || mode == MODE_BGRA || mode == MODE_ARGB);
+}
+
+// TODO: This function assumes that little-ending byte order is used.
+// Need to add logic for big-endian.
+// Convert from BGRA to other color spaces.
+static int ConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
+                                     WEBP_CSP_MODE out_colorspace,
+                                     uint8_t** const output_data) {
+  // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
+  if (out_colorspace >= MODE_RGBA_4444) {
+    return 0;
+  } else {
+    // Allocate as per mode.
+    const int need_alpha = IsAlphaMode(out_colorspace);
+    const int in_pixel_size = 4;
+    size_t IN_BLUE  = 0;
+    size_t IN_GREEN = 1;
+    size_t IN_RED   = 2;
+    size_t IN_ALPHA = 3;
+    const size_t out_pixel_size = need_alpha ? 4 : 3;
+    size_t OUT_BLUE;
+    size_t OUT_GREEN;
+    size_t OUT_RED;
+    size_t OUT_ALPHA;
+    size_t i;
+    uint8_t* const output_data_lcl =
+        (uint8_t*)malloc(num_pixels * out_pixel_size);
+    if (output_data_lcl == NULL) return 0;
+    switch (out_colorspace) {
+      case MODE_RGB:
+        OUT_RED   = 0;
+        OUT_GREEN = 1;
+        OUT_BLUE  = 2;
+        break;
+      case MODE_RGBA:
+        OUT_RED   = 0;
+        OUT_GREEN = 1;
+        OUT_BLUE  = 2;
+        OUT_ALPHA = 3;
+        break;
+      case MODE_BGR:
+        OUT_BLUE  = 0;
+        OUT_GREEN = 1;
+        OUT_RED   = 2;
+        break;
+      case MODE_BGRA:
+        OUT_BLUE  = 0;
+        OUT_GREEN = 1;
+        OUT_RED   = 2;
+        OUT_ALPHA = 3;
+        break;
+      case MODE_ARGB:
+        OUT_ALPHA = 0;
+        OUT_RED   = 1;
+        OUT_GREEN = 2;
+        OUT_BLUE  = 3;
+        break;
+      default:
+        // Code flow should not reach here.
+        assert(0);
+    }
+    for (i = 0; i < num_pixels; ++i) {
+      output_data_lcl[OUT_RED]   = in_data[IN_RED];
+      output_data_lcl[OUT_GREEN] = in_data[IN_GREEN];
+      output_data_lcl[OUT_BLUE]  = in_data[IN_BLUE];
+      IN_RED    += in_pixel_size;
+      IN_GREEN  += in_pixel_size;
+      IN_BLUE   += in_pixel_size;
+      OUT_RED   += out_pixel_size;
+      OUT_GREEN += out_pixel_size;
+      OUT_BLUE  += out_pixel_size;
+      if(need_alpha) {
+        output_data_lcl[OUT_ALPHA] = in_data[IN_ALPHA];
+        IN_ALPHA  += in_pixel_size;
+        OUT_ALPHA += out_pixel_size;
+      }
+    }
+    *output_data = output_data_lcl;
+    return 1;
+  }
+}
+
 int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   uint32_t width, height;
   argb_t* decoded_data = NULL;
+  size_t num_pixels;
 
   if (dec == NULL) return 0;
   if (io == NULL || offset > io->data_size) {
@@ -1124,23 +1215,26 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     return 0;
   }
-  VP8LInitDecoder(dec);
   dec->state_ = READ_DIM;
   dec->width_ = width;
   dec->height_ = height;
   VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
 
-  if (DecodeImageStream(width, height, dec, &decoded_data)) {
-    dec->argb_ = decoded_data;
-    if (dec->state_ == READ_DATA) VP8LClearMetadata(dec);
-  } else {
+  dec->decoded_data_ = NULL;
+  num_pixels = width * height;
+  if (!DecodeImageStream(width, height, dec, &decoded_data) ||
+      !ConvertColorSpaceFromBGRA((uint8_t* const)decoded_data,
+                                 num_pixels, dec->output_colorspace_,
+                                 &dec->decoded_data_)) {
+    free(decoded_data);
     VP8LClear(dec);
     if (dec->status_ == VP8_STATUS_OK) {
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     }
     return 0;
   }
-
+  dec->argb_ = decoded_data;
+  if (dec->state_ == READ_DATA) VP8LClearMetadata(dec);
   return 1;
 }
 
@@ -1150,6 +1244,8 @@ void VP8LClear(VP8LDecoder* const dec) {
 
   free(dec->argb_);
   dec->argb_ = NULL;
+  free(dec->decoded_data_);
+  dec->decoded_data_ = NULL;
   while (dec->next_transform_ > 0) {
     free(dec->transforms_[--dec->next_transform_].data_);
     dec->transforms_[dec->next_transform_].data_ = NULL;

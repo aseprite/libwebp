@@ -5,7 +5,7 @@
 //  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
 // -----------------------------------------------------------------------------
 //
-// A utility for reading Canonical Huffman Codes.
+// A utility for reading canonical Huffman codes.
 //
 // Author: urvang@google.com (Urvang Joshi)
 
@@ -43,8 +43,6 @@
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
-
-#define MAX_ALLOWED_CODE_LENGTH 15
 
 // A node of a Huffman tree.
 typedef struct HuffmanTreeNode HuffmanTreeNode;

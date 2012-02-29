@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+#define MAX_ALLOWED_CODE_LENGTH 15
 #define NON_EXISTENT_SYMBOL (-1)
 
 static WEBP_INLINE void TreeNodeInit(HuffmanTreeNode* const node) {
