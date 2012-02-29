@@ -18,6 +18,7 @@
 #ifdef _MSC_VER
 #include <stdlib.h>  // _byteswap_ulong
 #endif
+#include <string.h>  // For memcpy
 #include "../webp/decode_vp8.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -174,7 +175,6 @@ uint32_t VP8LReadBits(BitReader* const br, int n_bits);
 // Flags eos after reading last bit from the buffer.
 uint32_t VP8LReadOneBit(BitReader* const br);
 
-
 // VP8LReadOneBitUnsafe is faster than VP8LReadOneBit, but it can be called only
 // 32 times after the last VP8LFillBitWindow. Any subsequent calls
 // (without VP8LFillBitWindow) will return invalid data.
@@ -186,6 +186,11 @@ static WEBP_INLINE uint32_t VP8LReadOneBitUnsafe(BitReader* const br) {
 
 // Advances the Read buffer by 4 bytes to make room for reading next 32 bits.
 void VP8LFillBitWindow(BitReader* const br);
+
+static WEBP_INLINE void VP8LCloneBitReader(BitReader* const dst,
+                                           const BitReader* const src) {
+  memcpy(dst, src, sizeof(BitReader));
+}
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
