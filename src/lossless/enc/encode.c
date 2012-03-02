@@ -70,11 +70,10 @@ static int OptimizeHuffmanForRle(int length, int* counts) {
   }
   // 2) Let's mark all population counts that already can be encoded
   // with an rle code.
-  good_for_rle = (uint8_t*)malloc(length);
-  if (!good_for_rle) {
+  good_for_rle = (uint8_t*)calloc(length, 1);
+  if (good_for_rle == NULL) {
     return 0;
   }
-  memset(good_for_rle, 0, length);
   {
     // Let's not spoil any of the existing good rle codes.
     // Mark any seq of 0's that is longer as 5 as a good_for_rle.
@@ -512,18 +511,18 @@ static int GetBackwardReferences(int xsize, int ysize,
                                  PixOrCopy** backward_refs) {
   // Backward Reference using LZ77.
   int lz77_is_useful;
-  int backward_refs_rle_only_size;
+  int backward_refs_rle_size;
   Histogram* histo_rle = (Histogram*)malloc(sizeof(*histo_rle));
   Histogram* histo_lz77 = (Histogram*)malloc(sizeof(*histo_lz77));
   PixOrCopy* backward_refs_lz77 = (PixOrCopy*)
       malloc(xsize * ysize * sizeof(*backward_refs_lz77));
-  PixOrCopy* backward_refs_rle_only = (PixOrCopy*)
-      malloc(xsize * ysize * sizeof(*backward_refs_rle_only));
+  PixOrCopy* backward_refs_rle = (PixOrCopy*)
+      malloc(xsize * ysize * sizeof(*backward_refs_rle));
   int backward_refs_lz77_size;
   int ok = 0;
   *backward_refs = NULL;
   if (histo_rle == NULL || histo_lz77 == NULL ||
-      backward_refs_lz77 == NULL || backward_refs_rle_only == NULL) {
+      backward_refs_lz77 == NULL || backward_refs_rle == NULL) {
     goto Error;
   }
   if (!BackwardReferencesHashChain(xsize, ysize, use_palette,
@@ -536,12 +535,11 @@ static int GetBackwardReferences(int xsize, int ysize,
   HistogramBuild(histo_lz77, backward_refs_lz77, backward_refs_lz77_size);
 
   // Backward Reference using RLE only.
-  BackwardReferencesRle(xsize, ysize, argb, backward_refs_rle_only,
-                        &backward_refs_rle_only_size);
+  BackwardReferencesRle(xsize, ysize, argb, backward_refs_rle,
+                        &backward_refs_rle_size);
 
   HistogramInit(histo_rle, palette_bits);
-  HistogramBuild(histo_rle,
-                  backward_refs_rle_only, backward_refs_rle_only_size);
+  HistogramBuild(histo_rle, backward_refs_rle, backward_refs_rle_size);
 
   // Check if LZ77 is useful.
   lz77_is_useful =
@@ -550,7 +548,7 @@ static int GetBackwardReferences(int xsize, int ysize,
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
-    free(backward_refs_rle_only);
+    free(backward_refs_rle);
     free(backward_refs_lz77);
     *backward_refs = (PixOrCopy*)malloc(xsize * ysize * sizeof(*backward_refs));
     if (*backward_refs == NULL ||
@@ -565,10 +563,10 @@ static int GetBackwardReferences(int xsize, int ysize,
     if (lz77_is_useful) {
       *backward_refs = backward_refs_lz77;
       *backward_refs_size = backward_refs_lz77_size;
-      free(backward_refs_rle_only);
+      free(backward_refs_rle);
     } else {
-      *backward_refs = backward_refs_rle_only;
-      *backward_refs_size = backward_refs_rle_only_size;
+      *backward_refs = backward_refs_rle;
+      *backward_refs_size = backward_refs_rle_size;
       free(backward_refs_lz77);
     }
   }

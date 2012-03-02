@@ -438,11 +438,9 @@ static void IsPhotographic(int xsize, int ysize, const uint32_t *argb,
         (k >= xsize && argb[k] == argb[k - xsize])) {
       continue;
     }
-    HistogramAddSinglePixOrCopy(nonpredicted,
-                                 PixOrCopyCreateLiteral(argb[k]));
+    HistogramAddSinglePixOrCopy(nonpredicted, PixOrCopyCreateLiteral(argb[k]));
     diff = Subtract(argb[k], argb[k - 1]);
-    HistogramAddSinglePixOrCopy(predicted,
-                                PixOrCopyCreateLiteral(diff));
+    HistogramAddSinglePixOrCopy(predicted, PixOrCopyCreateLiteral(diff));
   }
   *predicted_bits = HistogramEstimateBitsBulk(predicted);
   *nonpredicted_bits = HistogramEstimateBitsBulk(nonpredicted);
