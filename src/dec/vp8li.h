@@ -21,10 +21,10 @@
 extern "C" {
 #endif
 
-typedef unsigned int argb_t;
-
 #define NUM_TRANSFORMS               8
 #define HUFFMAN_CODES_PER_META_CODE  5
+#define ARGB_BLACK                   0xff000000
+#define NUM_CODES_PER_BYTE           256
 
 struct HuffmanTree;
 
@@ -119,11 +119,6 @@ int VP8LDecodeImage(VP8LDecoder* const dec);
 
 // Decode image pixels.
 int VP8LDecodePixels(VP8LDecoder* const dec, argb_t* const decoded_data);
-
-// Convert decoded lossless stream to the specified ColorSpace.
-int VP8LConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
-                                  WEBP_CSP_MODE out_colorspace,
-                                  uint8_t** const output_data);
 
 // Resets the decoder in its initial state, reclaiming memory.
 void VP8LClear(VP8LDecoder* const dec);

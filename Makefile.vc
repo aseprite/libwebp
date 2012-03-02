@@ -166,6 +166,7 @@ X_OBJS= \
     $(DIROBJ)\dsp\dec_sse2.obj \
     $(DIROBJ)\dsp\enc.obj \
     $(DIROBJ)\dsp\enc_sse2.obj \
+    $(DIROBJ)\dsp\lossless.obj \
     $(DIROBJ)\dsp\upsampling.obj \
     $(DIROBJ)\dsp\upsampling_sse2.obj \
     $(DIROBJ)\dsp\yuv.obj \

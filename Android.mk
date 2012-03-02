@@ -17,6 +17,7 @@ LOCAL_SRC_FILES := \
 	src/dsp/dec.c \
 	src/dsp/dec_neon.c \
 	src/dsp/enc.c \
+	src/dsp/lossless.c \
 	src/dsp/upsampling.c \
 	src/dsp/yuv.c \
 	src/enc/alpha.c \
