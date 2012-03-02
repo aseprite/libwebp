@@ -13,6 +13,7 @@
 #define WEBP_DEC_VP8I_H_
 
 #include <string.h>     // for memcpy()
+#include "./vp8li.h"
 #include "../utils/bit_reader.h"
 #include "../utils/thread.h"
 #include "../dsp/dsp.h"
@@ -282,6 +283,7 @@ struct VP8Decoder {
   size_t layer_data_size_;
 
   int is_lossless_;
+  VP8LDecoder vp8l_decoder_;
 };
 
 //------------------------------------------------------------------------------

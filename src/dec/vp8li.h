@@ -108,13 +108,22 @@ int VP8LGetInfo(const uint8_t* data,
                 int *width, int *height);
 
 // Initializes the decoder object with the given output colorspace.
-void VP8LInitDecoder(VP8LDecoder* const dec, WEBP_CSP_MODE out_colorspace);
+void VP8LInitDecoder(VP8LDecoder* const dec);
 
-// Decodes a picture. Returns false in case of error.
-int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
+// Decodes the image header. Returns false in case of error.
+int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
+
+// Decodes a image pixels. It's required to decode the lossless header before
+// calling this funcion. Returns false in case of error.
+int VP8LDecodeImage(VP8LDecoder* const dec);
 
 // Decode image pixels.
-int VP8LDecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data);
+int VP8LDecodePixels(VP8LDecoder* const dec, argb_t* const decoded_data);
+
+// Convert decoded lossless stream to the specified ColorSpace.
+int VP8LConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
+                                  WEBP_CSP_MODE out_colorspace,
+                                  uint8_t** const output_data);
 
 // Resets the decoder in its initial state, reclaiming memory.
 void VP8LClear(VP8LDecoder* const dec);

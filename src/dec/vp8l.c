@@ -460,11 +460,10 @@ static WEBP_INLINE void UpdateHtreeForPos(VP8LDecoder* const dec,
   }
 }
 
-int VP8LDecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
+int VP8LDecodePixels(VP8LDecoder* const dec, argb_t* const data) {
   int ok = 1;
   int red, green, blue;
   int alpha = ARGB_BLACK;
-  argb_t* data = *decoded_data;
   uint32_t col = 0;
   uint32_t row = dec->row_;
   uint32_t xsize = dec->xsize_;
@@ -477,6 +476,11 @@ int VP8LDecodePixels(VP8LDecoder* const dec, argb_t** const decoded_data) {
   // color cache codes.
   const int color_cache_limit =
       NUM_CODES_PER_BYTE + hdr->color_cache_size_;
+
+  if (hdr->htrees_ == NULL || hdr->meta_codes_ == NULL) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    return 0;
+  }
 
   while (!br->eos_ && pix_ix < num_pixs) {
     VP8LFillBitWindow(br);
@@ -942,7 +946,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
   return ok;
 }
 
-void VP8LInitDecoder(VP8LDecoder* const dec, WEBP_CSP_MODE out_colorspace) {
+void VP8LInitDecoder(VP8LDecoder* const dec) {
   VP8LMetadata* const hdr = &dec->hdr_;
   dec->xsize_ = 0;
   dec->ysize_ = 0;
@@ -952,8 +956,7 @@ void VP8LInitDecoder(VP8LDecoder* const dec, WEBP_CSP_MODE out_colorspace) {
   dec->argb_ = NULL;
   dec->level_ = 0;
   dec->decoded_data_ = NULL;
-  dec->output_colorspace_ = out_colorspace;
-  dec->action_ = READ_DATA;
+  dec->output_colorspace_ = MODE_BGRA;
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = NULL;
@@ -1062,11 +1065,6 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
 
   if (!ok) goto End;
 
-  if (dec->level_ == 1) {
-    dec->state_ = READ_HDR;
-    if (dec->action_ == READ_HDR) goto End;
-  }
-
   if (color_cache_bits > 0) {
     color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
     if (color_cache == NULL) {
@@ -1079,6 +1077,16 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
                        color_cache_x_subsample_bits, color_cache_bits);
   }
 
+  UpdateDecoder(transform_xsize, transform_ysize,
+                color_cache, color_cache_size, huffman_image,
+                huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
+                dec);
+
+  if (dec->level_ == 1) {
+    dec->state_ = READ_HDR;
+    if (dec->action_ == READ_HDR) goto End;
+  }
+
   data = (argb_t*)calloc(transform_xsize * transform_ysize, sizeof(argb_t));
   if (data == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
@@ -1086,12 +1094,8 @@ static int DecodeImageStream(uint32_t xsize, uint32_t ysize,
     goto End;
   }
 
-  UpdateDecoder(transform_xsize, transform_ysize,
-                color_cache, color_cache_size, huffman_image,
-                huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
-                dec);
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  ok = VP8LDecodePixels(dec, &data);
+  ok = VP8LDecodePixels(dec, data);
 
   // Step#4: Apply transforms on the decoded data.
   ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);
@@ -1121,9 +1125,9 @@ static int IsAlphaMode(WEBP_CSP_MODE mode) {
 // TODO: This function assumes that little-ending byte order is used.
 // Need to add logic for big-endian.
 // Convert from BGRA to other color spaces.
-static int ConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
-                                     WEBP_CSP_MODE out_colorspace,
-                                     uint8_t** const output_data) {
+int VP8LConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
+                                  WEBP_CSP_MODE out_colorspace,
+                                  uint8_t** const output_data) {
   // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
   if (out_colorspace >= MODE_RGBA_4444) {
     return 0;
@@ -1198,10 +1202,9 @@ static int ConvertColorSpaceFromBGRA(uint8_t* const in_data, size_t num_pixels,
   }
 }
 
-int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
+int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   uint32_t width, height;
   argb_t* decoded_data = NULL;
-  size_t num_pixels;
 
   if (dec == NULL) return 0;
   if (io == NULL || offset > io->data_size) {
@@ -1221,11 +1224,8 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
 
   dec->decoded_data_ = NULL;
-  num_pixels = width * height;
-  if (!DecodeImageStream(width, height, dec, &decoded_data) ||
-      !ConvertColorSpaceFromBGRA((uint8_t* const)decoded_data,
-                                 num_pixels, dec->output_colorspace_,
-                                 &dec->decoded_data_)) {
+  dec->action_ = READ_HDR;
+  if (!DecodeImageStream(width, height, dec, &decoded_data)) {
     free(decoded_data);
     VP8LClear(dec);
     if (dec->status_ == VP8_STATUS_OK) {
@@ -1233,9 +1233,58 @@ int VP8LDecodeImage(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
     }
     return 0;
   }
-  dec->argb_ = decoded_data;
-  if (dec->state_ == READ_DATA) VP8LClearMetadata(dec);
   return 1;
+}
+
+int VP8LDecodeImage(VP8LDecoder* const dec) {
+  argb_t* data = NULL;
+  size_t xsize, ysize, num_pixels;
+  if (dec == NULL) return 0;
+
+  if (dec->next_transform_ > 0) {
+    xsize = dec->transforms_[dec->next_transform_ - 1].xsize_;
+    ysize = dec->transforms_[dec->next_transform_ - 1].ysize_;
+  } else {
+    xsize = dec->width_;
+    ysize = dec->height_;
+  }
+  num_pixels = xsize * ysize;
+
+  data = (argb_t*)calloc(num_pixels, sizeof(argb_t));
+  if (data == NULL) {
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+    goto Err;
+  }
+
+  dec->action_ = READ_DATA;
+  if (!VP8LDecodePixels(dec, data)) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    goto Err;
+  }
+
+  if (!ApplyInverseTransforms(dec, 0, &data)) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    goto Err;
+  }
+
+  if(!VP8LConvertColorSpaceFromBGRA((uint8_t* const)data, num_pixels,
+                                    dec->output_colorspace_,
+                                    &dec->decoded_data_)) {
+    dec->status_ = VP8_STATUS_INVALID_PARAM;
+    goto Err;
+  }
+
+  dec->argb_ = data;
+  VP8LClearMetadata(dec);
+  return 1;
+
+ Err:
+  free(data);
+  VP8LClear(dec);
+  if (dec->status_ == VP8_STATUS_OK) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+  }
+  return 0;
 }
 
 void VP8LClear(VP8LDecoder* const dec) {

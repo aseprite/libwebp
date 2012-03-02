@@ -276,12 +276,19 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
     return VP8SetError(dec, status, "Incorrect/incomplete header.");
   }
   if (is_lossless) {
-    int width, height;
-    const int ok = VP8LGetInfo(buf, buf_size, &width, &height);
-    if (ok) {
+    int ok;
+    VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
+    uint32_t offset = io->data_size - buf_size;
+    VP8LInitDecoder(vp8l_decoder);
+    ok = VP8LDecodeHeader(vp8l_decoder, io, offset);
+    if (!ok) {
+      VP8LClear(vp8l_decoder);
+      return VP8SetError(dec, vp8l_decoder->status_,
+                         "Incorrect/incomplete header.");
+    } else {
       dec->is_lossless_ = 1;
-      io->width = width;
-      io->height = height;
+      io->width = vp8l_decoder->width_;
+      io->height = vp8l_decoder->height_;
     }
     return ok;
   }
