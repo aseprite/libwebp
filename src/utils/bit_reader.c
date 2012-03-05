@@ -179,26 +179,28 @@ uint32_t VP8LReadBits(BitReader* const br, int n_bits) {
   // Flag an error if end_of_stream or n_bits is more than allowed limit.
   if (!br->eos_ && n_bits < MAX_NUM_BIT_READ) {
     // If this read is going to cross the read buffer, set the eos flag.
-    if (br->pos_ == br->len_ && (br->bit_pos_ + n_bits) >= 64) {
-      br->eos_ = 1;
-    } else {
-      val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
-      br->bit_pos_ += n_bits;
-      if (br->bit_pos_ >= 40) {
-        if (br->pos_ < br->len_ - 5) {
-          br->val_ >>= 40;
-          br->val_ |=
-              (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
-              (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
-              (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
-              (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
-              (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
-          br->pos_ += 5;
-          br->bit_pos_ -= 40;
-        }
-        if (br->bit_pos_ >= 8) {
-          ShiftBytes(br);
-        }
+    if (br->pos_ == br->len_) {
+      if ((br->bit_pos_ + n_bits) >= 64) {
+        br->eos_ = 1;
+        if ((br->bit_pos_ + n_bits) > 64) return val;
+      }
+    }
+    val = (br->val_ >> br->bit_pos_) & kBitMask[n_bits];
+    br->bit_pos_ += n_bits;
+    if (br->bit_pos_ >= 40) {
+      if (br->pos_ < br->len_ - 5) {
+        br->val_ >>= 40;
+        br->val_ |=
+            (((uint64_t)br->buf_[br->pos_ + 0]) << 24) |
+            (((uint64_t)br->buf_[br->pos_ + 1]) << 32) |
+            (((uint64_t)br->buf_[br->pos_ + 2]) << 40) |
+            (((uint64_t)br->buf_[br->pos_ + 3]) << 48) |
+            (((uint64_t)br->buf_[br->pos_ + 4]) << 56);
+        br->pos_ += 5;
+        br->bit_pos_ -= 40;
+      }
+      if (br->bit_pos_ >= 8) {
+        ShiftBytes(br);
       }
     }
   } else {
