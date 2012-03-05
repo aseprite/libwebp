@@ -55,8 +55,8 @@ struct HuffmanTreeNode {
 typedef struct HuffmanTree HuffmanTree;
 struct HuffmanTree {
   HuffmanTreeNode* nodes_;
-  size_t nodes_count_;
-  size_t next_node_idx_;
+  int max_nodes_;
+  int num_nodes_;
 };
 
 // Returns true if the given node is a leaf of the Huffman tree.
@@ -73,8 +73,8 @@ void HuffmanTreeRelease(HuffmanTree* const tree);
 // Converts Huffman code lengths to corresponding Huffman codes.
 // 'huff_codes' should be pre-allocated.
 // Returns true on success.
-int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
-                              size_t code_lengths_size, int* const huff_codes);
+int HuffmanCodeLengthsToCodes(const int* const code_lengths,
+                              int code_lengths_size, int* const huff_codes);
 
 // Builds a Huffman tree given 'num_symbols' and the lists 'code_lengths',
 // 'codes' & 'symbols'.
@@ -85,8 +85,8 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
 //   - If exactly one of codes or code_lengths is NULL.
 //   - If the given input results in an invalid tree.
 // Otherwise returns true.
-int HuffmanTreeBuild(const uint32_t* const code_lengths, const int* const codes,
-                     const int* const symbols, size_t num_symbols,
+int HuffmanTreeBuild(const int* const code_lengths, const int* const codes,
+                     const int* const symbols, int num_symbols,
                      HuffmanTree* const tree);
 
 #if defined(__cplusplus) || defined(c_plusplus)

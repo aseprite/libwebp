@@ -27,34 +27,33 @@ static WEBP_INLINE void TreeNodeInit(HuffmanTreeNode* const node) {
   node->child_[1] = NULL;
 }
 
-static WEBP_INLINE HuffmanTreeNode* GetNextNode(HuffmanTree* const tree) {
-  if (tree->next_node_idx_ == tree->nodes_count_) {
+static HuffmanTreeNode* NewNode(HuffmanTree* const tree) {
+  if (tree->num_nodes_ == tree->max_nodes_) {
     return NULL;
   } else {
-    HuffmanTreeNode* node = &tree->nodes_[tree->next_node_idx_];
+    HuffmanTreeNode* node = &tree->nodes_[tree->num_nodes_];
     TreeNodeInit(node);
-    ++tree->next_node_idx_;
+    ++tree->num_nodes_;
     return node;
   }
 }
 
-// This internal version does NOT check if node is NULL for performance reasons.
-static WEBP_INLINE int IsLeafUnsafe(const HuffmanTreeNode* const node) {
+static int IsLeaf(const HuffmanTreeNode* const node) {
   assert(node != NULL);
   return (node->child_[0] == NULL);  // Implies that node->child_[1] == NULL.
 }
 
-static int TreeInit(HuffmanTree* const tree, size_t num_leaves) {
+static int TreeInit(HuffmanTree* const tree, int num_leaves) {
   if (tree == NULL || num_leaves == 0) return 0;
   // We allocate maximum possible nodes in the tree at once.
   // Note that a Huffman tree is a full binary tree; and in a full binary tree
   // with L leaves, the total number of nodes N = 2 * L - 1.
-  tree->nodes_count_ = 2 * num_leaves - 1;
+  tree->max_nodes_ = 2 * num_leaves - 1;
   tree->nodes_ =
-      (HuffmanTreeNode*)malloc(tree->nodes_count_ * sizeof(tree->nodes_[0]));
+      (HuffmanTreeNode*)malloc(tree->max_nodes_ * sizeof(*tree->nodes_));
   if (tree->nodes_ == NULL) return 0;
   TreeNodeInit(&tree->nodes_[0]);  // Initialize root.
-  tree->next_node_idx_ = 1;
+  tree->num_nodes_ = 1;
   return 1;
 }
 
@@ -62,22 +61,22 @@ void HuffmanTreeRelease(HuffmanTree* const tree) {
   if (tree != NULL) {
     free(tree->nodes_);
     tree->nodes_ = NULL;
-    tree->nodes_count_ = 0;
+    tree->max_nodes_ = 0;
   }
 }
 
 static int TreeIsFull(const HuffmanTree* const tree) {
-  return (tree->next_node_idx_ == tree->nodes_count_);
+  return (tree->num_nodes_ == tree->max_nodes_);
 }
 
-int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
-                              size_t code_lengths_size, int* const huff_codes) {
-  size_t symbol;
-  uint32_t code_len;
+int HuffmanCodeLengthsToCodes(const int* const code_lengths,
+                              int code_lengths_size, int* const huff_codes) {
+  int symbol;
+  int code_len;
   int code_length_hist[MAX_ALLOWED_CODE_LENGTH + 1] = { 0 };
   int curr_code;
   int next_codes[MAX_ALLOWED_CODE_LENGTH + 1] = { 0 };
-  uint32_t max_code_length = 0;
+  int max_code_length = 0;
 
   assert(code_lengths != NULL);
   assert(code_lengths_size > 0);
@@ -119,22 +118,21 @@ int HuffmanCodeLengthsToCodes(const uint32_t* const code_lengths,
 }
 
 static int TreeAddSymbol(HuffmanTree* const tree, HuffmanTreeNode* const node,
-                         int symbol, int code, uint32_t code_length) {
+                         int symbol, int code, int code_length) {
   if (code_length == 0) {
     // Verify we are at a leaf, so that prefix-tree property is not violated.
-    if (!IsLeafUnsafe(node)) return 0;
-    // Add symbol in this node.
-    node->symbol_ = symbol;
+    if (!IsLeaf(node)) return 0;
+    node->symbol_ = symbol;       // Add symbol in this node.
     return 1;
   } else {
     if (node->symbol_ != NON_EXISTENT_SYMBOL) {
       // Violates prefix-tree property.
       return 0;
     }
-    if (IsLeafUnsafe(node)) {
+    if (IsLeaf(node)) {
       // Allocate children.
-      node->child_[0] = GetNextNode(tree);
-      node->child_[1] = GetNextNode(tree);
+      node->child_[0] = NewNode(tree);
+      node->child_[1] = NewNode(tree);
       if (node->child_[0] == NULL || node->child_[1] == NULL) return 0;
     }
     {
@@ -148,11 +146,11 @@ static int TreeAddSymbol(HuffmanTree* const tree, HuffmanTreeNode* const node,
 
 // Builds Huffman tree assuming code lengths are implicitly in symbol order.
 static int TreeBuildImplicit(HuffmanTree* const tree,
-                             const uint32_t* const code_lengths,
-                             size_t code_lengths_size) {
-  size_t symbol;
-  size_t num_symbols = 0;
-  size_t root_symbol = 0;
+                             const int* const code_lengths,
+                             int code_lengths_size) {
+  int symbol;
+  int num_symbols = 0;
+  int root_symbol = 0;
 
   // Find out number of symbols & the root symbol.
   for (symbol = 0; symbol < code_lengths_size; ++symbol) {
@@ -180,7 +178,9 @@ static int TreeBuildImplicit(HuffmanTree* const tree,
     }
 
     // Initialize the HuffmanTree based on num_symbols.
-    if (!TreeInit(tree, num_symbols)) return 0;
+    if (!TreeInit(tree, num_symbols)) {
+      goto End;
+    }
 
     // Add symbols one-by-one.
     for (symbol = 0; symbol < code_lengths_size; ++symbol) {
@@ -205,10 +205,10 @@ static int TreeBuildImplicit(HuffmanTree* const tree,
 static int TreeBuildExplicit(HuffmanTree* const tree,
                              const int* const symbols,
                              const int* const codes,
-                             const uint32_t* const code_lengths,
-                             size_t num_symbols) {
+                             const int* const code_lengths,
+                             int num_symbols) {
   int ok = 0;
-  size_t i;
+  int i;
   // Initialize the HuffmanTree based on num_symbols.
   if (!TreeInit(tree, num_symbols)) return 0;
 
@@ -228,8 +228,8 @@ static int TreeBuildExplicit(HuffmanTree* const tree,
   return ok;
 }
 
-int HuffmanTreeBuild(const uint32_t* const code_lengths, const int* const codes,
-                     const int* const symbols, size_t num_symbols,
+int HuffmanTreeBuild(const int* const code_lengths, const int* const codes,
+                     const int* const symbols, int num_symbols,
                      HuffmanTree* const tree) {
   if (code_lengths == NULL || num_symbols == 0 || tree == NULL) return 0;
   if (codes == NULL && symbols == NULL) {

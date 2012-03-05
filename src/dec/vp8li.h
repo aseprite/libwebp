@@ -104,24 +104,22 @@ struct VP8LDecoder {
 // width and height. Returns 0 in case of formatting error. width/height
 // can be passed NULL.
 int VP8LGetInfo(const uint8_t* data,
-                uint32_t data_size,    // data available so far
+                int data_size,    // data available so far
                 int *width, int *height);
 
-// Initializes the decoder object with the given output colorspace.
+// Initializes the decoder object.
 void VP8LInitDecoder(VP8LDecoder* const dec);
 
 // Decodes the image header. Returns false in case of error.
 int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
 
-// Decodes a image pixels. It's required to decode the lossless header before
-// calling this funcion. Returns false in case of error.
+// Decodes an image. It's required to decode the lossless header before calling
+// this function. Returns false in case of error, with updated dec->status_.
 int VP8LDecodeImage(VP8LDecoder* const dec);
-
-// Decode image pixels.
-int VP8LDecodePixels(VP8LDecoder* const dec, argb_t* const decoded_data);
 
 // Resets the decoder in its initial state, reclaiming memory.
 void VP8LClear(VP8LDecoder* const dec);
+
 //------------------------------------------------------------------------------
 
 #if defined(__cplusplus) || defined(c_plusplus)
