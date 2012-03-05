@@ -18,6 +18,9 @@ extern "C" {
 #include "./lossless.h"
 #include "../dec/vp8li.h"
 
+//------------------------------------------------------------------------------
+// Inverse image transforms.
+
 static WEBP_INLINE uint32_t Average2(uint32_t a0, uint32_t a1) {
   return (((a0 ^ a1) & 0xfefefefeL) >> 1) + (a0 & a1);
 }
@@ -32,7 +35,7 @@ static WEBP_INLINE uint32_t Average4(uint32_t a0, uint32_t a1,
 }
 
 static WEBP_INLINE uint32_t Clip255(uint32_t a) {
-  if (a < NUM_CODES_PER_BYTE) {
+  if (a < NUM_LITERAL_CODES) {
     return a;
   }
   // return 0, when a is a negative integer.
@@ -117,8 +120,9 @@ static WEBP_INLINE argb_t PredictValue(uint32_t pred_mode, int xsize,
   return 0;
 }
 
-void VP8LPredictorInverseTransform(const VP8LTransform* const transform,
-                                   argb_t* const data) {
+// Inverse prediction.
+static void PredictorInverseTransform(const VP8LTransform* const transform,
+                                      argb_t* const data) {
   size_t row, col, col_start, tile_offset;
   uint32_t pix_ix = 0;
   const uint32_t tile_size = 1 << transform->bits_;
@@ -158,8 +162,10 @@ void VP8LPredictorInverseTransform(const VP8LTransform* const transform,
   }
 }
 
-void VP8LAddGreenToBlueAndRed(const VP8LTransform* const transform,
-                              argb_t* const data) {
+// Add Green to Blue and Red channels (i.e. perform the inverse transform of
+// 'Subtract Green').
+static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
+                                 argb_t* const data) {
   size_t i;
   const size_t num_pixs = transform->xsize_ * transform->ysize_;
   for (i = 0; i < num_pixs; ++i) {
@@ -205,8 +211,9 @@ static WEBP_INLINE argb_t TransformColor(const ColorTransformElem* const elem,
   return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
 }
 
-void VP8LColorSpaceInverseTransform(const VP8LTransform* const transform,
-                                    argb_t* const data) {
+// Color space inverse transform.
+static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
+                                       argb_t* const data) {
   size_t row, col, col_start, tile_offset;
   uint32_t pix_ix = 0;
   const uint32_t tile_size = 1 << transform->bits_;
@@ -230,8 +237,9 @@ void VP8LColorSpaceInverseTransform(const VP8LTransform* const transform,
   }
 }
 
-void VP8LColorIndexingInverseTransform(const VP8LTransform* const transform,
-                                       argb_t* const data) {
+// Recover actual color values of pixels from their color indices.
+static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
+                                          argb_t* const data) {
   size_t i;
   const size_t num_pixs = transform->xsize_ * transform->ysize_;
   for (i = 0; i < num_pixs; ++i) {
@@ -239,8 +247,9 @@ void VP8LColorIndexingInverseTransform(const VP8LTransform* const transform,
   }
 }
 
-int VP8LPixelBundleInverseTransform(const VP8LTransform* const transform,
-                                    argb_t** const data) {
+// Separate out pixels packed together using Pixel bundling.
+static int PixelBundleInverseTransform(const VP8LTransform* const transform,
+                                       argb_t** const data) {
   uint32_t row, col, tile_x;
   const uint32_t bit_depth = 8 >> transform->bits_;
   const uint32_t num_cols = 1 << transform->bits_;
@@ -272,9 +281,40 @@ int VP8LPixelBundleInverseTransform(const VP8LTransform* const transform,
   return 1;
 }
 
+VP8StatusCode VP8LInverseTransform(const VP8LTransform* const transform,
+                                   argb_t** const data) {
+  VP8StatusCode status = VP8_STATUS_OK;
+  switch (transform->type_) {
+    case SUBTRACT_GREEN:
+      AddGreenToBlueAndRed(transform, *data);
+      break;
+    case PREDICTOR_TRANSFORM:
+      PredictorInverseTransform(transform, *data);
+      break;
+    case CROSS_COLOR_TRANSFORM:
+      ColorSpaceInverseTransform(transform, *data);
+      break;
+    case COLOR_INDEXING_TRANSFORM:
+      ColorIndexingInverseTransform(transform, *data);
+      break;
+    case PIXEL_BUNDLE_TRANSFORM:
+      if (!PixelBundleInverseTransform(transform, data)) {
+        status = VP8_STATUS_OUT_OF_MEMORY;
+      }
+      break;
+    default:
+      status = VP8_STATUS_BITSTREAM_ERROR;
+      break;
+  }
+  return status;
+}
+
 static int IsAlphaMode(WEBP_CSP_MODE mode) {
   return (mode == MODE_RGBA || mode == MODE_BGRA || mode == MODE_ARGB);
 }
+
+//------------------------------------------------------------------------------
+// Color space conversion.
 
 // TODO: This function assumes that little-ending byte order is used.
 // Need to add logic for big-endian.
@@ -345,7 +385,7 @@ int VP8LConvertColorSpaceFromBGRA(const uint8_t* const in_data,
       OUT_RED   += out_pixel_size;
       OUT_GREEN += out_pixel_size;
       OUT_BLUE  += out_pixel_size;
-      if(need_alpha) {
+      if (need_alpha) {
         output_data_lcl[OUT_ALPHA] = in_data[IN_ALPHA];
         IN_ALPHA  += in_pixel_size;
         OUT_ALPHA += out_pixel_size;
@@ -355,6 +395,8 @@ int VP8LConvertColorSpaceFromBGRA(const uint8_t* const in_data,
     return 1;
   }
 }
+
+//------------------------------------------------------------------------------
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"

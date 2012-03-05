@@ -37,6 +37,6 @@ typedef long long int int64_t;
 #define WEBP_EXTERN(type) extern type
 #endif  /* WEBP_EXTERN */
 
-typedef unsigned int argb_t;
+typedef uint32_t argb_t;
 
 #endif  /* WEBP_WEBP_TYPES_H_ */

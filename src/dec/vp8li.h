@@ -5,7 +5,7 @@
 //  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
 // -----------------------------------------------------------------------------
 //
-// VP8 decoder: internal header.
+// Lossless decoder: internal header.
 //
 // Author: Skal (pascal.massimino@gmail.com)
 //         Vikas Arora(vikaas.arora@gmail.com)
@@ -24,7 +24,7 @@ extern "C" {
 #define NUM_TRANSFORMS               8
 #define HUFFMAN_CODES_PER_META_CODE  5
 #define ARGB_BLACK                   0xff000000
-#define NUM_CODES_PER_BYTE           256
+#define NUM_LITERAL_CODES            256
 
 struct HuffmanTree;
 

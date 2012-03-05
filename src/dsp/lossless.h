@@ -25,31 +25,16 @@ extern "C" {
 
 struct VP8LTransform;  // Defined in dec/vp8li.h.
 
-// Inverse prediction on the data given transform information.
-void VP8LPredictorInverseTransform(const struct VP8LTransform* const transform,
-                                   argb_t* const data);
-
-// Adds Green to Blue and Red channels (i.e. performs the inverse transform of
-// 'Subtract Green' on the data).
-void VP8LAddGreenToBlueAndRed(const struct VP8LTransform* const transform,
-                              argb_t* const data);
-
-// Color space inverse transform on the data.
-void VP8LColorSpaceInverseTransform(const struct VP8LTransform* const transform,
-                                    argb_t* const data);
-
-// Recovers actual color values of pixels from their color indices.
-void VP8LColorIndexingInverseTransform(
-    const struct VP8LTransform* const transform, argb_t* const data);
-
-// Separates out pixels packed together using Pixel bundling.
-int VP8LPixelBundleInverseTransform(const struct VP8LTransform* const transform,
-                                    argb_t** const data);
+// Performs inverse transform of data given transform information.
+// Returns appropriate status code.
+VP8StatusCode VP8LInverseTransform(const struct VP8LTransform* const transform,
+                                   argb_t** const data);
 
 //------------------------------------------------------------------------------
 // Color space conversion.
 
-// Convert from BGRA to other color spaces.
+// Converts from BGRA to other color spaces.
+// Returns true on success.
 int VP8LConvertColorSpaceFromBGRA(const uint8_t* const in_data,
                                   size_t num_pixels,
                                   WEBP_CSP_MODE out_colorspace,

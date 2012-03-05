@@ -50,8 +50,8 @@ typedef enum {
 } HuffIndex;
 
 static const uint16_t kAlphabetSize[HUFFMAN_CODES_PER_META_CODE] = {
-  NUM_CODES_PER_BYTE + NUM_LENGTH_CODES,
-  NUM_CODES_PER_BYTE, NUM_CODES_PER_BYTE, NUM_CODES_PER_BYTE,
+  NUM_LITERAL_CODES + NUM_LENGTH_CODES,
+  NUM_LITERAL_CODES, NUM_LITERAL_CODES, NUM_LITERAL_CODES,
   NUM_DISTANCE_CODES
 };
 
@@ -447,7 +447,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
   // Values in range [NUM_CODES_PER_BYTE .. color_cache_limit[ are
   // color cache codes.
   const int color_cache_limit =
-      NUM_CODES_PER_BYTE + hdr->color_cache_size_;
+      NUM_LITERAL_CODES + hdr->color_cache_size_;
 
   assert(hdr->htrees_ != NULL);
   assert(hdr->meta_codes_ != NULL);
@@ -462,7 +462,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
     }
 
     code = ReadSymbolSafe(hdr->meta_htrees_[GREEN], br);
-    if (code < NUM_CODES_PER_BYTE) {
+    if (code < NUM_LITERAL_CODES) {
       // Literal.
       // Decode and save this pixel.
       int red, green, blue, alpha;
@@ -487,7 +487,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
     } else if (code < color_cache_limit) {
       // Color cache.
       // Decode and save this pixel.
-      const int color_cache_key = code - NUM_CODES_PER_BYTE;
+      const int color_cache_key = code - NUM_LITERAL_CODES;
       argb_t argb;
       ok = VP8LColorCacheLookup(color_cache, col, color_cache_key, &argb);
       if (!ok) goto Error;
@@ -587,30 +587,8 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
   assert(start_idx >= 0);
   while (ok && n-- > start_idx) {
     VP8LTransform* const transform = &dec->transforms_[n];
-    switch (transform->type_) {
-      case SUBTRACT_GREEN:
-        VP8LAddGreenToBlueAndRed(transform, *decoded_data);
-        break;
-      case PREDICTOR_TRANSFORM:
-        VP8LPredictorInverseTransform(transform, *decoded_data);
-        break;
-      case CROSS_COLOR_TRANSFORM:
-        VP8LColorSpaceInverseTransform(transform, *decoded_data);
-        break;
-      case COLOR_INDEXING_TRANSFORM:
-        VP8LColorIndexingInverseTransform(transform, *decoded_data);
-        break;
-      case PIXEL_BUNDLE_TRANSFORM:
-        ok = VP8LPixelBundleInverseTransform(transform, decoded_data);
-        if (!ok) {
-          dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-        }
-        break;
-      default:
-        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-        ok = 0;
-        break;
-    }
+    dec->status_ = VP8LInverseTransform(transform, decoded_data);
+    ok = (dec->status_ == VP8_STATUS_OK);
     ClearTransform(transform);
   }
   dec->next_transform_ = start_idx;
