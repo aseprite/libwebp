@@ -7,8 +7,9 @@
 //
 // Image transforms and color space conversion methods for lossless decoder.
 //
-// Author: Vikas Arora (vikaas.arora@gmail.com)
-//         jyrki@google.com (Jyrki Alakuijala)
+// Authors: Vikas Arora (vikaas.arora@gmail.com)
+//          jyrki@google.com (Jyrki Alakuijala)
+//          Urvang Joshi (urvang@google.com)
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -316,82 +317,96 @@ static int IsAlphaMode(WEBP_CSP_MODE mode) {
 //------------------------------------------------------------------------------
 // Color space conversion.
 
-// TODO: This function assumes that little-ending byte order is used.
-// Need to add logic for big-endian.
-int VP8LConvertColorSpaceFromBGRA(const uint8_t* const in_data,
+static void ConvertBGRAToRGB(const argb_t* const in_data, size_t num_pixels,
+                             uint8_t* const out_data) {
+  const argb_t* in_wordp = in_data;
+  uint8_t* out_bytep = out_data;
+  size_t i;
+  for (i = 0; i < num_pixels; ++i) {
+    const argb_t argb = in_wordp[i];
+    *out_bytep++ = (argb >> 16) & 0xff;
+    *out_bytep++ = (argb >> 8) & 0xff;
+    *out_bytep++ = (argb >> 0) & 0xff;
+  }
+}
+
+static void ConvertBGRAToRGBA(const argb_t* const in_data, size_t num_pixels,
+                              uint8_t* const out_data) {
+  const argb_t* in_wordp = in_data;
+  uint8_t* out_bytep = out_data;
+  size_t i;
+  for (i = 0; i < num_pixels; ++i) {
+    const argb_t argb = in_wordp[i];
+    *out_bytep++ = (argb >> 16) & 0xff;
+    *out_bytep++ = (argb >> 8) & 0xff;
+    *out_bytep++ = (argb >> 0) & 0xff;
+    *out_bytep++ = (argb >> 24) & 0xff;
+  }
+}
+
+static void ConvertBGRAToBGR(const argb_t* const in_data, size_t num_pixels,
+                             uint8_t* const out_data) {
+  const argb_t* in_wordp = in_data;
+  uint8_t* out_bytep = out_data;
+  size_t i;
+  for (i = 0; i < num_pixels; ++i) {
+    const argb_t argb = in_wordp[i];
+    *out_bytep++ = (argb >> 0) & 0xff;
+    *out_bytep++ = (argb >> 8) & 0xff;
+    *out_bytep++ = (argb >> 16) & 0xff;
+  }
+}
+
+static void ConvertBGRAToARGB(const argb_t* const in_data, size_t num_pixels,
+                              uint8_t* const out_data) {
+  const argb_t* in_wordp = in_data;
+  uint8_t* out_bytep = out_data;
+  size_t i;
+  for (i = 0; i < num_pixels; ++i) {
+    const argb_t argb = in_wordp[i];
+    *out_bytep++ = (argb >> 24) & 0xff;
+    *out_bytep++ = (argb >> 16) & 0xff;
+    *out_bytep++ = (argb >> 8) & 0xff;
+    *out_bytep++ = (argb >> 0) & 0xff;
+  }
+}
+
+int VP8LConvertColorSpaceFromBGRA(const argb_t* const in_data,
                                   size_t num_pixels,
                                   WEBP_CSP_MODE out_colorspace,
-                                  uint8_t** const output_data) {
-  // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
+                                  uint8_t** const out_data) {
   if (out_colorspace >= MODE_RGBA_4444) {
+    // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
     return 0;
   } else {
     // Allocate as per mode.
     const int need_alpha = IsAlphaMode(out_colorspace);
-    const int in_pixel_size = 4;
-    size_t IN_BLUE  = 0;
-    size_t IN_GREEN = 1;
-    size_t IN_RED   = 2;
-    size_t IN_ALPHA = 3;
     const size_t out_pixel_size = need_alpha ? 4 : 3;
-    size_t OUT_BLUE;
-    size_t OUT_GREEN;
-    size_t OUT_RED;
-    size_t OUT_ALPHA;
-    size_t i;
-    uint8_t* const output_data_lcl =
+    uint8_t* const out_data_lcl =
         (uint8_t*)malloc(num_pixels * out_pixel_size);
-    if (output_data_lcl == NULL) return 0;
+    if (out_data_lcl == NULL) return 0;
+    // Convert to given color space.
     switch (out_colorspace) {
       case MODE_RGB:
-        OUT_RED   = 0;
-        OUT_GREEN = 1;
-        OUT_BLUE  = 2;
+        ConvertBGRAToRGB(in_data, num_pixels, out_data_lcl);
         break;
       case MODE_RGBA:
-        OUT_RED   = 0;
-        OUT_GREEN = 1;
-        OUT_BLUE  = 2;
-        OUT_ALPHA = 3;
+        ConvertBGRAToRGBA(in_data, num_pixels, out_data_lcl);
         break;
       case MODE_BGR:
-        OUT_BLUE  = 0;
-        OUT_GREEN = 1;
-        OUT_RED   = 2;
+        ConvertBGRAToBGR(in_data, num_pixels, out_data_lcl);
         break;
       case MODE_BGRA:
-        OUT_BLUE  = 0;
-        OUT_GREEN = 1;
-        OUT_RED   = 2;
-        OUT_ALPHA = 3;
+        memcpy(out_data_lcl, in_data, num_pixels * 4);
         break;
       case MODE_ARGB:
-        OUT_ALPHA = 0;
-        OUT_RED   = 1;
-        OUT_GREEN = 2;
-        OUT_BLUE  = 3;
+        ConvertBGRAToARGB(in_data, num_pixels, out_data_lcl);
         break;
       default:
         // Code flow should not reach here.
         assert(0);
     }
-    for (i = 0; i < num_pixels; ++i) {
-      output_data_lcl[OUT_RED]   = in_data[IN_RED];
-      output_data_lcl[OUT_GREEN] = in_data[IN_GREEN];
-      output_data_lcl[OUT_BLUE]  = in_data[IN_BLUE];
-      IN_RED    += in_pixel_size;
-      IN_GREEN  += in_pixel_size;
-      IN_BLUE   += in_pixel_size;
-      OUT_RED   += out_pixel_size;
-      OUT_GREEN += out_pixel_size;
-      OUT_BLUE  += out_pixel_size;
-      if (need_alpha) {
-        output_data_lcl[OUT_ALPHA] = in_data[IN_ALPHA];
-        IN_ALPHA  += in_pixel_size;
-        OUT_ALPHA += out_pixel_size;
-      }
-    }
-    *output_data = output_data_lcl;
+    *out_data = out_data_lcl;
     return 1;
   }
 }

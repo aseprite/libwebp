@@ -885,8 +885,7 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     goto Err;
   }
 
-  if(!VP8LConvertColorSpaceFromBGRA((uint8_t* const)data, num_pixels,
-                                    dec->output_colorspace_,
+  if(!VP8LConvertColorSpaceFromBGRA(data, num_pixels, dec->output_colorspace_,
                                     &dec->decoded_data_)) {
     dec->status_ = VP8_STATUS_INVALID_PARAM;
     goto Err;
