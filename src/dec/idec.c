@@ -122,16 +122,12 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
     if (new_buf == NULL) return 0;
     memcpy(new_buf, base, MemDataSize(mem));
 
-    if (!dec->is_lossless_) {
-      // adjust VP8BitReader pointers
-      for (p = 0; p <= last_part; ++p) {
-        if (dec->parts_[p].buf_) {
-          REMAP(dec->parts_[p].buf_, base, new_buf);
-          REMAP(dec->parts_[p].buf_end_, base, new_buf);
-        }
+    // adjust VP8BitReader pointers
+    for (p = 0; p <= last_part; ++p) {
+      if (dec->parts_[p].buf_) {
+        REMAP(dec->parts_[p].buf_, base, new_buf);
+        REMAP(dec->parts_[p].buf_end_, base, new_buf);
       }
-    } else {
-      if (!ResizeLosslessBitReader(dec, new_buf, new_size)) return 0;
     }
 
     // adjust memory pointers
@@ -148,6 +144,16 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
   assert(mem->end_ <= mem->buf_size_);
   assert(last_part >= 0);
   dec->parts_[last_part].buf_end_ = mem->buf_ + mem->end_;
+
+  // Lossless Bit Reader needs to be resized for every invocation of
+  // WebPIAppend as buf_end_ is changing with every invocation.
+  if (dec->is_lossless_) {
+    if (!ResizeLosslessBitReader(dec, mem->buf_, mem->end_)) {
+      free(mem->buf_);
+      mem->buf_ = NULL;
+      return 0;
+    }
+  }
 
   // note: setting up idec->io_ is only really needed at the beginning
   // of the decoding, till partition #0 is complete.
@@ -292,19 +298,13 @@ static VP8StatusCode DecodeWebPHeaders(WebPIDecoder* const idec) {
   if (status == VP8_STATUS_NOT_ENOUGH_DATA) {
     return VP8_STATUS_SUSPENDED;  // We haven't found a VP8 chunk yet.
   } else if (status == VP8_STATUS_OK) {
+    idec->vp8_size_ = vp8_size;
     if (!dec->is_lossless_) {
-      idec->vp8_size_ = vp8_size;
       ChangeState(idec, STATE_VP8_FRAME_HEADER, bytes_skipped);
-      return VP8_STATUS_OK;  // We have skipped all pre-VP8 chunks.
     } else {
-      VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
-      idec->vp8_size_ = vp8_size;
-      VP8LInitDecoder(vp8l_decoder);
-      vp8l_decoder->br_offset_ = bytes_skipped;
-
       ChangeState(idec, STATE_VP8L_HEADER, bytes_skipped);
-      return VP8_STATUS_OK;
     }
+    return VP8_STATUS_OK;
   } else {
     return IDecError(idec, status);
   }
@@ -473,6 +473,14 @@ static VP8StatusCode DecodeVP8LHeader(WebPIDecoder* const idec) {
     return VP8_STATUS_SUSPENDED;
   }
 
+  VP8LInitDecoder(vp8l_decoder);
+  // start_ corresponds to bytes consumed in the last state (parsing RIFF
+  // header). For Update mode, io->data is set to mem_.buf_ and hence require an
+  // offset corresponding to start_ in BitReader. In Append mode, io->data
+  // is already start_ offset over mem_.buf_, so doesn't require additional
+  // offset in BitReader.
+  vp8l_decoder->br_offset_ =
+      (io->data == idec->mem_.buf_) ? idec->mem_.start_ : 0;
   if (!VP8LDecodeHeader(vp8l_decoder, io)) {
     VP8LClear(vp8l_decoder);
     return ErrorStatusLossless(idec, vp8l_decoder->status_);
