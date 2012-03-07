@@ -567,7 +567,8 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
  Error:
   if (br->error_ || !ok) {
     ok = 0;
-    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    dec->status_ = (!br->eos_) ?
+        VP8_STATUS_BITSTREAM_ERROR : VP8_STATUS_SUSPENDED;
   } else if (pix_ix == num_pixs && dec->level_ == 1) {
     dec->state_ = READ_DATA;
   }
@@ -765,7 +766,10 @@ static int DecodeImageStream(int xsize, int ysize,
                               &meta_codes, &num_meta_codes,
                               &htrees, &num_huffman_trees);
 
-  if (!ok) goto End;
+  if (!ok) {
+    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    goto End;
+  }
 
   if (color_cache_bits > 0) {
     color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
@@ -812,7 +816,11 @@ static int DecodeImageStream(int xsize, int ysize,
 
   if (!ok) {
     free(data);
-    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+    // If not enough data (br.eos_) resulted in BIT_STREAM_ERROR, update the
+    // status appropriately.
+    if (dec->status_ == VP8_STATUS_BITSTREAM_ERROR && dec->br_.eos_) {
+      dec->status_ = VP8_STATUS_SUSPENDED;
+    }
   } else {
     *decoded_data = data;
   }
@@ -820,18 +828,19 @@ static int DecodeImageStream(int xsize, int ysize,
   return ok;
 }
 
-int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
+int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
   argb_t* decoded_data = NULL;
 
   if (dec == NULL) return 0;
-  if (io == NULL || offset > io->data_size) {
+  if (io == NULL || dec->br_offset_ > io->data_size) {
     dec->status_ = VP8_STATUS_INVALID_PARAM;
     return 0;
   }
 
   dec->status_ = VP8_STATUS_OK;
-  VP8LInitBitReader(&dec->br_, io->data + offset, io->data_size - offset);
+  VP8LInitBitReader(&dec->br_, io->data + dec->br_offset_,
+                    io->data_size - dec->br_offset_);
   if (!ReadImageSize(&dec->br_, &width, &height)) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     return 0;
@@ -846,9 +855,7 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset) {
   if (!DecodeImageStream(width, height, dec, &decoded_data)) {
     free(decoded_data);
     VP8LClear(dec);
-    if (dec->status_ == VP8_STATUS_OK) {
-      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-    }
+    assert(dec->status_ != VP8_STATUS_OK);
     return 0;
   }
   return 1;
@@ -876,7 +883,6 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
 
   dec->action_ = READ_DATA;
   if (!DecodePixels(dec, data)) {
-    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     goto Err;
   }
 

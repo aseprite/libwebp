@@ -278,9 +278,9 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
   if (is_lossless) {
     int ok;
     VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
-    uint32_t offset = io->data_size - buf_size;
     VP8LInitDecoder(vp8l_decoder);
-    ok = VP8LDecodeHeader(vp8l_decoder, io, offset);
+    vp8l_decoder->br_offset_ = bytes_skipped;
+    ok = VP8LDecodeHeader(vp8l_decoder, io);
     if (!ok) {
       VP8LClear(vp8l_decoder);
       return VP8SetError(dec, vp8l_decoder->status_,

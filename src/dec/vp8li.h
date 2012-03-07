@@ -76,6 +76,7 @@ struct VP8LDecoder {
   argb_t           *argb_;  // Internal data: always in BGRA color mode.
   BitReader        br_;
   BitReader        br_check_point_;
+  uint32_t         br_offset_;
 
   WEBP_CSP_MODE    output_colorspace_;
   uint8_t*         decoded_data_;  // Output in 'output_colorspace_' color mode.
@@ -111,7 +112,7 @@ int VP8LGetInfo(const uint8_t* data,
 void VP8LInitDecoder(VP8LDecoder* const dec);
 
 // Decodes the image header. Returns false in case of error.
-int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io, uint32_t offset);
+int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io);
 
 // Decodes an image. It's required to decode the lossless header before calling
 // this function. Returns false in case of error, with updated dec->status_.
