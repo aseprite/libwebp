@@ -371,10 +371,9 @@ static void ConvertBGRAToARGB(const argb_t* const in_data, size_t num_pixels,
   }
 }
 
-int VP8LConvertColorSpaceFromBGRA(const argb_t* const in_data,
-                                  size_t num_pixels,
-                                  WEBP_CSP_MODE out_colorspace,
-                                  uint8_t** const out_data) {
+int VP8LConvertFromBGRA(const argb_t* const in_data, size_t num_pixels,
+                        WEBP_CSP_MODE out_colorspace,
+                        uint8_t** const out_data_ptr) {
   if (out_colorspace >= MODE_RGBA_4444) {
     // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
     return 0;
@@ -382,31 +381,30 @@ int VP8LConvertColorSpaceFromBGRA(const argb_t* const in_data,
     // Allocate as per mode.
     const int need_alpha = IsAlphaMode(out_colorspace);
     const size_t out_pixel_size = need_alpha ? 4 : 3;
-    uint8_t* const out_data_lcl =
-        (uint8_t*)malloc(num_pixels * out_pixel_size);
-    if (out_data_lcl == NULL) return 0;
+    uint8_t* const out_data = (uint8_t*)malloc(num_pixels * out_pixel_size);
+    if (out_data == NULL) return 0;
     // Convert to given color space.
     switch (out_colorspace) {
       case MODE_RGB:
-        ConvertBGRAToRGB(in_data, num_pixels, out_data_lcl);
+        ConvertBGRAToRGB(in_data, num_pixels, out_data);
         break;
       case MODE_RGBA:
-        ConvertBGRAToRGBA(in_data, num_pixels, out_data_lcl);
+        ConvertBGRAToRGBA(in_data, num_pixels, out_data);
         break;
       case MODE_BGR:
-        ConvertBGRAToBGR(in_data, num_pixels, out_data_lcl);
+        ConvertBGRAToBGR(in_data, num_pixels, out_data);
         break;
       case MODE_BGRA:
-        memcpy(out_data_lcl, in_data, num_pixels * 4);
+        memcpy(out_data, in_data, num_pixels * 4);
         break;
       case MODE_ARGB:
-        ConvertBGRAToARGB(in_data, num_pixels, out_data_lcl);
+        ConvertBGRAToARGB(in_data, num_pixels, out_data);
         break;
       default:
         // Code flow should not reach here.
         assert(0);
     }
-    *out_data = out_data_lcl;
+    *out_data_ptr = out_data;
     return 1;
   }
 }

@@ -35,10 +35,9 @@ VP8StatusCode VP8LInverseTransform(const struct VP8LTransform* const transform,
 
 // Converts from BGRA to other color spaces.
 // Returns true on success.
-int VP8LConvertColorSpaceFromBGRA(const argb_t* const in_data,
-                                  size_t num_pixels,
-                                  WEBP_CSP_MODE out_colorspace,
-                                  uint8_t** const out_data);
+int VP8LConvertFromBGRA(const argb_t* const in_data, size_t num_pixels,
+                        WEBP_CSP_MODE out_colorspace,
+                        uint8_t** const out_data_ptr);
 
 //------------------------------------------------------------------------------
 // Misc methods.
