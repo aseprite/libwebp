@@ -122,17 +122,12 @@ void VP8LInitBitReader(BitReader* const br,
   }
 }
 
-int VP8LBitReaderResize(BitReader* const br,
-                        const uint8_t* const new_start,
-                        size_t new_length) {
-  if (br->error_ || new_length < br->len_) {
-    return 0;
-  }
-
+void VP8LBitReaderResize(BitReader* const br,
+                         const uint8_t* const new_start,
+                         size_t new_length) {
+  if (new_length > br->len_) br->eos_ = 0;
   br->buf_ = new_start;
   br->len_ = new_length;
-  if (new_length > br->len_) br->eos_ = 0;
-  return 1;
 }
 
 static void ShiftBytes(BitReader* const br) {

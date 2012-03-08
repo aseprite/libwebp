@@ -90,17 +90,15 @@ static WEBP_INLINE size_t MemDataSize(const MemBuffer* mem) {
   return (mem->end_ - mem->start_);
 }
 
-static int ResizeLosslessBitReader(VP8Decoder* const dec,
-                                   const uint8_t* const new_buf,
-                                   size_t new_size) {
-  int ok = 1;
+static void ResizeLosslessBitReader(VP8Decoder* const dec,
+                                    const uint8_t* const new_buf,
+                                    size_t new_size) {
   VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
   if (vp8l_decoder->br_.buf_ != NULL) {
-    ok = VP8LBitReaderResize(&vp8l_decoder->br_,
-                             new_buf + vp8l_decoder->br_offset_,
-                             new_size - vp8l_decoder->br_offset_);
+    VP8LBitReaderResize(&vp8l_decoder->br_,
+                        new_buf + vp8l_decoder->br_offset_,
+                        new_size - vp8l_decoder->br_offset_);
   }
-  return ok;
 }
 
 // Appends data to the end of MemBuffer->buf_. It expands the allocated memory
@@ -148,11 +146,7 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
   // Lossless Bit Reader needs to be resized for every invocation of
   // WebPIAppend as buf_end_ is changing with every invocation.
   if (dec->is_lossless_) {
-    if (!ResizeLosslessBitReader(dec, mem->buf_, mem->end_)) {
-      free(mem->buf_);
-      mem->buf_ = NULL;
-      return 0;
-    }
+    ResizeLosslessBitReader(dec, mem->buf_, mem->end_);
   }
 
   // note: setting up idec->io_ is only really needed at the beginning
@@ -191,9 +185,7 @@ static int RemapMemBuffer(WebPIDecoder* const idec,
       REMAP(dec->br_.buf_end_, base, data);
     }
   } else {
-    if (!ResizeLosslessBitReader(dec, data, data_size)) {
-      return 0;
-    }
+    ResizeLosslessBitReader(dec, data, data_size);
   }
 
   mem->buf_ = (uint8_t*)data;

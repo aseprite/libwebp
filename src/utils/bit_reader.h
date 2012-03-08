@@ -167,9 +167,9 @@ void VP8LInitBitReader(BitReader* const br,
                        size_t length);
 
 // Resizes the BitReader corresponding to resized read buffer.
-int VP8LBitReaderResize(BitReader* const br,
-                        const uint8_t* const new_start,
-                        size_t new_length);
+void VP8LBitReaderResize(BitReader* const br,
+                         const uint8_t* const new_start,
+                         size_t new_length);
 
 // Reads the specified number of bits from Read Buffer.
 // Flags an error in case end_of_stream or n_bits is more than allowed limit.
