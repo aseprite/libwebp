@@ -75,7 +75,6 @@ struct VP8LDecoder {
 
   argb_t           *argb_;  // Internal data: always in BGRA color mode.
   BitReader        br_;
-  BitReader        br_check_point_;
   uint32_t         br_offset_;
 
   WEBP_CSP_MODE    output_colorspace_;
@@ -87,7 +86,6 @@ struct VP8LDecoder {
   int              xsize_;
   int              ysize_;
   int              row_;
-  int              pix_;
   int              level_;
 
   VP8LMetadata     hdr_;

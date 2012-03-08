@@ -192,11 +192,6 @@ static WEBP_INLINE uint32_t VP8LReadOneBitUnsafe(BitReader* const br) {
 // Advances the Read buffer by 4 bytes to make room for reading next 32 bits.
 void VP8LFillBitWindow(BitReader* const br);
 
-static WEBP_INLINE void VP8LCloneBitReader(BitReader* const dst,
-                                           const BitReader* const src) {
-  memcpy(dst, src, sizeof(BitReader));
-}
-
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
 #endif

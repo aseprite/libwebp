@@ -437,9 +437,9 @@ static WEBP_INLINE void UpdateHtreeForPos(VP8LDecoder* const dec,
 static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
   int ok = 1;
   int col = 0;
+  int pix_ix = 0;
   int row = dec->row_;
   int xsize = dec->xsize_;
-  int pix_ix = dec->pix_;
   const int num_pixs = xsize * dec->ysize_;
   BitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
@@ -481,8 +481,6 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
       if (col == xsize) {
         ++row;
         col = 0;
-        VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
-        dec->pix_ = pix_ix;
       }
     } else if (code < color_cache_limit) {
       // Color cache.
@@ -500,13 +498,10 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
       if (col == xsize) {
         ++row;
         col = 0;
-        VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
-        dec->pix_ = pix_ix;
       }
     } else if (code - color_cache_limit < NUM_LENGTH_CODES) {
       // Backward reference
       int dist_code, dist;
-      int clone_br = 0;
       int length_sym = code - color_cache_limit;
       const int length = GetCopyLength(length_sym, br);
       const int dist_symbol = ReadSymbolSafe(hdr->meta_htrees_[DIST], br);
@@ -529,7 +524,6 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
           if (col == xsize) {
             ++row;
             col = 0;
-            clone_br = 1;
           }
         }
       } else {
@@ -542,12 +536,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
         while (col >= xsize) {
           col -= xsize;
           ++row;
-          clone_br = 1;
         }
-      }
-      if (clone_br) {
-        VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
-        dec->pix_ = pix_ix;
       }
 
       if (br->error_) goto Error;
@@ -562,7 +551,6 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
     }
   }
   dec->row_ = row;
-  dec->pix_ = pix_ix;
 
  Error:
   if (br->error_ || !ok) {
@@ -654,7 +642,6 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->xsize_ = 0;
   dec->ysize_ = 0;
   dec->row_ = 0;
-  dec->pix_ = 0;
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
   dec->level_ = 0;
@@ -715,7 +702,6 @@ static void UpdateDecoder(
   dec->xsize_ = xsize;
   dec->ysize_ = ysize;
   dec->row_ = 0;
-  dec->pix_ = 0;
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = color_cache;
@@ -848,7 +834,6 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   dec->state_ = READ_DIM;
   dec->width_ = width;
   dec->height_ = height;
-  VP8LCloneBitReader(&dec->br_check_point_, &dec->br_);
 
   dec->decoded_data_ = NULL;
   dec->action_ = READ_HDR;
