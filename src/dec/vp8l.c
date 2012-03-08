@@ -576,7 +576,8 @@ static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
   assert(start_idx >= 0);
   while (ok && n-- > start_idx) {
     VP8LTransform* const transform = &dec->transforms_[n];
-    dec->status_ = VP8LInverseTransform(transform, decoded_data);
+    dec->status_ = VP8LInverseTransform(transform, 0, transform->ysize_,
+                                        decoded_data);
     ok = (dec->status_ == VP8_STATUS_OK);
     ClearTransform(transform);
   }

@@ -123,20 +123,24 @@ static WEBP_INLINE argb_t PredictValue(uint32_t pred_mode, int xsize,
 
 // Inverse prediction.
 static void PredictorInverseTransform(const VP8LTransform* const transform,
+                                      size_t row_start, size_t row_end,
                                       argb_t* const data) {
   size_t row, col, col_start, tile_offset;
-  uint32_t pix_ix = 0;
+  uint32_t pix_ix = row_start * transform->xsize_;
   const uint32_t tile_size = 1 << transform->bits_;
   const uint32_t tiles_per_row = VP8LSubSampleSize(transform->xsize_,
-                                               transform->bits_);
-  // First Row follows the L (mode=1) mode.
-  data[0] = VP8LAddPixels(data[0], ARGB_BLACK);
-  for (col = 1; col < transform->xsize_; ++col) {
-    data[col] = VP8LAddPixels(data[col], data[col - 1]);
+                                                   transform->bits_);
+  if (row_start == 0) {
+    // First Row follows the L (mode=1) mode.
+    data[0] = VP8LAddPixels(data[0], ARGB_BLACK);
+    for (col = 1; col < transform->xsize_; ++col) {
+      data[col] = VP8LAddPixels(data[col], data[col - 1]);
+    }
+    pix_ix += transform->xsize_;
+    ++row_start;
   }
-  pix_ix += transform->xsize_;
 
-  for (row = 1; row < transform->ysize_; ++row) {
+  for (row = row_start; row < row_end; ++row) {
     const uint32_t tile_base_ix = tiles_per_row * (row >> transform->bits_);
     for (tile_offset = 0, col_start = 0; tile_offset < tiles_per_row;
          ++tile_offset, col_start += tile_size) {
@@ -166,10 +170,12 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
 // Add Green to Blue and Red channels (i.e. perform the inverse transform of
 // 'Subtract Green').
 static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
+                                 size_t row_start, size_t row_end,
                                  argb_t* const data) {
   size_t i;
-  const size_t num_pixs = transform->xsize_ * transform->ysize_;
-  for (i = 0; i < num_pixs; ++i) {
+  const size_t pix_start = row_start * transform->xsize_;
+  const size_t pix_end = row_end * transform->xsize_;
+  for (i = pix_start; i < pix_end; ++i) {
     const argb_t argb = data[i];
     argb_t green = (argb >> 8) & 0xff;
     argb_t red_blue = argb & 0x00ff00ff;
@@ -214,13 +220,15 @@ static WEBP_INLINE argb_t TransformColor(const ColorTransformElem* const elem,
 
 // Color space inverse transform.
 static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
+                                       size_t row_start, size_t row_end,
                                        argb_t* const data) {
   size_t row, col, col_start, tile_offset;
-  uint32_t pix_ix = 0;
   const uint32_t tile_size = 1 << transform->bits_;
   const uint32_t tiles_per_row = VP8LSubSampleSize(transform->xsize_,
                                                    transform->bits_);
-  for (row = 0; row < transform->ysize_; ++row) {
+  uint32_t pix_ix = row_start * transform->xsize_;
+
+  for (row = row_start; row < row_end; ++row) {
     const uint32_t tile_base_ix = tiles_per_row * (row >> transform->bits_);
     for (tile_offset = 0, col_start = 0; tile_offset < tiles_per_row;
          ++tile_offset, col_start += tile_size) {
@@ -231,8 +239,7 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
       ColorTransformElemInitFromCode(
           &color_pred, transform->data_[tile_base_ix + tile_offset]);
       for (col = col_start; col < col_end; ++col, ++pix_ix) {
-        data[pix_ix] = TransformColor(&color_pred,
-                                              data[pix_ix]);
+        data[pix_ix] = TransformColor(&color_pred, data[pix_ix]);
       }
     }
   }
@@ -240,30 +247,35 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
 
 // Recover actual color values of pixels from their color indices.
 static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
+                                          size_t row_start, size_t row_end,
                                           argb_t* const data) {
   size_t i;
-  const size_t num_pixs = transform->xsize_ * transform->ysize_;
-  for (i = 0; i < num_pixs; ++i) {
+  const size_t pix_start = row_start * transform->xsize_;
+  const size_t pix_end = row_end * transform->xsize_;
+  for (i = pix_start; i < pix_end; ++i) {
     data[i] = transform->data_[(data[i] >> 8) & 0xff];
   }
 }
 
 // Separate out pixels packed together using Pixel bundling.
+// TODO: Move the allocation out of this function, and then make it generic,
+// so that it can transform only the given rows.
 static int PixelBundleInverseTransform(const VP8LTransform* const transform,
                                        argb_t** const data) {
   uint32_t row, col, tile_x;
   const uint32_t bit_depth = 8 >> transform->bits_;
   const uint32_t num_cols = 1 << transform->bits_;
   const uint32_t bit_mask = (1 << bit_depth) - 1;
-  const uint32_t xs = VP8LSubSampleSize(transform->xsize_, transform->bits_);
+  const uint32_t tiles_per_row =
+      VP8LSubSampleSize(transform->xsize_, transform->bits_);
 
   uint32_t* tmp = (uint32_t*)calloc(
       transform->xsize_ * transform->ysize_, sizeof(*tmp));
   if (tmp == NULL) return 0;
 
   for (row = 0; row < transform->ysize_; ++row) {
-    for (tile_x = 0; tile_x < xs; ++tile_x) {
-      const argb_t* const rowp = (*data) + row * xs;
+    for (tile_x = 0; tile_x < tiles_per_row; ++tile_x) {
+      const argb_t* const rowp = (*data) + row * tiles_per_row;
       uint32_t tile_code = (rowp[tile_x] >> 8) & 0xff;
       for (col = 0; col < num_cols; ++col) {
         const uint32_t x_all = tile_x * num_cols + col;
@@ -283,20 +295,23 @@ static int PixelBundleInverseTransform(const VP8LTransform* const transform,
 }
 
 VP8StatusCode VP8LInverseTransform(const VP8LTransform* const transform,
+                                   size_t row_start, size_t row_end,
                                    argb_t** const data) {
   VP8StatusCode status = VP8_STATUS_OK;
+  assert(row_start < row_end);
+  assert(row_end <= transform->ysize_);
   switch (transform->type_) {
     case SUBTRACT_GREEN:
-      AddGreenToBlueAndRed(transform, *data);
+      AddGreenToBlueAndRed(transform, row_start, row_end, *data);
       break;
     case PREDICTOR_TRANSFORM:
-      PredictorInverseTransform(transform, *data);
+      PredictorInverseTransform(transform, row_start, row_end, *data);
       break;
     case CROSS_COLOR_TRANSFORM:
-      ColorSpaceInverseTransform(transform, *data);
+      ColorSpaceInverseTransform(transform, row_start, row_end, *data);
       break;
     case COLOR_INDEXING_TRANSFORM:
-      ColorIndexingInverseTransform(transform, *data);
+      ColorIndexingInverseTransform(transform, row_start, row_end, *data);
       break;
     case PIXEL_BUNDLE_TRANSFORM:
       if (!PixelBundleInverseTransform(transform, data)) {

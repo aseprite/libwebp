@@ -25,9 +25,11 @@ extern "C" {
 
 struct VP8LTransform;  // Defined in dec/vp8li.h.
 
-// Performs inverse transform of data given transform information.
+// Performs inverse transform of data given transform information, start and end
+// rows. Transform will be applied to rows [row_start, row_end[.
 // Returns appropriate status code.
 VP8StatusCode VP8LInverseTransform(const struct VP8LTransform* const transform,
+                                   size_t row_start, size_t row_end,
                                    argb_t** const data);
 
 //------------------------------------------------------------------------------
