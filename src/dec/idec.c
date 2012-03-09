@@ -477,8 +477,6 @@ static VP8StatusCode DecodeVP8LHeader(WebPIDecoder* const idec) {
     VP8LClear(vp8l_decoder);
     return ErrorStatusLossless(idec, vp8l_decoder->status_);
   }
-  io->width = vp8l_decoder->width_;
-  io->height = vp8l_decoder->height_;
   // Allocate/verify output buffer now.
   dec->status_ = WebPAllocateDecBuffer(io->width, io->height, params->options,
                                        output);
@@ -492,9 +490,6 @@ static VP8StatusCode DecodeVP8LHeader(WebPIDecoder* const idec) {
 
 static VP8StatusCode DecodeVP8LData(WebPIDecoder* const idec) {
   VP8Decoder* const dec = idec->dec_;
-  WebPDecParams* const params = &idec->params_;
-  WebPDecBuffer* const output = params->output;
-  WebPRGBABuffer* const out_buf = &output->u.RGBA;
   VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
   const uint32_t curr_size = MemDataSize(&idec->mem_);
 
@@ -504,15 +499,9 @@ static VP8StatusCode DecodeVP8LData(WebPIDecoder* const idec) {
     return VP8_STATUS_SUSPENDED;
   }
 
-  vp8l_decoder->output_colorspace_ = output->colorspace;
   if (!VP8LDecodeImage(vp8l_decoder)) {
     return ErrorStatusLossless(idec, vp8l_decoder->status_);
   }
-  // Make a short-circuit and copy the decoded data to params->output.
-  // TODO(vikasa): Write data to params->output->u.RGBA via customPut.
-  memcpy(out_buf->rgba, vp8l_decoder->decoded_data_, out_buf->size);
-  params->last_y = vp8l_decoder->row_;
-  VP8LClear(vp8l_decoder);
 
   idec->state_ = STATE_DONE;
 

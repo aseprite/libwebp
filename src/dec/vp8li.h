@@ -72,16 +72,11 @@ struct VP8LDecoder {
   VP8StatusCode    status_;
   VP8LDecodeState  action_;
   VP8LDecodeState  state_;
+  VP8Io            *io_;
 
   argb_t           *argb_;  // Internal data: always in BGRA color mode.
   BitReader        br_;
   uint32_t         br_offset_;
-
-  WEBP_CSP_MODE    output_colorspace_;
-  uint8_t*         decoded_data_;  // Output in 'output_colorspace_' color mode.
-
-  int              width_;
-  int              height_;
 
   int              xsize_;
   int              ysize_;

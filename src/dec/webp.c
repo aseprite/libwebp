@@ -324,15 +324,9 @@ static VP8StatusCode DecodeInto(const uint8_t* data, uint32_t data_size,
         }
       } else {
         VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
-        vp8l_decoder->output_colorspace_ = params->output->colorspace;
         if (!VP8LDecodeImage(vp8l_decoder)) {
           status = VP8_STATUS_BITSTREAM_ERROR;
-        } else {
-          // Make a short-circuit and copy the decoded data to params->output.
-          WebPRGBABuffer* const buf = &(params->output->u.RGBA);
-          memcpy(buf->rgba, vp8l_decoder->decoded_data_, buf->size);
         }
-        VP8LClear(vp8l_decoder);
       }
     }
   }

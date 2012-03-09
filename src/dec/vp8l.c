@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "./vp8li.h"
+#include "./webpi.h"
 #include "../dsp/lossless.h"
 #include "../utils/huffman.h"
 
@@ -646,8 +647,6 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
   dec->level_ = 0;
-  dec->decoded_data_ = NULL;
-  dec->output_colorspace_ = MODE_BGRA;
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = NULL;
@@ -818,6 +817,8 @@ static int DecodeImageStream(int xsize, int ysize,
 int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
   argb_t* decoded_data = NULL;
+  WebPDecParams* params = NULL;
+  WebPDecBuffer* output = NULL;
 
   if (dec == NULL) return 0;
   if (io == NULL || dec->br_offset_ > io->data_size) {
@@ -825,6 +826,7 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
     return 0;
   }
 
+  dec->io_ = io;
   dec->status_ = VP8_STATUS_OK;
   VP8LInitBitReader(&dec->br_, io->data + dec->br_offset_,
                     io->data_size - dec->br_offset_);
@@ -833,10 +835,13 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
     return 0;
   }
   dec->state_ = READ_DIM;
-  dec->width_ = width;
-  dec->height_ = height;
+  io->width = width;
+  io->height = height;
+  params = (WebPDecParams*)io->opaque;
+  output = params->output;
+  output->width = width;
+  output->height = height;
 
-  dec->decoded_data_ = NULL;
   dec->action_ = READ_HDR;
   if (!DecodeImageStream(width, height, dec, &decoded_data)) {
     free(decoded_data);
@@ -849,18 +854,28 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
 
 int VP8LDecodeImage(VP8LDecoder* const dec) {
   argb_t* data = NULL;
-  int xsize, ysize, num_pixels;
+  uint8_t* rgba = NULL;
+  VP8Io* io = NULL;
+  WebPDecParams* params = NULL;
+  WebPDecBuffer* output = NULL;
+  WebPRGBABuffer* rgba_buf = NULL;
+  int num_pixels;
+
   if (dec == NULL) return 0;
 
-  if (dec->next_transform_ > 0) {
-    xsize = dec->transforms_[dec->next_transform_ - 1].xsize_;
-    ysize = dec->transforms_[dec->next_transform_ - 1].ysize_;
-  } else {
-    xsize = dec->width_;
-    ysize = dec->height_;
+  io = dec->io_;
+  params = (WebPDecParams*)io->opaque;
+  assert(params != NULL);
+  output = params->output;
+  // RGBA_4444 & RGB_565 are unsupported for now & YUV modes are invalid.
+  if (output->colorspace >= MODE_RGBA_4444) {
+    dec->status_ = VP8_STATUS_INVALID_PARAM;
+    goto Err;
   }
-  num_pixels = xsize * ysize;
 
+  rgba_buf = &(output->u.RGBA);
+  rgba = rgba_buf->rgba;
+  num_pixels = output->width * output->height;
   data = (argb_t*)calloc(num_pixels, sizeof(argb_t));
   if (data == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
@@ -877,14 +892,10 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     goto Err;
   }
 
-  if(!VP8LConvertFromBGRA(data, num_pixels, dec->output_colorspace_,
-                          &dec->decoded_data_)) {
-    dec->status_ = VP8_STATUS_INVALID_PARAM;
-    goto Err;
-  }
-
+  VP8LConvertFromBGRA(data, num_pixels, output->colorspace, rgba);
+  params->last_y = dec->row_;
   dec->argb_ = data;
-  VP8LClearMetadata(dec);
+  VP8LClear(dec);
   return 1;
 
  Err:
@@ -901,8 +912,6 @@ void VP8LClear(VP8LDecoder* const dec) {
 
   free(dec->argb_);
   dec->argb_ = NULL;
-  free(dec->decoded_data_);
-  dec->decoded_data_ = NULL;
   for (i = 0; i < dec->next_transform_; ++i) {
     ClearTransform(&dec->transforms_[i]);
   }

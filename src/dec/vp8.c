@@ -287,8 +287,6 @@ int VP8GetHeaders(VP8Decoder* const dec, VP8Io* const io) {
                          "Incorrect/incomplete header.");
     } else {
       dec->is_lossless_ = 1;
-      io->width = vp8l_decoder->width_;
-      io->height = vp8l_decoder->height_;
     }
     return ok;
   }
