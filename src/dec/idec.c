@@ -146,6 +146,8 @@ static int AppendToMemBuffer(WebPIDecoder* const idec,
   // Lossless Bit Reader needs to be resized for every invocation of
   // WebPIAppend as buf_end_ is changing with every invocation.
   if (dec->is_lossless_) {
+    VP8LDecoder* const vp8l_decoder = &dec->vp8l_decoder_;
+    vp8l_decoder->br_offset_ = mem->start_;
     ResizeLosslessBitReader(dec, mem->buf_, mem->end_);
   }
 
