@@ -262,53 +262,32 @@ static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
 // so that it can transform only the given rows.
 static int PixelBundleInverseTransform(const VP8LTransform* const transform,
                                        argb_t** const data) {
-  uint32_t row;
-  const uint32_t bits_per_pixel = 8 >> transform->bits_;
-  const uint32_t pixels_per_byte = 1 << transform->bits_;
-  const uint32_t bit_mask = (1 << bits_per_pixel) - 1;
-  const uint32_t num_packed_columns =
-      VP8LSubSampleSize(transform->xsize_, transform->bits_);
+  int y;
+  const int bits_per_pixel = 8 >> transform->bits_;
+  const int pixels_per_byte = 1 << transform->bits_;
+  const int count_mask = pixels_per_byte - 1;
+  const uint32_t bit_mask = ((1 << bits_per_pixel) - 1) << 8;
+  const int width = transform->xsize_;
+  const int height = transform->ysize_;
+  uint32_t* const tmp = (uint32_t*)malloc(width * height * sizeof(*tmp));
 
-  uint32_t* tmp = (uint32_t*)calloc(
-      transform->xsize_ * transform->ysize_, sizeof(*tmp));
   if (tmp == NULL) return 0;
 
-  for (row = 0; row < transform->ysize_; ++row) {
-    const argb_t* const rowp = (*data) + row * num_packed_columns;
-    const uint32_t pixels_done_before = row * transform->xsize_;
-
-    // Unpack all packed pixels of this row except the last one.
-    uint32_t col;
-    for (col = 0; col < num_packed_columns - 1; ++col) {
-      const uint32_t pixels_done_in_row = col * pixels_per_byte;
-      const uint32_t pixels_done = pixels_done_before + pixels_done_in_row;
-      uint32_t packed_pixel = (rowp[col] >> 8) & 0xff;
-      // Unpack this 'packed_pixel'.
-      uint32_t p;
-      for (p = 0; p < pixels_per_byte; ++p) {
-        const uint32_t green = packed_pixel & bit_mask;
-        tmp[pixels_done + p] = ARGB_BLACK | (green << 8);
-        packed_pixel >>= bits_per_pixel;
-      }
-    }
-
-    // Last packed pixel is a special case, as it can be unpacked to anywhere
-    // from 1 to (pixels_per_byte - 1) pixels.
-    {
-      const uint32_t last_col = num_packed_columns - 1;
-      const uint32_t pixels_done_in_row = last_col * pixels_per_byte;
-      const uint32_t pixels_done = pixels_done_before + pixels_done_in_row;
-      uint32_t packed_pixel = (rowp[last_col] >> 8) & 0xff;
-      // Unpack this 'packed_pixel'.
-      uint32_t p;
-      for (p = 0; p < pixels_per_byte; ++p) {
-        if (pixels_done_in_row + p < transform->xsize_) {
-          const uint32_t green = packed_pixel & bit_mask;
-          tmp[pixels_done + p] = ARGB_BLACK | (green << 8);
-          packed_pixel >>= bits_per_pixel;
-        } else {
-          break;
+  {
+    uint32_t* dst = tmp;
+    const uint32_t* src = *data;
+    for (y = 0; y < height; ++y) {
+      uint32_t packed_pixels;
+      int x;
+      for (x = 0; x < width; ++x) {
+        // We need to load fresh 'packed_pixels' once every 'bytes_per_pixels'
+        // increments of x. Fortunately, pixels_per_byte is a power of 2, so
+        // can just use a mask for that, instead of decrementing a counter.
+        if ((x & count_mask) == 0) {
+          packed_pixels = (*src++) & 0x0000ff00;
         }
+        *dst++ = ARGB_BLACK | (packed_pixels & bit_mask);
+        packed_pixels >>= bits_per_pixel;
       }
     }
   }
