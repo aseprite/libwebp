@@ -69,7 +69,7 @@ static inline uint32_t ColorSpaceTransformElementTransform(
   new_blue -= ColorTransformDelta(p->red_to_blue_, red);
   new_red &= 0xff;
   new_blue &= 0xff;
-  return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
+  return (argb & 0xff00ff00u) | (new_red << 16) | (new_blue);
 }
 
 static inline uint32_t ColorSpaceTransformElementInverseTransform(
@@ -77,21 +77,20 @@ static inline uint32_t ColorSpaceTransformElementInverseTransform(
   // green, red, new_red and new_blue temporarily contain dirty upper bits,
   // which is not a problem since they are masked off in the end.
   const uint32_t green = argb >> 8;
-  const uint32_t red = argb >> 16;
-  uint32_t new_red = red;
-  uint32_t new_blue = argb;
-  new_red += ColorTransformDelta(p->green_to_red_, green);
-  new_blue += ColorTransformDelta(p->green_to_blue_, green);
-  new_red &= 0xff;
-  new_blue += ColorTransformDelta(p->red_to_blue_, new_red);
-  new_blue &= 0xff;
-  return (argb & 0xff00ff00) | (new_red << 16) | (new_blue);
+  uint32_t red = argb >> 16;
+  uint32_t blue = argb;
+  red += ColorTransformDelta(p->green_to_red_, green);
+  blue += ColorTransformDelta(p->green_to_blue_, green);
+  red &= 0xff;
+  blue += ColorTransformDelta(p->red_to_blue_, red);
+  blue &= 0xff;
+  return (argb & 0xff00ff00u) | (red << 16) | (blue);
 }
 
 static inline uint32_t ColorSpaceTransformElementCode(
     const ColorSpaceTransformElement* p) {
   return
-      0xff000000 |
+      0xff000000u |
       ((uint32_t)(p->red_to_blue_) << 16) |
       ((uint32_t)(p->green_to_blue_) << 8) |
       p->green_to_red_;
