@@ -36,19 +36,12 @@ VP8StatusCode VP8LInverseTransform(const struct VP8LTransform* const transform,
 // Color space conversion.
 
 // Converts from BGRA to other color spaces.
-void VP8LConvertFromBGRA(const argb_t* const in_data, size_t num_pixels,
+void VP8LConvertFromBGRA(const argb_t* const in_data, int num_pixels,
                         WEBP_CSP_MODE out_colorspace,
                         uint8_t* const rgba);
 
 //------------------------------------------------------------------------------
 // Misc methods.
-
-// Computes the sum of each component with mod 256.
-static WEBP_INLINE uint32_t VP8LAddPixels(uint32_t a, uint32_t b) {
-  const uint32_t alpha_and_green = (a & 0xff00ff00) + (b & 0xff00ff00);
-  const uint32_t red_and_blue = (a & 0x00ff00ff) + (b & 0x00ff00ff);
-  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
-}
 
 // Computes sampled size of 'size' when sampling using 'sampling bits'.
 static WEBP_INLINE uint32_t VP8LSubSampleSize(uint32_t size,

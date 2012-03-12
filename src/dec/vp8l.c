@@ -449,6 +449,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
   // color cache codes.
   const int color_cache_limit =
       NUM_LITERAL_CODES + hdr->color_cache_size_;
+  const int mask = hdr->huffman_mask_;
 
   assert(hdr->htrees_ != NULL);
   assert(hdr->meta_codes_ != NULL);
@@ -458,7 +459,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
     VP8LFillBitWindow(br);
 
     // Only update the huffman code when moving from one block to the next.
-    if ((col & hdr->huffman_mask_) == 0) {
+    if ((col & mask) == 0) {
       UpdateHtreeForPos(dec, col, row);
     }
 
@@ -615,9 +616,10 @@ static int ReadTransform(int* const xsize, int* const ysize,
         ok = DecodeImageStream(num_colors, 1, dec, &transform->data_);
         if (ok) {
           int i;
-          for (i = 1; i < num_colors; ++i) {
-            transform->data_[i] = VP8LAddPixels(transform->data_[i] ,
-                                                transform->data_[i - 1]);
+          uint8_t* const data = (uint8_t*)transform->data_;
+          for (i = 4; i < 4 * num_colors; ++i) {
+            // Equivalent to AddPixelEq(), on a byte-basis.
+            data[i] = (data[i] + data[i - 4]) & 0xff;
           }
         }
       }
