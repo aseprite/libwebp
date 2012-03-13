@@ -110,6 +110,8 @@ int VP8LGetInfo(const uint8_t* data, int data_size,
   }
 }
 
+//------------------------------------------------------------------------------
+
 static WEBP_INLINE int GetCopyDistance(int distance_symbol,
                                        BitReader* const br) {
   int extra_bits, offset;
@@ -128,19 +130,20 @@ static WEBP_INLINE int GetCopyLength(int length_symbol,
 }
 
 static WEBP_INLINE int PlaneCodeToDistance(int xsize, int plane_code) {
-  int dist_code, yoffset, xoffset;
   if (plane_code > CODE_TO_PLANE_CODES) {
     return plane_code - CODE_TO_PLANE_CODES;
+  } else {
+    const int dist_code = code_to_plane_lut[plane_code - 1];
+    const int yoffset = dist_code >> 4;
+    const int xoffset = 8 - (dist_code & 0xf);
+    return yoffset * xsize + xoffset;
   }
-  dist_code = code_to_plane_lut[plane_code - 1];
-  yoffset = dist_code >> 4;
-  xoffset = 8 - (dist_code & 0xf);
-  return yoffset * xsize + xoffset;
 }
 
+//------------------------------------------------------------------------------
 // Decodes the next Huffman code from bit-stream.
 // FillBitWindow(br) needs to be called at minimum every second call
-// to ReadSymbol.
+// to ReadSymbolUnsafe.
 static int ReadSymbolUnsafe(const HuffmanTree* tree, BitReader* const br) {
   const HuffmanTreeNode* node = &tree->nodes_[0];
   while (!HuffmanTreeNodeIsLeaf(node)) {
@@ -410,6 +413,8 @@ static int ReadHuffmanCodes(
   return 0;
 }
 
+//------------------------------------------------------------------------------
+
 static WEBP_INLINE int GetMetaIndex(
     const uint32_t* const image, int xsize, int bits, int x, int y) {
   if (bits == 0) return 0;
@@ -440,8 +445,8 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
   int col = 0;
   int pix_ix = 0;
   int row = dec->row_;
-  int xsize = dec->xsize_;
-  const int num_pixs = xsize * dec->ysize_;
+  int xsize = dec->width_;
+  const int num_pixs = xsize * dec->height_;
   BitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
   VP8LColorCache* const color_cache = hdr->color_cache_;
@@ -569,8 +574,8 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
   int col = 0;
   int pix_ix = 0;
   int row = dec->row_;
-  int xsize = dec->xsize_;
-  const int num_pixs = xsize * dec->ysize_;
+  int xsize = dec->width_;
+  const int num_pixs = xsize * dec->height_;
   BitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
   VP8LColorCache* const color_cache = hdr->color_cache_;
@@ -695,6 +700,9 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
   return ok;
 }
 
+// -----------------------------------------------------------------------------
+// VP8LTransform
+
 static void ClearTransform(VP8LTransform* const transform) {
   free(transform->data_);
   transform->data_ = NULL;
@@ -770,14 +778,11 @@ static int ReadTransform(int* const xsize, int* const ysize,
   return ok;
 }
 
-void VP8LInitDecoder(VP8LDecoder* const dec) {
-  VP8LMetadata* const hdr = &dec->hdr_;
-  dec->xsize_ = 0;
-  dec->ysize_ = 0;
-  dec->row_ = 0;
-  dec->next_transform_ = 0;
-  dec->argb_ = NULL;
-  dec->level_ = 0;
+// -----------------------------------------------------------------------------
+// VP8LMetadata
+
+static void InitMetadata(VP8LMetadata* const hdr) {
+  assert(hdr);
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = NULL;
@@ -791,47 +796,48 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   hdr->huffman_mask_ = 0;
 }
 
-static void VP8LClearMetadata(VP8LDecoder* const dec) {
-  VP8LMetadata* hdr;
-  if (dec == NULL) return;
-  hdr = &dec->hdr_;
+static void ClearMetadata(VP8LMetadata* const hdr) {
+  assert(hdr);
 
   free(hdr->huffman_image_);
-  hdr->huffman_image_ = NULL;
   free(hdr->meta_codes_);
-  hdr->meta_codes_ = NULL;
-
   if (hdr->htrees_ != NULL) {
     int i;
     for (i = 0; i < hdr->num_huffman_trees_; ++i) {
       HuffmanTreeRelease(&(hdr->htrees_[i]));
     }
     free(hdr->htrees_);
-    hdr->htrees_ = NULL;
-    hdr->num_huffman_trees_ = 0;
-    hdr->huffman_subsample_bits_ = 0;
-    hdr->huffman_xsize_ = 0;
-    hdr->huffman_mask_ = 0;
   }
 
   if (hdr->color_cache_) {
     VP8LColorCacheRelease(hdr->color_cache_);
     free(hdr->color_cache_);
-    hdr->color_cache_ = NULL;
-    hdr->color_cache_size_ = 0;
   }
-  hdr->meta_index_ = -1;
+  InitMetadata(hdr);
+}
+
+// -----------------------------------------------------------------------------
+// VP8LDecoder
+
+void VP8LInitDecoder(VP8LDecoder* const dec) {
+  dec->width_ = 0;
+  dec->height_ = 0;
+  dec->row_ = 0;
+  dec->next_transform_ = 0;
+  dec->argb_ = NULL;
+  dec->level_ = 0;
+  InitMetadata(&dec->hdr_);
 }
 
 static void UpdateDecoder(
-    uint32_t xsize, uint32_t ysize,
+    int width, int height,
     VP8LColorCache* const color_cache, int color_cache_size,
     uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
     uint32_t* const meta_codes, HuffmanTree* htrees, int num_huffman_trees_,
     VP8LDecoder* const dec) {
   VP8LMetadata* const hdr = &dec->hdr_;
-  dec->xsize_ = xsize;
-  dec->ysize_ = ysize;
+  dec->width_ = width;
+  dec->height_ = height;
   dec->row_ = 0;
 
   hdr->meta_index_ = -1;
@@ -842,7 +848,7 @@ static void UpdateDecoder(
   hdr->meta_codes_ = meta_codes;
   hdr->htrees_ = htrees;
   hdr->num_huffman_trees_ = num_huffman_trees_;
-  hdr->huffman_xsize_ = VP8LSubSampleSize(xsize, huffman_subsample_bits);
+  hdr->huffman_xsize_ = VP8LSubSampleSize(width, huffman_subsample_bits);
   hdr->huffman_mask_ = (huffman_subsample_bits == 0) ?
       ~0 : (1 << huffman_subsample_bits) - 1;
 }
@@ -929,7 +935,7 @@ static int DecodeImageStream(int xsize, int ysize,
                 color_cache, color_cache_size, huffman_image,
                 huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
                 dec);
-  if (dec->level_ > 1) VP8LClearMetadata(dec);
+  if (dec->level_ > 1) ClearMetadata(&dec->hdr_);
 
   if (!ok) {
     free(data);
@@ -944,6 +950,8 @@ static int DecodeImageStream(int xsize, int ysize,
   --dec->level_;
   return ok;
 }
+
+//------------------------------------------------------------------------------
 
 int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
@@ -1039,7 +1047,7 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
 void VP8LClear(VP8LDecoder* const dec) {
   int i;
   if (dec == NULL) return;
-  VP8LClearMetadata(dec);
+  ClearMetadata(&dec->hdr_);
 
   free(dec->argb_);
   dec->argb_ = NULL;

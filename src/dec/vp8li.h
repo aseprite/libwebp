@@ -28,13 +28,13 @@ extern "C" {
 
 struct HuffmanTree;
 
-typedef enum VP8LDecodeState {
+typedef enum {
   READ_DATA = 0,
   READ_HDR = 1,
   READ_DIM = 2
 } VP8LDecodeState;
 
-typedef enum VP8LImageTransformType {
+typedef enum {
   PREDICTOR_TRANSFORM = 0,
   CROSS_COLOR_TRANSFORM = 1,
   SUBTRACT_GREEN = 2,
@@ -48,38 +48,36 @@ struct VP8LTransform {
   int                    bits_;   // subsampling bits defining transform window.
   size_t                 xsize_;  // transform window X index.
   size_t                 ysize_;  // transform window Y index.
-  uint32_t               *data_;  // transform data.
+  uint32_t              *data_;   // transform data.
 };
 
-typedef struct VP8LMetadata VP8LMetadata;
-struct VP8LMetadata {
+typedef struct {
   int             color_cache_size_;
-  VP8LColorCache  *color_cache_;
+  VP8LColorCache *color_cache_;
 
   int             meta_index_;
   int             num_huffman_trees_;
   int             huffman_mask_;
   int             huffman_subsample_bits_;
   int             huffman_xsize_;
-  uint32_t        *meta_codes_;
-  uint32_t        *huffman_image_;
+  uint32_t       *meta_codes_;
+  uint32_t       *huffman_image_;
   struct HuffmanTree *htrees_;
   struct HuffmanTree *meta_htrees_[HUFFMAN_CODES_PER_META_CODE];
-};
+} VP8LMetadata;
 
-typedef struct VP8LDecoder VP8LDecoder;
-struct VP8LDecoder {
+typedef struct {
   VP8StatusCode    status_;
   VP8LDecodeState  action_;
   VP8LDecodeState  state_;
-  VP8Io            *io_;
+  VP8Io           *io_;
 
-  argb_t           *argb_;  // Internal data: always in BGRA color mode.
+  argb_t          *argb_;  // Internal data: always in BGRA color mode.
   BitReader        br_;
   uint32_t         br_offset_;
 
-  int              xsize_;
-  int              ysize_;
+  int              width_;
+  int              height_;
   int              row_;
   int              level_;
 
@@ -87,7 +85,7 @@ struct VP8LDecoder {
 
   int              next_transform_;
   VP8LTransform    transforms_[NUM_TRANSFORMS];
-};
+} VP8LDecoder;
 
 //------------------------------------------------------------------------------
 // internal functions. Not public.
