@@ -141,7 +141,7 @@ static WEBP_INLINE int PlaneCodeToDistance(int xsize, int plane_code) {
 // Decodes the next Huffman code from bit-stream.
 // FillBitWindow(br) needs to be called at minimum every second call
 // to ReadSymbol.
-static int ReadSymbol(const HuffmanTree* tree, BitReader* const br) {
+static int ReadSymbolUnsafe(const HuffmanTree* tree, BitReader* const br) {
   const HuffmanTreeNode* node = &tree->nodes_[0];
   while (!HuffmanTreeNodeIsLeaf(node)) {
     node = node->child_[VP8LReadOneBitUnsafe(br)];
@@ -150,11 +150,11 @@ static int ReadSymbol(const HuffmanTree* tree, BitReader* const br) {
   return node->symbol_;
 }
 
-static WEBP_INLINE int ReadSymbolSafe(const HuffmanTree* tree,
+static WEBP_INLINE int ReadSymbol(const HuffmanTree* tree,
                                       BitReader* const br) {
   const int read_safe = (br->pos_ > br->len_ - 8);
   if (!read_safe) {
-    return ReadSymbol(tree, br);
+    return ReadSymbolUnsafe(tree, br);
   } else {
     const HuffmanTreeNode* node = &tree->nodes_[0];
     while (!HuffmanTreeNodeIsLeaf(node)) {
@@ -435,7 +435,7 @@ static WEBP_INLINE void UpdateHtreeForPos(VP8LDecoder* const dec,
   }
 }
 
-static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
+static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
   int ok = 1;
   int col = 0;
   int pix_ix = 0;
@@ -463,16 +463,16 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
       UpdateHtreeForPos(dec, col, row);
     }
 
-    code = ReadSymbolSafe(hdr->meta_htrees_[GREEN], br);
+    code = ReadSymbolUnsafe(hdr->meta_htrees_[GREEN], br);
     if (code < NUM_LITERAL_CODES) {
       // Literal.
       // Decode and save this pixel.
       int red, green, blue, alpha;
-      red = ReadSymbolSafe(hdr->meta_htrees_[RED], br);
+      red = ReadSymbolUnsafe(hdr->meta_htrees_[RED], br);
       green = code;
       VP8LFillBitWindow(br);
-      blue = ReadSymbolSafe(hdr->meta_htrees_[BLUE], br);
-      alpha = ReadSymbolSafe(hdr->meta_htrees_[ALPHA], br);
+      blue = ReadSymbolUnsafe(hdr->meta_htrees_[BLUE], br);
+      alpha = ReadSymbolUnsafe(hdr->meta_htrees_[ALPHA], br);
 
       data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
       if (color_cache) VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
@@ -506,7 +506,7 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
       int dist_code, dist;
       int length_sym = code - color_cache_limit;
       const int length = GetCopyLength(length_sym, br);
-      const int dist_symbol = ReadSymbolSafe(hdr->meta_htrees_[DIST], br);
+      const int dist_symbol = ReadSymbolUnsafe(hdr->meta_htrees_[DIST], br);
       VP8LFillBitWindow(br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(xsize, dist_code);
@@ -559,7 +559,136 @@ static int DecodePixels(VP8LDecoder* const dec, argb_t* const data) {
     ok = 0;
     dec->status_ = (!br->eos_) ?
         VP8_STATUS_BITSTREAM_ERROR : VP8_STATUS_SUSPENDED;
-  } else if (pix_ix == num_pixs && dec->level_ == 1) {
+  }
+
+  return ok;
+}
+
+static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
+  int ok = 1;
+  int col = 0;
+  int pix_ix = 0;
+  int row = dec->row_;
+  int xsize = dec->xsize_;
+  const int num_pixs = xsize * dec->ysize_;
+  BitReader* const br = &dec->br_;
+  VP8LMetadata* const hdr = &dec->hdr_;
+  VP8LColorCache* const color_cache = hdr->color_cache_;
+  // Values in range [NUM_CODES_PER_BYTE .. color_cache_limit[ are
+  // color cache codes.
+  const int color_cache_limit =
+      NUM_LITERAL_CODES + hdr->color_cache_size_;
+  const int mask = hdr->huffman_mask_;
+
+  assert(hdr->htrees_ != NULL);
+  assert(hdr->meta_codes_ != NULL);
+
+  while (!br->eos_ && pix_ix < num_pixs) {
+    int code;
+    VP8LFillBitWindow(br);
+
+    // Only update the huffman code when moving from one block to the next.
+    if ((col & mask) == 0) {
+      UpdateHtreeForPos(dec, col, row);
+    }
+
+    code = ReadSymbol(hdr->meta_htrees_[GREEN], br);
+    if (code < NUM_LITERAL_CODES) {
+      // Literal.
+      // Decode and save this pixel.
+      int red, green, blue, alpha;
+      red = ReadSymbol(hdr->meta_htrees_[RED], br);
+      green = code;
+      VP8LFillBitWindow(br);
+      blue = ReadSymbol(hdr->meta_htrees_[BLUE], br);
+      alpha = ReadSymbol(hdr->meta_htrees_[ALPHA], br);
+
+      data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
+      if (color_cache) VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+
+      // Update location pointers.
+      ++pix_ix;
+      ++col;
+      if (col == xsize) {
+        ++row;
+        col = 0;
+      }
+    } else if (code < color_cache_limit) {
+      // Color cache.
+      // Decode and save this pixel.
+      const int color_cache_key = code - NUM_LITERAL_CODES;
+      argb_t argb;
+      ok = VP8LColorCacheLookup(color_cache, col, color_cache_key, &argb);
+      if (!ok) goto Error;
+      data[pix_ix] = argb;
+      VP8LColorCacheInsert(color_cache, col, argb);
+
+      // Update location pointers.
+      ++pix_ix;
+      ++col;
+      if (col == xsize) {
+        ++row;
+        col = 0;
+      }
+    } else if (code - color_cache_limit < NUM_LENGTH_CODES) {
+      // Backward reference
+      int dist_code, dist;
+      int length_sym = code - color_cache_limit;
+      const int length = GetCopyLength(length_sym, br);
+      const int dist_symbol = ReadSymbol(hdr->meta_htrees_[DIST], br);
+      VP8LFillBitWindow(br);
+      dist_code = GetCopyDistance(dist_symbol, br);
+      dist = PlaneCodeToDistance(xsize, dist_code);
+      if ((dist > pix_ix) || (pix_ix + length > num_pixs)) {
+        ok = 0;
+        goto Error;
+      }
+
+      // Fill data for specified (backward-ref) length and update location.
+      if (color_cache) {
+        int i;
+        for (i = 0; i < length; ++i) {
+          data[pix_ix] = data[pix_ix - dist];
+          VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+          ++pix_ix;
+          ++col;
+          if (col == xsize) {
+            ++row;
+            col = 0;
+          }
+        }
+      } else {
+        int i;
+        for (i = 0; i < length; ++i) {
+          data[pix_ix] = data[pix_ix - dist];
+          ++pix_ix;
+        }
+        col += length;
+        while (col >= xsize) {
+          col -= xsize;
+          ++row;
+        }
+      }
+
+      if (br->error_) goto Error;
+
+      if (!br->eos_ && pix_ix < num_pixs) {
+        UpdateHtreeForPos(dec, col, row);
+      }
+    } else {
+      // Code flow should not come here.
+      ok = 0;
+      goto Error;
+    }
+  }
+  dec->row_ = row;
+
+ Error:
+  if (br->error_ || !ok) {
+    ok = 0;
+    dec->status_ = (!br->eos_) ?
+        VP8_STATUS_BITSTREAM_ERROR : VP8_STATUS_SUSPENDED;
+  } else if (pix_ix == num_pixs) {
     dec->state_ = READ_DATA;
   }
 
@@ -778,7 +907,7 @@ static int DecodeImageStream(int xsize, int ysize,
 
   if (dec->level_ == 1) {
     dec->state_ = READ_HDR;
-    if (dec->action_ == READ_HDR) goto End;
+    goto End;
   }
 
   data = (argb_t*)calloc(transform_xsize * transform_ysize, sizeof(argb_t));
@@ -789,7 +918,7 @@ static int DecodeImageStream(int xsize, int ysize,
   }
 
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
-  ok = DecodePixels(dec, data);
+  ok = DecodeHeaderData(dec, data);
 
   // Step#4: Apply transforms on the decoded data.
   ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);
@@ -885,7 +1014,7 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   }
 
   dec->action_ = READ_DATA;
-  if (!DecodePixels(dec, data)) {
+  if (!DecodeImageData(dec, data)) {
     goto Err;
   }
 
