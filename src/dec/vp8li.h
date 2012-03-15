@@ -25,7 +25,7 @@ extern "C" {
 #define HUFFMAN_CODES_PER_META_CODE  5
 #define ARGB_BLACK                   0xff000000
 #define NUM_LITERAL_CODES            256
-#define MACRO_BLOCK_ROWS             16
+#define NUM_ARGB_CACHE_ROWS          16
 
 struct HuffmanTree;
 
@@ -73,8 +73,8 @@ typedef struct {
   VP8LDecodeState  state_;
   VP8Io           *io_;
 
-  argb_t          *argb_;     // Internal data: always in BGRA color mode.
-  argb_t          *argb_mb_;  // Scratch buffer for temporary BGRA storage.
+  argb_t          *argb_;        // Internal data: always in BGRA color mode.
+  argb_t          *argb_cache_;  // Scratch buffer for temporary BGRA storage.
   BitReader        br_;
   uint32_t         br_offset_;
 

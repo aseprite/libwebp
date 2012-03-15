@@ -568,7 +568,7 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
   return ok;
 }
 
-// Processes (transforms & color-colvert) the rows decoded after the last call.
+// Processes (transforms & color-convert) the rows decoded after the last call.
 static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
   int n = dec->next_transform_;
   WebPDecBuffer* output = NULL;
@@ -577,13 +577,13 @@ static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
   WebPDecParams* const params = (WebPDecParams*)dec->io_->opaque;
   const int argb_offset = dec->width_ * dec->last_row_;
   const int num_rows = row - dec->last_row_;
-  const int mb_pixs = dec->width_ * num_rows;
-  argb_t* const rows_data = dec->argb_mb_;
+  const int cache_pixs = dec->width_ * num_rows;
+  argb_t* const rows_data = dec->argb_cache_;
 
   if (num_rows <= 0) return;
 
   memcpy(rows_data, dec->argb_ + argb_offset,
-         mb_pixs * sizeof(*rows_data));
+         cache_pixs * sizeof(*rows_data));
 
   while (n-- > 0) {
     VP8LTransform* const transform = &dec->transforms_[n];
@@ -650,7 +650,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
       if (col == xsize) {
         ++row;
         col = 0;
-        if (row % MACRO_BLOCK_ROWS == 0) {
+        if (row % NUM_ARGB_CACHE_ROWS == 0) {
           ProcessRows(dec, row);
         }
       }
@@ -670,7 +670,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
       if (col == xsize) {
         ++row;
         col = 0;
-        if (row % MACRO_BLOCK_ROWS == 0) {
+        if (row % NUM_ARGB_CACHE_ROWS == 0) {
           ProcessRows(dec, row);
         }
       }
@@ -699,7 +699,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
           if (col == xsize) {
             ++row;
             col = 0;
-            if (row % MACRO_BLOCK_ROWS == 0) {
+            if (row % NUM_ARGB_CACHE_ROWS == 0) {
               ProcessRows(dec, row);
             }
           }
@@ -714,7 +714,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
         while (col >= xsize) {
           col -= xsize;
           ++row;
-          if (row % MACRO_BLOCK_ROWS == 0) {
+          if (row % NUM_ARGB_CACHE_ROWS == 0) {
             ProcessRows(dec, row);
           }
         }
@@ -1040,8 +1040,9 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   WebPDecParams* params = NULL;
   WebPDecBuffer* output = NULL;
   int num_pixels;
-  int mb_pixels;
-  int mb_top_pixels;
+  int cache_pixels;
+  int cache_top_pixels;
+  int total_num_pixels;
 
   if (dec == NULL) return 0;
 
@@ -1058,16 +1059,16 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   num_pixels = output->width * output->height;
   // Scratch buffer corresponding to top-prediction row for transforming the
   // first row in the row-blocks.
-  mb_top_pixels = output->width;
+  cache_top_pixels = output->width;
   // Scratch buffer for temporary BGRA storage.
-  mb_pixels = output->width * MACRO_BLOCK_ROWS;
-  dec->argb_ = (argb_t*)malloc((num_pixels + mb_top_pixels + mb_pixels) *
-                               sizeof(*dec->argb_));
+  cache_pixels = output->width * NUM_ARGB_CACHE_ROWS;
+  total_num_pixels = num_pixels + cache_top_pixels + cache_pixels;
+  dec->argb_ = (argb_t*)malloc(total_num_pixels * sizeof(*dec->argb_));
   if (dec->argb_ == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
     goto Err;
   }
-  dec->argb_mb_ = dec->argb_ + num_pixels + mb_top_pixels;
+  dec->argb_cache_ = dec->argb_ + num_pixels + cache_top_pixels;
 
   dec->action_ = READ_DATA;
   if (!DecodeImageData(dec)) {
