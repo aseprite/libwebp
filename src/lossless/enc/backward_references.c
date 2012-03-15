@@ -249,8 +249,7 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
                                &len2);
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
-          if (use_palette &&
-              VP8LColorCacheContains(&hashers, argb[i])) {
+          if (use_palette && VP8LColorCacheContains(&hashers, argb[i])) {
             const int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
             stream[*stream_size] = PixOrCopyCreatePaletteIx(ix);
           } else {
@@ -562,11 +561,9 @@ static int BackwardReferencesHashChainFollowChosenPath(
       }
       i += len;
     } else {
-      if (use_palette &&
-          VP8LColorCacheContains(&hashers, argb[i])) {
+      if (use_palette && VP8LColorCacheContains(&hashers, argb[i])) {
         // push pixel as a palette pixel
         int ix = VP8LColorCacheGetIndex(&hashers, argb[i]);
-        assert(VP8LColorCacheLookup(&hashers, ix) == argb[i]);
         stream[*stream_size] = PixOrCopyCreatePaletteIx(ix);
       } else {
         stream[*stream_size] = PixOrCopyCreateLiteral(argb[i]);
