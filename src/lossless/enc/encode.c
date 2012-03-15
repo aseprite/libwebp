@@ -799,7 +799,6 @@ static int EncodeImageInternal(int xsize, int ysize,
   // Palette parameters.
   WriteBits(1, use_palette, bw);
   if (use_palette) {
-    WriteBits(4, kRowHasherXSubsampling, bw);
     WriteBits(4, palette_bits, bw);
   }
 

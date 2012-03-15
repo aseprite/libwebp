@@ -22,7 +22,6 @@ extern "C" {
 
 // Compression constants
 #define CODE_LENGTH_CODES 19
-static const int kRowHasherXSubsampling = 7;
 static const int kLengthCodes = 24;
 static const int kPaletteCodeBitsMax = 11;
 #define PIX_OR_COPY_CODES_MAX (256 + 24 + (1 << 11))
