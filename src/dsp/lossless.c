@@ -166,8 +166,7 @@ static const PredictorFunc kPredictors[16] = {
 
 // Inverse prediction.
 static void PredictorInverseTransform(const VP8LTransform* const transform,
-                                      int y_start, int y_end,
-                                      argb_t* data) {
+                                      int y_start, int y_end, argb_t* data) {
   const int width = transform->xsize_;
   if (y_start == 0) {  // First Row follows the L (mode=1) mode.
     int x;
@@ -214,11 +213,9 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
 // Add Green to Blue and Red channels (i.e. perform the inverse transform of
 // 'Subtract Green').
 static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
-                                 int y_start, int y_end,
-                                 argb_t* data) {
+                                 int y_start, int y_end, argb_t* data) {
   const int width = transform->xsize_;
-  const argb_t* const data_end = data + y_end * width;
-  data += y_start * width;
+  const argb_t* const data_end = data + (y_end - y_start) * width;
   while (data < data_end) {
     const argb_t argb = *data;
     // "* 0001001u" is equivalent to "(green << 16) + green)"
@@ -265,8 +262,7 @@ static WEBP_INLINE void TransformColor(const Multipliers* const m,
 
 // Color space inverse transform.
 static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
-                                       int y_start, int y_end,
-                                       argb_t* data) {
+                                       int y_start, int y_end, argb_t* data) {
   const int width = transform->xsize_;
   const int mask = (1 << transform->bits_) - 1;
   const int tiles_per_row = VP8LSubSampleSize(width, transform->bits_);
@@ -274,7 +270,6 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
   const uint32_t* pred_row =
       transform->data_ + (y >> transform->bits_) * tiles_per_row;
 
-  data += y * width;
   while (y < y_end) {
     const uint32_t* pred = pred_row;
     Multipliers m;
@@ -295,9 +290,8 @@ static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
                                           int y_start, int y_end,
                                           argb_t* data) {
   const int width = transform->xsize_;
-  const argb_t* const data_end = data + y_end * width;
+  const argb_t* const data_end = data + (y_end - y_start) * width;
   const argb_t* const map = transform->data_;
-  data += y_start * width;
   while (data < data_end) {
     *data = map[(*data >> 8) & 0xff];
     ++data;
@@ -305,26 +299,20 @@ static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
 }
 
 // Separate out pixels packed together using Pixel bundling.
-// TODO: Move the allocation out of this function, and then make it generic,
-// so that it can transform only the given rows.
-static VP8StatusCode PixelBundleInverseTransform(
+static void PixelBundleInverseTransform(
     const VP8LTransform* const transform,
-    argb_t** const data) {
+    int y_start, int y_end,
+    argb_t* const data_in, argb_t* const data_out) {
   int y;
   const int bits_per_pixel = 8 >> transform->bits_;
   const int pixels_per_byte = 1 << transform->bits_;
   const int count_mask = pixels_per_byte - 1;
   const uint32_t bit_mask = ((1 << bits_per_pixel) - 1) << 8;
   const int width = transform->xsize_;
-  const int height = transform->ysize_;
-  uint32_t* const tmp = (uint32_t*)malloc(width * height * sizeof(*tmp));
-
-  if (tmp == NULL) return VP8_STATUS_OUT_OF_MEMORY;
-
   {
-    uint32_t* dst = tmp;
-    const uint32_t* src = *data;
-    for (y = 0; y < height; ++y) {
+    uint32_t* dst = data_out;
+    const uint32_t* src = data_in;
+    for (y = y_start; y < y_end; ++y) {
       uint32_t packed_pixels;
       int x;
       for (x = 0; x < width; ++x) {
@@ -337,38 +325,38 @@ static VP8StatusCode PixelBundleInverseTransform(
       }
     }
   }
-  free(*data);
-  *data = tmp;
-  return VP8_STATUS_OK;
 }
 
-VP8StatusCode VP8LInverseTransform(const VP8LTransform* const transform,
-                                   size_t row_start, size_t row_end,
-                                   argb_t** const data) {
-  VP8StatusCode status = VP8_STATUS_OK;
+void VP8LInverseTransform(const VP8LTransform* const transform,
+                          size_t row_start, size_t row_end,
+                          argb_t* const data_in, argb_t* const data_out) {
   assert(row_start < row_end);
   assert(row_end <= transform->ysize_);
   switch (transform->type_) {
     case SUBTRACT_GREEN:
-      AddGreenToBlueAndRed(transform, row_start, row_end, *data);
+      AddGreenToBlueAndRed(transform, row_start, row_end, data_out);
       break;
     case PREDICTOR_TRANSFORM:
-      PredictorInverseTransform(transform, row_start, row_end, *data);
+      PredictorInverseTransform(transform, row_start, row_end, data_out);
+      if (row_end != transform->ysize_) {
+        // The last predicted row in this iteration will be the top-pred row
+        // for the first row in next iteration.
+        const int width = transform->xsize_;
+        memcpy(data_out - width, data_out + (row_end - row_start - 1) * width,
+               width * sizeof(*data_out));
+      }
       break;
     case CROSS_COLOR_TRANSFORM:
-      ColorSpaceInverseTransform(transform, row_start, row_end, *data);
+      ColorSpaceInverseTransform(transform, row_start, row_end, data_out);
       break;
     case COLOR_INDEXING_TRANSFORM:
-      ColorIndexingInverseTransform(transform, row_start, row_end, *data);
+      ColorIndexingInverseTransform(transform, row_start, row_end, data_out);
       break;
     case PIXEL_BUNDLE_TRANSFORM:
-      status = PixelBundleInverseTransform(transform, data);
-      break;
-    default:
-      status = VP8_STATUS_BITSTREAM_ERROR;
+      PixelBundleInverseTransform(transform, row_start, row_end,
+                                  data_in, data_out);
       break;
   }
-  return status;
 }
 
 //------------------------------------------------------------------------------

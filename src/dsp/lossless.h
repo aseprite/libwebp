@@ -27,10 +27,11 @@ struct VP8LTransform;  // Defined in dec/vp8li.h.
 
 // Performs inverse transform of data given transform information, start and end
 // rows. Transform will be applied to rows [row_start, row_end[.
-// Returns appropriate status code.
-VP8StatusCode VP8LInverseTransform(const struct VP8LTransform* const transform,
-                                   size_t row_start, size_t row_end,
-                                   argb_t** const data);
+// The data_in & data_out are source and destination data pointers respectively
+// corresponding to the intermediate row (row_start).
+void VP8LInverseTransform(const struct VP8LTransform* const transform,
+                          size_t row_start, size_t row_end,
+                          argb_t* const data_in, argb_t* const data_out);
 
 //------------------------------------------------------------------------------
 // Color space conversion.

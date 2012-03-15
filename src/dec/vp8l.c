@@ -444,7 +444,7 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
   int ok = 1;
   int col = 0;
   int pix_ix = 0;
-  int row = dec->row_;
+  int row = 0;
   int xsize = dec->width_;
   const int num_pixs = xsize * dec->height_;
   BitReader* const br = &dec->br_;
@@ -557,7 +557,6 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
       goto Error;
     }
   }
-  dec->row_ = row;
 
  Error:
   if (br->error_ || !ok) {
@@ -569,13 +568,47 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
   return ok;
 }
 
-static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
+// Processes (transforms & color-colvert) the rows decoded after the last call.
+static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
+  int n = dec->next_transform_;
+  WebPDecBuffer* output = NULL;
+  WebPRGBABuffer* rgba_buf = NULL;
+  uint8_t* rgba = NULL;
+  WebPDecParams* const params = (WebPDecParams*)dec->io_->opaque;
+  const int argb_offset = dec->width_ * dec->last_row_;
+  const int num_rows = row - dec->last_row_;
+  const int mb_pixs = dec->width_ * num_rows;
+  argb_t* const rows_data = dec->argb_mb_;
+
+  if (num_rows <= 0) return;
+
+  memcpy(rows_data, dec->argb_ + argb_offset,
+         mb_pixs * sizeof(*rows_data));
+
+  while (n-- > 0) {
+    VP8LTransform* const transform = &dec->transforms_[n];
+    VP8LInverseTransform(transform, dec->last_row_, row,
+                         dec->argb_ + argb_offset, rows_data);
+  }
+
+  assert(params != NULL);
+  output = params->output;
+  rgba_buf = &output->u.RGBA;
+  rgba = rgba_buf->rgba + dec->last_row_ * rgba_buf->stride;
+  VP8LConvertFromBGRA(rows_data, num_rows * output->width, output->colorspace,
+                      rgba);
+
+  dec->last_row_ = row;
+}
+
+static int DecodeImageData(VP8LDecoder* const dec) {
   int ok = 1;
   int col = 0;
   int pix_ix = 0;
-  int row = dec->row_;
+  int row = 0;
   int xsize = dec->width_;
   const int num_pixs = xsize * dec->height_;
+  argb_t* const data = dec->argb_;
   BitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
   VP8LColorCache* const color_cache = hdr->color_cache_;
@@ -617,6 +650,9 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
       if (col == xsize) {
         ++row;
         col = 0;
+        if (row % MACRO_BLOCK_ROWS == 0) {
+          ProcessRows(dec, row);
+        }
       }
     } else if (code < color_cache_limit) {
       // Color cache.
@@ -634,6 +670,9 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
       if (col == xsize) {
         ++row;
         col = 0;
+        if (row % MACRO_BLOCK_ROWS == 0) {
+          ProcessRows(dec, row);
+        }
       }
     } else if (code - color_cache_limit < NUM_LENGTH_CODES) {
       // Backward reference
@@ -660,6 +699,9 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
           if (col == xsize) {
             ++row;
             col = 0;
+            if (row % MACRO_BLOCK_ROWS == 0) {
+              ProcessRows(dec, row);
+            }
           }
         }
       } else {
@@ -672,6 +714,9 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
         while (col >= xsize) {
           col -= xsize;
           ++row;
+          if (row % MACRO_BLOCK_ROWS == 0) {
+            ProcessRows(dec, row);
+          }
         }
       }
 
@@ -686,7 +731,8 @@ static int DecodeImageData(VP8LDecoder* const dec, argb_t* const data) {
       goto Error;
     }
   }
-  dec->row_ = row;
+  // Process the remaining rows corresponding to last row-block.
+  ProcessRows(dec, row);
 
  Error:
   if (br->error_ || !ok) {
@@ -708,20 +754,17 @@ static void ClearTransform(VP8LTransform* const transform) {
   transform->data_ = NULL;
 }
 
-static int ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
-                                  argb_t** const decoded_data) {
-  int ok = 1;
+static void ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
+                                   argb_t* const decoded_data) {
   int n = dec->next_transform_;
   assert(start_idx >= 0);
-  while (ok && n-- > start_idx) {
+  while (n-- > start_idx) {
     VP8LTransform* const transform = &dec->transforms_[n];
-    dec->status_ = VP8LInverseTransform(transform, 0, transform->ysize_,
-                                        decoded_data);
-    ok = (dec->status_ == VP8_STATUS_OK);
+    VP8LInverseTransform(transform, 0, transform->ysize_,
+                         decoded_data, decoded_data);
     ClearTransform(transform);
   }
   dec->next_transform_ = start_idx;
-  return ok;
 }
 
 static int ReadTransform(int* const xsize, int* const ysize,
@@ -822,7 +865,7 @@ static void ClearMetadata(VP8LMetadata* const hdr) {
 void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->width_ = 0;
   dec->height_ = 0;
-  dec->row_ = 0;
+  dec->last_row_ = 0;
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
   dec->level_ = 0;
@@ -838,7 +881,6 @@ static void UpdateDecoder(
   VP8LMetadata* const hdr = &dec->hdr_;
   dec->width_ = width;
   dec->height_ = height;
-  dec->row_ = 0;
 
   hdr->meta_index_ = -1;
   hdr->color_cache_ = color_cache;
@@ -925,10 +967,10 @@ static int DecodeImageStream(int xsize, int ysize,
 
   // Step#3: Use the Huffman trees to decode the LZ77 encoded data.
   ok = DecodeHeaderData(dec, data);
+  ok = ok & !br->error_;
 
   // Step#4: Apply transforms on the decoded data.
-  ok = ok && ApplyInverseTransforms(dec, transform_start_idx, &data);
-  ok = ok & !br->error_;
+  if (ok) ApplyInverseTransforms(dec, transform_start_idx, data);
 
  End:
   UpdateDecoder(transform_xsize, transform_ysize,
@@ -977,6 +1019,8 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   io->width = width;
   io->height = height;
   params = (WebPDecParams*)io->opaque;
+  assert(params != NULL);
+
   output = params->output;
   output->width = width;
   output->height = height;
@@ -992,13 +1036,12 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
 }
 
 int VP8LDecodeImage(VP8LDecoder* const dec) {
-  argb_t* data = NULL;
-  uint8_t* rgba = NULL;
   VP8Io* io = NULL;
   WebPDecParams* params = NULL;
   WebPDecBuffer* output = NULL;
-  WebPRGBABuffer* rgba_buf = NULL;
   int num_pixels;
+  int mb_pixels;
+  int mb_top_pixels;
 
   if (dec == NULL) return 0;
 
@@ -1012,33 +1055,30 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     goto Err;
   }
 
-  rgba_buf = &(output->u.RGBA);
-  rgba = rgba_buf->rgba;
   num_pixels = output->width * output->height;
-  data = (argb_t*)calloc(num_pixels, sizeof(argb_t));
-  if (data == NULL) {
+  // Scratch buffer corresponding to top-prediction row for transforming the
+  // first row in the row-blocks.
+  mb_top_pixels = output->width;
+  // Scratch buffer for temporary BGRA storage.
+  mb_pixels = output->width * MACRO_BLOCK_ROWS;
+  dec->argb_ = (argb_t*)malloc((num_pixels + mb_top_pixels + mb_pixels) *
+                               sizeof(*dec->argb_));
+  if (dec->argb_ == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
     goto Err;
   }
+  dec->argb_mb_ = dec->argb_ + num_pixels + mb_top_pixels;
 
   dec->action_ = READ_DATA;
-  if (!DecodeImageData(dec, data)) {
+  if (!DecodeImageData(dec)) {
     goto Err;
   }
 
-  if (!ApplyInverseTransforms(dec, 0, &data)) {
-    dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-    goto Err;
-  }
-
-  VP8LConvertFromBGRA(data, num_pixels, output->colorspace, rgba);
-  params->last_y = dec->row_;
-  dec->argb_ = data;
+  params->last_y = dec->last_row_;
   VP8LClear(dec);
   return 1;
 
  Err:
-  free(data);
   VP8LClear(dec);
   assert(dec->status_ != VP8_STATUS_OK);
   return 0;
