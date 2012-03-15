@@ -306,7 +306,6 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
 static int ReadHuffmanCodes(
     int xsize, int ysize, VP8LDecoder* const dec,
     int* const color_cache_bits_ptr,
-    int* const color_cache_x_subsample_bits_ptr,
     uint32_t** const huffman_image_ptr, int* const huffman_precision_ptr,
     uint32_t** const meta_codes_ptr, int* const meta_codes_size_ptr,
     HuffmanTree** htrees_ptr, int* const num_huffman_trees_ptr) {
@@ -366,11 +365,9 @@ static int ReadHuffmanCodes(
   }
 
   if (VP8LReadBits(br, 1)) {    // use color cache
-    *color_cache_x_subsample_bits_ptr = VP8LReadBits(br, 4);
     *color_cache_bits_ptr = VP8LReadBits(br, 4);
     color_cache_size = 1 << *color_cache_bits_ptr;
   } else {
-    *color_cache_x_subsample_bits_ptr = 0;
     *color_cache_bits_ptr = 0;
     color_cache_size = 0;
   }
@@ -480,7 +477,7 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
       alpha = ReadSymbolUnsafe(hdr->meta_htrees_[ALPHA], br);
 
       data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      if (color_cache) VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+      if (color_cache) VP8LColorCacheInsert(color_cache, data[pix_ix]);
 
       // Update location pointers.
       ++pix_ix;
@@ -493,11 +490,8 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
       // Color cache.
       // Decode and save this pixel.
       const int color_cache_key = code - NUM_LITERAL_CODES;
-      argb_t argb;
-      ok = VP8LColorCacheLookup(color_cache, col, color_cache_key, &argb);
-      if (!ok) goto Error;
-      data[pix_ix] = argb;
-      VP8LColorCacheInsert(color_cache, col, argb);
+      assert(color_cache != NULL);
+      data[pix_ix] = VP8LColorCacheLookup(color_cache, color_cache_key);
 
       // Update location pointers.
       ++pix_ix;
@@ -525,7 +519,7 @@ static int DecodeHeaderData(VP8LDecoder* const dec, argb_t* const data) {
         int i;
         for (i = 0; i < length; ++i) {
           data[pix_ix] = data[pix_ix - dist];
-          VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+          VP8LColorCacheInsert(color_cache, data[pix_ix]);
           ++pix_ix;
           ++col;
           if (col == xsize) {
@@ -642,7 +636,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
       alpha = ReadSymbol(hdr->meta_htrees_[ALPHA], br);
 
       data[pix_ix] = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      if (color_cache) VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+      if (color_cache) VP8LColorCacheInsert(color_cache, data[pix_ix]);
 
       // Update location pointers.
       ++pix_ix;
@@ -658,11 +652,8 @@ static int DecodeImageData(VP8LDecoder* const dec) {
       // Color cache.
       // Decode and save this pixel.
       const int color_cache_key = code - NUM_LITERAL_CODES;
-      argb_t argb;
-      ok = VP8LColorCacheLookup(color_cache, col, color_cache_key, &argb);
-      if (!ok) goto Error;
-      data[pix_ix] = argb;
-      VP8LColorCacheInsert(color_cache, col, argb);
+      assert(color_cache);
+      data[pix_ix] = VP8LColorCacheLookup(color_cache, color_cache_key);
 
       // Update location pointers.
       ++pix_ix;
@@ -693,7 +684,7 @@ static int DecodeImageData(VP8LDecoder* const dec) {
         int i;
         for (i = 0; i < length; ++i) {
           data[pix_ix] = data[pix_ix - dist];
-          VP8LColorCacheInsert(color_cache, col, data[pix_ix]);
+          VP8LColorCacheInsert(color_cache, data[pix_ix]);
           ++pix_ix;
           ++col;
           if (col == xsize) {
@@ -852,10 +843,7 @@ static void ClearMetadata(VP8LMetadata* const hdr) {
     free(hdr->htrees_);
   }
 
-  if (hdr->color_cache_) {
-    VP8LColorCacheRelease(hdr->color_cache_);
-    free(hdr->color_cache_);
-  }
+  VP8LColorCacheDelete(hdr->color_cache_);
   InitMetadata(hdr);
 }
 
@@ -913,7 +901,6 @@ static int DecodeImageStream(int xsize, int ysize,
   VP8LColorCache* color_cache = NULL;
   int color_cache_bits = 0;
   int color_cache_size = 0;
-  int color_cache_x_subsample_bits = 0;
 
   BitReader* const br = &dec->br_;
   int transform_start_idx = dec->next_transform_;
@@ -926,7 +913,7 @@ static int DecodeImageStream(int xsize, int ysize,
 
   // Step#2: Read the Huffman codes.
   ok = ok && ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
-                              &color_cache_bits, &color_cache_x_subsample_bits,
+                              &color_cache_bits,
                               &huffman_image, &huffman_subsample_bits,
                               &meta_codes, &num_meta_codes,
                               &htrees, &num_huffman_trees);
@@ -937,15 +924,14 @@ static int DecodeImageStream(int xsize, int ysize,
   }
 
   if (color_cache_bits > 0) {
+    color_cache_size = 1 << color_cache_bits;
     color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
-    if (color_cache == NULL) {
+    if (color_cache == NULL ||
+        !VP8LColorCacheInit(color_cache, color_cache_bits)) {
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       ok = 0;
       goto End;
     }
-    color_cache_size = 1 << color_cache_bits;
-    VP8LColorCacheInit(color_cache, transform_xsize,
-                       color_cache_x_subsample_bits, color_cache_bits);
   }
 
   UpdateDecoder(transform_xsize, transform_ysize,
