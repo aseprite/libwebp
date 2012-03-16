@@ -17,23 +17,17 @@
 extern "C" {
 #endif
 
-static const uint32_t kNotInitialized = 0x1e35a7bd;
-
 //------------------------------------------------------------------------------
 // VP8LColorCache.
 
 int VP8LColorCacheInit(VP8LColorCache* const cc, int hash_bits) {
-  int i, hash_size;
+  int hash_size;
   assert(cc != NULL);
 
   if (hash_bits == 0) hash_bits = 1;
   hash_size = 1 << hash_bits;
-  cc->colors_ = (uint32_t*)malloc(hash_size * sizeof(*cc->colors_));
+  cc->colors_ = (uint32_t*)calloc(hash_size, sizeof(*cc->colors_));
   if (cc->colors_ == NULL) return 0;
-
-  for (i = 0; i < hash_size; ++i) {
-    cc->colors_[i] = kNotInitialized;
-  }
   cc->hash_shift_ = 32 - hash_bits;
   return 1;
 }
