@@ -56,7 +56,6 @@ typedef struct {
   int             color_cache_size_;
   VP8LColorCache *color_cache_;
 
-  int             meta_index_;
   int             num_huffman_trees_;
   int             huffman_mask_;
   int             huffman_subsample_bits_;
