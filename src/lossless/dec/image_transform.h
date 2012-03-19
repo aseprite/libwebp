@@ -20,7 +20,6 @@ typedef enum ImageTransformType {
   CROSS_COLOR_TRANSFORM = 1,
   SUBTRACT_GREEN = 2,
   COLOR_INDEXING_TRANSFORM = 3,
-  PIXEL_BUNDLE_TRANSFORM = 4,
 } ImageTransformType;
 
 struct ImageTransform {
@@ -50,18 +49,18 @@ void FreeImageTransformData(ImageTransform transform) {
 }
 
 void PixelBundleInverseTransform(int xsize, int ysize,
-                                 PixelBundleTransformData data,
+                                 int xbits,
                                  uint32_t** image) {
-  const int bit_depth = 1 << (3 - data.xbits);
-  const int xs = (xsize + (1 << data.xbits) - 1) >> data.xbits;
+  const int bit_depth = 1 << (3 - xbits);
+  const int xs = (xsize + (1 << xbits) - 1) >> xbits;
   uint32_t* tmp_image = (uint32_t*)malloc(xs * ysize * sizeof(uint32_t));
   memcpy(tmp_image, *image, xs * ysize * sizeof(uint32_t));
   *image = (uint32_t*)realloc(*image, xsize * ysize * sizeof(uint32_t));
   for (int y = 0; y < ysize; ++y) {
     for (int tile_x = 0; tile_x < xs; ++tile_x) {
       uint32_t tile_code = (tmp_image[y * xs + tile_x] >> 8) & 0xff;
-      for (int x = 0; x < 1 << data.xbits; ++x) {
-        const int x_all = tile_x * (1 << data.xbits) + x;
+      for (int x = 0; x < 1 << xbits; ++x) {
+        const int x_all = tile_x * (1 << xbits) + x;
         if (x_all >= xsize) continue;
         const int ix = y * xsize + x_all;
         const uint32_t g = tile_code & ((1 << bit_depth) - 1);
@@ -109,16 +108,12 @@ void ApplyInverseImageTransform(ImageTransform transform,
     case COLOR_INDEXING_TRANSFORM:
       {
         PerTileTransformData* data = (PerTileTransformData*)transform.data;
+        if (data->bits != 0) {
+          PixelBundleInverseTransform(transform.xsize, transform.ysize,
+                                      data->bits, argb_image);
+        }
         ColorIndexingInverseTransform(transform.xsize, transform.ysize,
                                       data->image, *argb_image);
-      }
-      break;
-    case PIXEL_BUNDLE_TRANSFORM:
-      {
-        PixelBundleTransformData* data =
-            (PixelBundleTransformData*)transform.data;
-        PixelBundleInverseTransform(transform.xsize, transform.ysize,
-                                    *data, argb_image);
       }
       break;
     default:

@@ -905,7 +905,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     }
     if (HistogramEstimateBits(after) < HistogramEstimateBits(before)) {
       WriteBits(1, 1, &bw);
-      WriteBits(3, 2, &bw);
+      WriteBits(2, 2, &bw);
     } else {
       // Undo subtract green from blue and red -- rewrite with original data.
       memcpy(argb, argb_orig, xsize * ysize * sizeof(argb[0]));
@@ -926,7 +926,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
       }
     }
     WriteBits(1, 1, &bw);
-    WriteBits(3, 3, &bw);
+    WriteBits(2, 3, &bw);
     WriteBits(8, palette_size - 1, &bw);
     for (i = palette_size - 1; i >= 1; --i) {
       palette[i] = Subtract(palette[i], palette[i - 1]);
@@ -944,9 +944,6 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
         xbits = 2;
       }
       BundlePixels(xsize, ysize, xbits, argb, &xsize);
-      WriteBits(1, 1, &bw);
-      WriteBits(3, 4, &bw);
-      WriteBits(2, xbits, &bw);
     }
   }
 
@@ -967,7 +964,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                    argb,
                    predictor_image);
     WriteBits(1, 1, &bw);
-    WriteBits(3, 0, &bw);
+    WriteBits(2, 0, &bw);
     WriteBits(4, predict_bits, &bw);
     if (!EncodeImageInternal(MetaSize(xsize, predict_bits),
                              MetaSize(ysize, predict_bits),
@@ -998,7 +995,7 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
                         argb,
                         color_space_image);
     WriteBits(1, 1, &bw);
-    WriteBits(3, 1, &bw);
+    WriteBits(2, 1, &bw);
     WriteBits(4, cross_color_transform_bits, &bw);
     if (!EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
                             MetaSize(ysize, cross_color_transform_bits),

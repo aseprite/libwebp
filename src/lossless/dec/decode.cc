@@ -49,7 +49,7 @@ static int MetaSize(int size, int bits) {
 static void ReadTransform(int* xsize, int* ysize,
                           ImageTransform* transform,
                           BitReader* br) {
-  transform->type = (ImageTransformType)ReadBits(br, 3);
+  transform->type = (ImageTransformType)ReadBits(br, 2);
   transform->xsize = *xsize;
   transform->ysize = *ysize;
   switch (transform->type) {
@@ -73,19 +73,22 @@ static void ReadTransform(int* xsize, int* ysize,
         int ncolors = ReadBits(br, 8) + 1;
         transform->data = malloc(sizeof(PerTileTransformData));
         PerTileTransformData* data = (PerTileTransformData*)transform->data;
+        if (ncolors <= 16) {
+          data->bits = 1;
+          if (ncolors <= 4) {
+            data->bits = 2;
+          }
+          if (ncolors <= 2) {
+            data->bits = 3;
+          }
+        } else {
+          data->bits = 0;
+        }
+        *xsize = MetaSize(*xsize, data->bits);
         DecodeImageInternal(ncolors, 1, br, &data->image);
         for (int i = 1; i < ncolors; ++i) {
           data->image[i] = Add(data->image[i], data->image[i - 1]);
         }
-      }
-      break;
-    case PIXEL_BUNDLE_TRANSFORM:
-      {
-        transform->data = malloc(sizeof(PixelBundleTransformData));
-        PixelBundleTransformData* data =
-            (PixelBundleTransformData*)transform->data;
-        data->xbits = ReadBits(br, 2);
-        *xsize = MetaSize(*xsize, data->xbits);
       }
       break;
   }
