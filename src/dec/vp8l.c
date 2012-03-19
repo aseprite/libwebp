@@ -475,6 +475,7 @@ static int DecodeImageData(VP8LDecoder* const dec,
   VP8LMetadata* const hdr = &dec->hdr_;
   VP8LColorCache* const color_cache = hdr->color_cache_;
   argb_t* src = data;
+  argb_t* last_cached = data;
   argb_t* const src_end = data + width * height;
   // Color cache codes are in range [NUM_CODES_PER_BYTE .. color_cache_limit).
   const int color_cache_limit = NUM_LITERAL_CODES + hdr->color_cache_size_;
@@ -502,8 +503,8 @@ static int DecodeImageData(VP8LDecoder* const dec,
       blue = ReadSymbol(hdr->meta_htrees_[BLUE], br);
       alpha = ReadSymbol(hdr->meta_htrees_[ALPHA], br);
       *src = (alpha << 24) + (red << 16) + (green << 8) + blue;
-      if (color_cache) VP8LColorCacheInsert(color_cache, *src);
  AdvanceByOne:
+      ++src;
       ++col;
       if (col >= width) {
         col = 0;
@@ -511,11 +512,18 @@ static int DecodeImageData(VP8LDecoder* const dec,
         if (process_row && (row % NUM_ARGB_CACHE_ROWS == 0)) {
           ProcessRows(dec, row);
         }
+        if (color_cache != NULL) {
+          while (last_cached < src) {
+            VP8LColorCacheInsert(color_cache, *last_cached++);
+          }
+        }
       }
-      ++src;
     } else if (code < color_cache_limit) {    // Color cache.
       const int key = code - NUM_LITERAL_CODES;
       assert(color_cache != NULL);
+      while (last_cached < src) {
+        VP8LColorCacheInsert(color_cache, *last_cached++);
+      }
       *src = VP8LColorCacheLookup(color_cache, key);
       goto AdvanceByOne;
     } else if (code < code_limit) {           // Backward reference
@@ -532,14 +540,8 @@ static int DecodeImageData(VP8LDecoder* const dec,
       }
       {
         int i;
-        if (color_cache) {
-          for (i = 0; i < length; ++i) {
-            src[i] = src[i - dist];
-            VP8LColorCacheInsert(color_cache, src[i]);
-          }
-        } else {
-          for (i = 0; i < length; ++i) src[i] = src[i - dist];
-        }
+        for (i = 0; i < length; ++i) src[i] = src[i - dist];
+        src += length;
       }
       col += length;
       while (col >= width) {
@@ -549,9 +551,13 @@ static int DecodeImageData(VP8LDecoder* const dec,
           ProcessRows(dec, row);
         }
       }
-      src += length;
       if (src < src_end) {
         UpdateHtreeForPos(hdr, col, row);
+        if (color_cache != NULL) {
+          while (last_cached < src) {
+            VP8LColorCacheInsert(color_cache, *last_cached++);
+          }
+        }
       }
     } else {    // Not reached.
       ok = 0;
