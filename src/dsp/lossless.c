@@ -285,33 +285,21 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
   }
 }
 
-// Recover actual color values of pixels from their color indices.
-static void ColorIndexingInverseTransform(const VP8LTransform* const transform,
-                                          int y_start, int y_end,
-                                          argb_t* data) {
-  const int width = transform->xsize_;
-  const argb_t* const data_end = data + (y_end - y_start) * width;
-  const argb_t* const map = transform->data_;
-  while (data < data_end) {
-    *data = map[(*data >> 8) & 0xff];
-    ++data;
-  }
-}
-
-// Separate out pixels packed together using Pixel bundling.
-static void PixelBundleInverseTransform(
+// Separate out pixels packed together using pixel-bundling.
+static void ColorIndexInverseTransform(
     const VP8LTransform* const transform,
     int y_start, int y_end,
     argb_t* const data_in, argb_t* const data_out) {
   int y;
   const int bits_per_pixel = 8 >> transform->bits_;
-  const int pixels_per_byte = 1 << transform->bits_;
-  const int count_mask = pixels_per_byte - 1;
-  const uint32_t bit_mask = ((1 << bits_per_pixel) - 1) << 8;
   const int width = transform->xsize_;
-  {
-    uint32_t* dst = data_out;
-    const uint32_t* src = data_in;
+  const uint32_t* const color_map = transform->data_;
+  uint32_t* dst = data_out;
+  const uint32_t* src = data_in;
+  if (bits_per_pixel < 8) {
+    const int pixels_per_byte = 1 << transform->bits_;
+    const int count_mask = pixels_per_byte - 1;
+    const uint32_t bit_mask = (1 << bits_per_pixel) - 1;
     for (y = y_start; y < y_end; ++y) {
       uint32_t packed_pixels;
       int x;
@@ -319,9 +307,16 @@ static void PixelBundleInverseTransform(
         // We need to load fresh 'packed_pixels' once every 'bytes_per_pixels'
         // increments of x. Fortunately, pixels_per_byte is a power of 2, so
         // can just use a mask for that, instead of decrementing a counter.
-        if ((x & count_mask) == 0) packed_pixels = (*src++) & 0x0000ff00;
-        *dst++ = ARGB_BLACK | (packed_pixels & bit_mask);
+        if ((x & count_mask) == 0) packed_pixels = ((*src++) >> 8) & 0xff;
+        *dst++ = color_map[packed_pixels & bit_mask];
         packed_pixels >>= bits_per_pixel;
+      }
+    }
+  } else {
+    for (y = y_start; y < y_end; ++y) {
+      int x;
+      for (x = 0; x < width; ++x) {
+        *dst++ = color_map[((*src++) >> 8) & 0xff];
       }
     }
   }
@@ -350,11 +345,8 @@ void VP8LInverseTransform(const VP8LTransform* const transform,
       ColorSpaceInverseTransform(transform, row_start, row_end, data_out);
       break;
     case COLOR_INDEXING_TRANSFORM:
-      ColorIndexingInverseTransform(transform, row_start, row_end, data_out);
-      break;
-    case PIXEL_BUNDLE_TRANSFORM:
-      PixelBundleInverseTransform(transform, row_start, row_end,
-                                  data_in, data_out);
+      ColorIndexInverseTransform(transform, row_start, row_end,
+                                 data_in, data_out);
       break;
   }
 }

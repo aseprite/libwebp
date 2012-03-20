@@ -602,18 +602,47 @@ static void ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
   dec->next_transform_ = start_idx;
 }
 
+// For security reason, we need to remap the color map to span
+// the total possible bundled values, and not just the num_colors.
+static int ExpandColorMap(int num_colors, VP8LTransform* const transform) {
+  int i;
+  const int final_num_colors = 1 << (8 >> transform->bits_);
+  uint32_t* const new_color_map =
+      (uint32_t*)malloc(final_num_colors * sizeof(*new_color_map));
+  if (new_color_map == NULL) {
+    return 0;
+  } else {
+    uint8_t* const data = (uint8_t*)transform->data_;
+    uint8_t* const new_data = (uint8_t*)new_color_map;
+    new_color_map[0] = transform->data_[0];
+    for (i = 4; i < 4 * num_colors; ++i) {
+      // Equivalent to AddPixelEq(), on a byte-basis.
+      new_data[i] = (data[i] + new_data[i - 4]) & 0xff;
+    }
+    for (; i < 4 * final_num_colors; ++i)
+      new_data[i] = 0;  // black tail.
+    free(transform->data_);
+    transform->data_ = new_color_map;
+  }
+  return 1;
+}
+
 static int ReadTransform(int* const xsize, int* const ysize,
                          VP8LDecoder* const dec) {
   int ok = 1;
   BitReader* const br = &dec->br_;
-  VP8LTransform* transform = &(dec->transforms_[dec->next_transform_]);
+  VP8LTransform* transform = &dec->transforms_[dec->next_transform_];
   const VP8LImageTransformType type =
-      (VP8LImageTransformType)VP8LReadBits(br, 3);
+      (VP8LImageTransformType)VP8LReadBits(br, 2);
 
+  if (dec->next_transform_ == NUM_TRANSFORMS) {
+    return 0;
+  }
   transform->type_ = type;
   transform->xsize_ = *xsize;
   transform->ysize_ = *ysize;
   transform->data_ = NULL;
+  ++dec->next_transform_;
 
   switch (type) {
     case PREDICTOR_TRANSFORM:
@@ -625,33 +654,24 @@ static int ReadTransform(int* const xsize, int* const ysize,
                                                transform->bits_),
                              dec, &transform->data_);
       break;
-    case COLOR_INDEXING_TRANSFORM:
-      {
-        const int num_colors = VP8LReadBits(br, 8) + 1;
-        ok = DecodeImageStream(num_colors, 1, dec, &transform->data_);
-        if (ok) {
-          int i;
-          uint8_t* const data = (uint8_t*)transform->data_;
-          for (i = 4; i < 4 * num_colors; ++i) {
-            // Equivalent to AddPixelEq(), on a byte-basis.
-            data[i] = (data[i] + data[i - 4]) & 0xff;
-          }
-        }
-      }
+    case COLOR_INDEXING_TRANSFORM: {
+       const int num_colors = VP8LReadBits(br, 8) + 1;
+       const int bits = (num_colors > 16) ? 0
+                      : (num_colors > 4) ? 1
+                      : (num_colors > 2) ? 2
+                      : 3;
+       *xsize = VP8LSubSampleSize(transform->xsize_, bits);
+       transform->bits_ = bits;
+       ok = DecodeImageStream(num_colors, 1, dec, &transform->data_);
+       ok = ok && ExpandColorMap(num_colors, transform);
       break;
-    case PIXEL_BUNDLE_TRANSFORM:
-      transform->bits_ = VP8LReadBits(br, 2);
-      *xsize = VP8LSubSampleSize(transform->xsize_, transform->bits_);
-      break;
+    }
     case SUBTRACT_GREEN:
       break;
     default:
-      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-      ok = 0;
+      assert(0);    // can't happen
       break;
   }
-
-  if (ok) ++dec->next_transform_;
 
   return ok;
 }

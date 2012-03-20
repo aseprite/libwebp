@@ -36,11 +36,10 @@ typedef enum {
 } VP8LDecodeState;
 
 typedef enum {
-  PREDICTOR_TRANSFORM = 0,
-  CROSS_COLOR_TRANSFORM = 1,
-  SUBTRACT_GREEN = 2,
-  COLOR_INDEXING_TRANSFORM = 3,
-  PIXEL_BUNDLE_TRANSFORM = 4
+  PREDICTOR_TRANSFORM      = 0,
+  CROSS_COLOR_TRANSFORM    = 1,
+  SUBTRACT_GREEN           = 2,
+  COLOR_INDEXING_TRANSFORM = 3
 } VP8LImageTransformType;
 
 typedef struct VP8LTransform VP8LTransform;
