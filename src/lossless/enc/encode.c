@@ -755,8 +755,6 @@ static int EncodeImageInternal(int xsize, int ysize,
                                  &bit_lengths, &bit_codes)) {
     goto Error;
   }
-  // No transforms.
-  WriteBits(1, 0, bw);
 
   // Huffman image + meta huffman.
   write_histogram_image = (histogram_image_size > 1);
@@ -998,9 +996,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
     WriteBits(2, 1, &bw);
     WriteBits(4, cross_color_transform_bits, &bw);
     if (!EncodeImageInternal(MetaSize(xsize, cross_color_transform_bits),
-                            MetaSize(ysize, cross_color_transform_bits),
-                            color_space_image,
-                            quality,
+                             MetaSize(ysize, cross_color_transform_bits),
+                             color_space_image,
+                             quality,
                              0,
                              0,      // no histogram bits
                              1,   // use_2d_locality
@@ -1020,6 +1018,9 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
       }
     }
   }
+
+  // No more transforms.
+  WriteBits(1, 0, &bw);
 
   if (!EncodeImageInternal(xsize, ysize, argb, quality, palette_bits,
                            histogram_bits,

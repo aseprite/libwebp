@@ -36,6 +36,7 @@
 static const int kMaxImageTransforms = 100;
 
 static int DecodeImageInternal(int xsize, int ysize,
+                               int read_transforms,
                                BitReader* const br,
                                uint32_t** const argb_image);
 
@@ -61,7 +62,7 @@ static void ReadTransform(int* xsize, int* ysize,
         data->bits = ReadBits(br, 4);
         DecodeImageInternal(MetaSize(*xsize, data->bits),
                             MetaSize(*ysize, data->bits),
-                            br, &data->image);
+                            0, br, &data->image);
       }
       break;
     case SUBTRACT_GREEN:
@@ -85,7 +86,7 @@ static void ReadTransform(int* xsize, int* ysize,
           data->bits = 0;
         }
         *xsize = MetaSize(*xsize, data->bits);
-        DecodeImageInternal(ncolors, 1, br, &data->image);
+        DecodeImageInternal(ncolors, 1, 0, br, &data->image);
         for (int i = 1; i < ncolors; ++i) {
           data->image[i] = Add(data->image[i], data->image[i - 1]);
         }
@@ -285,8 +286,9 @@ static int ReadHuffmanCode(int alphabet_size,
   return ok;
 }
 
-static int DecodeImageInternal(int original_xsize,
-                               int original_ysize,
+static int DecodeImageInternal(const int original_xsize,
+                               const int original_ysize,
+                               const int read_transforms,
                                BitReader* const br,
                                uint32_t** const argb_image) {
   int xsize = original_xsize;
@@ -296,10 +298,12 @@ static int DecodeImageInternal(int original_xsize,
   ImageTransform* transforms =
       (ImageTransform*)malloc(kMaxImageTransforms * sizeof(ImageTransform));
   int num_transforms = 0;
-  while (ReadBits(br, 1)) {
-    ReadTransform(&xsize, &ysize, &transforms[num_transforms], br);
-    ++num_transforms;
-    VERIFY(num_transforms < kMaxImageTransforms);
+  if (read_transforms) {
+    while (ReadBits(br, 1)) {
+      ReadTransform(&xsize, &ysize, &transforms[num_transforms], br);
+      ++num_transforms;
+      VERIFY(num_transforms < kMaxImageTransforms);
+    }
   }
 
   bool use_meta_codes = ReadBits(br, 1);
@@ -313,7 +317,7 @@ static int DecodeImageInternal(int original_xsize,
     huffman_bits = ReadBits(br, 4);
     const int huffman_xsize = MetaSize(xsize, huffman_bits);
     const int huffman_ysize = MetaSize(ysize, huffman_bits);
-    DecodeImageInternal(huffman_xsize, huffman_ysize, br, &huffman_image);
+    DecodeImageInternal(huffman_xsize, huffman_ysize, 0, br, &huffman_image);
     const int huffman_pixels = huffman_xsize * huffman_ysize;
     for (int i = 0; i < huffman_pixels; ++i) {
       // The actual value is stored in red (high bits) and green (low bits).
@@ -515,6 +519,6 @@ int DecodeWebpLLImage(size_t encoded_image_size,
 
   *xsize = ReadBits(&br, 14) + 1;
   *ysize = ReadBits(&br, 14) + 1;
-  DecodeImageInternal(*xsize, *ysize, &br, argb_image);
+  DecodeImageInternal(*xsize, *ysize, 1, &br, argb_image);
   return true;
 }
