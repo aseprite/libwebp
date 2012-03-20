@@ -21,8 +21,6 @@
 extern "C" {
 #endif
 
-#define LOSSLESS_MAGIC_BYTE 0x64
-
 static const int kHeaderBytes = 5;
 static const uint32_t kImageSizeBits = 14;
 
@@ -87,7 +85,10 @@ static int DecodeImageStream(int xsize, int ysize,
 static int ReadImageSize(BitReader* const br,
                          int* const width, int* const height) {
   const int signature = VP8LReadBits(br, 8);
-  if (signature != LOSSLESS_MAGIC_BYTE) return 0;
+  if (signature != LOSSLESS_MAGIC_BYTE &&
+      signature != LOSSLESS_MAGIC_BYTE_RSVD) {
+    return 0;
+  }
   *width = VP8LReadBits(br, kImageSizeBits) + 1;
   *height = VP8LReadBits(br, kImageSizeBits) + 1;
   return 1;

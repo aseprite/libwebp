@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-#define LOSSLESS_MAGIC_BYTE 0x64
-
 //------------------------------------------------------------------------------
 
 int WebPGetDecoderVersion(void) {

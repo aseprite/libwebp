@@ -26,6 +26,8 @@ extern "C" {
 #define ARGB_BLACK                   0xff000000
 #define NUM_LITERAL_CODES            256
 #define NUM_ARGB_CACHE_ROWS          16
+#define LOSSLESS_MAGIC_BYTE          0x64
+#define LOSSLESS_MAGIC_BYTE_RSVD     0x65
 
 struct HuffmanTree;
 
