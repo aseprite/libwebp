@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "./vp8li.h"
-#include "./webpi.h"
 #include "../dsp/lossless.h"
 #include "../utils/huffman.h"
 
@@ -412,6 +411,95 @@ static int ReadHuffmanCodes(
 }
 
 //------------------------------------------------------------------------------
+// Scaling.
+
+static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
+  WebPDecParams* const params = (WebPDecParams*)io->opaque;
+  const int num_channels = 4;
+  const int in_width = io->mb_w;
+  const int out_width = io->scaled_width;
+  const int in_height = io->mb_h;
+  const int out_height = io->scaled_height;
+  const int work_size = 2 * num_channels * out_width;
+  int32_t* work;        // Rescaler work area.
+  const int scaled_data_size = num_channels * out_width;
+  argb_t* scaled_data;  // Temporary storage for scaled BGRA data.
+
+  const int memory_size = work_size * sizeof(*work) +
+                          scaled_data_size * sizeof(*scaled_data);
+  params->memory = calloc(1, memory_size);
+  if (params->memory == NULL) {
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+    return 0;
+  }
+  work = (int32_t*)params->memory;
+  scaled_data = (argb_t*)(work + work_size);
+
+  WebPRescalerInit(&dec->wrk, in_width, in_height, (uint8_t*)scaled_data,
+                   out_width, out_height, 0, num_channels,
+                   in_width, out_width, in_height, out_height, work);
+  return 1;
+}
+
+static int Import(const uint8_t* src, int src_stride,
+                  int new_lines, WebPRescaler* const wrk) {
+  int num_lines_in = 0;
+  while (num_lines_in < new_lines && wrk->y_accum > 0) {
+    int channel;
+    for (channel = 0; channel < wrk->num_channels; ++channel) {
+      WebPRescalerImportRow(src, channel, wrk);  // Scale a row of each channel.
+    }
+    src += src_stride;
+    ++num_lines_in;
+    wrk->y_accum -= wrk->y_sub;
+  }
+  return num_lines_in;
+}
+
+static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
+                  int rgba_stride, uint8_t* const rgba) {
+  const argb_t* const src = (const argb_t* const)dec->wrk.dst;
+  const int dst_width = dec->wrk.dst_width;
+  int num_lines_out = 0;
+  while (dec->wrk.y_accum <= 0) {
+    uint8_t* const dst = rgba + num_lines_out * rgba_stride;
+    WebPRescalerExportRow(&dec->wrk);
+    VP8LConvertFromBGRA(src, dst_width, colorspace, dst);
+    ++num_lines_out;
+  }
+  return num_lines_out;
+}
+
+// Emit scaled rows.
+static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
+                            const uint8_t* const data, int mb_h,
+                            uint8_t* const out, int out_stride) {
+  const int in_stride = dec->wrk.src_width * dec->wrk.num_channels;
+  int num_lines_in = 0;
+  int num_lines_out = 0;
+  while (num_lines_in < mb_h) {
+    const uint8_t* row_in = data + num_lines_in * in_stride;
+    uint8_t* const row_out = out + num_lines_out * out_stride;
+    num_lines_in += Import(row_in, in_stride, mb_h - num_lines_in, &dec->wrk);
+    num_lines_out += Export(dec, colorspace, out_stride, row_out);
+  }
+  return num_lines_out;
+}
+
+// Emit rows without any scaling.
+static int EmitRows(WEBP_CSP_MODE colorspace,
+                    const argb_t* const data, int mb_w, int mb_h,
+                    uint8_t* const out, int out_stride) {
+  int num_lines_in;
+  for (num_lines_in = 0; num_lines_in < mb_h; ++num_lines_in) {
+    const argb_t* const row_in = data + num_lines_in * mb_w;
+    uint8_t* const row_out = out + num_lines_in * out_stride;
+    VP8LConvertFromBGRA(row_in, mb_w, colorspace, row_out);
+  }
+  return mb_h;  // Num rows out == num rows in.
+}
+
+//------------------------------------------------------------------------------
 
 static WEBP_INLINE int GetMetaIndex(
     const uint32_t* const image, int xsize, int bits, int x, int y) {
@@ -434,37 +522,46 @@ static WEBP_INLINE void UpdateHtreeForPos(VP8LMetadata* const hdr,
   hdr->meta_htrees_[DIST] = &htrees[meta_codes[meta_index + DIST]];
 }
 
-// Processes (transforms & color-convert) the rows decoded after the last call.
+// Processes (transforms, scales & color-converts) the rows decoded after the
+// last call.
 static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
   int n = dec->next_transform_;
-  WebPDecBuffer* output = NULL;
-  WebPRGBABuffer* rgba_buf = NULL;
-  uint8_t* rgba = NULL;
-  WebPDecParams* const params = (WebPDecParams*)dec->io_->opaque;
+  VP8Io* const io = dec->io_;
+  WebPDecParams* const params = (WebPDecParams*)io->opaque;
+  const WebPDecBuffer* const output = params->output;
   const int argb_offset = dec->width_ * dec->last_row_;
   const int num_rows = row - dec->last_row_;
   const int cache_pixs = dec->width_ * num_rows;
   argb_t* const rows_data = dec->argb_cache_;
+  int num_rows_out = num_rows;  // Default.
 
-  if (num_rows <= 0) return;
+  if (num_rows <= 0) return;  // Nothing to be done.
 
-  memcpy(rows_data, dec->argb_ + argb_offset,
-         cache_pixs * sizeof(*rows_data));
-
+  // Inverse transforms.
+  memcpy(rows_data, dec->argb_ + argb_offset, cache_pixs * sizeof(*rows_data));
   while (n-- > 0) {
     VP8LTransform* const transform = &dec->transforms_[n];
     VP8LInverseTransform(transform, dec->last_row_, row,
                          dec->argb_ + argb_offset, rows_data);
   }
 
-  assert(params != NULL);
-  output = params->output;
-  rgba_buf = &output->u.RGBA;
-  rgba = rgba_buf->rgba + dec->last_row_ * rgba_buf->stride;
-  VP8LConvertFromBGRA(rows_data, num_rows * output->width, output->colorspace,
-                      rgba);
+  // Emit output.
+  {
+    const WebPRGBABuffer* const buf = &output->u.RGBA;
+    uint8_t* const rgba = buf->rgba + dec->last_out_row_ * buf->stride;
+    const WEBP_CSP_MODE colorspace = output->colorspace;
+    io->mb_h = num_rows;
+    num_rows_out = io->use_scaling ?
+        EmitRescaledRows(dec, colorspace, (uint8_t*)rows_data, io->mb_h, rgba,
+                         buf->stride) :
+        EmitRows(colorspace, rows_data, io->mb_w, io->mb_h, rgba, buf->stride);
+  }
 
+  // Update 'last_row' and 'last_out_row'.
   dec->last_row_ = row;
+  assert(dec->last_row_ <= io->height);
+  dec->last_out_row_ += num_rows_out;
+  assert(dec->last_out_row_ <= output->height);
 }
 
 static int DecodeImageData(VP8LDecoder* const dec,
@@ -718,8 +815,10 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->width_ = 0;
   dec->height_ = 0;
   dec->last_row_ = 0;
+  dec->last_out_row_ = 0;
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
+  dec->argb_cache_ = NULL;
   dec->level_ = 0;
   InitMetadata(&dec->hdr_);
 }
@@ -848,7 +947,6 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
   argb_t* decoded_data = NULL;
   WebPDecParams* params = NULL;
-  WebPDecBuffer* output = NULL;
 
   if (dec == NULL) return 0;
   if (io == NULL || dec->br_offset_ > io->data_size) {
@@ -870,10 +968,6 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   params = (WebPDecParams*)io->opaque;
   assert(params != NULL);
 
-  output = params->output;
-  output->width = width;
-  output->height = height;
-
   dec->action_ = READ_HDR;
   if (!DecodeImageStream(width, height, dec, &decoded_data)) {
     free(decoded_data);
@@ -888,11 +982,8 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   VP8Io* io = NULL;
   WebPDecParams* params = NULL;
   WebPDecBuffer* output = NULL;
-  int num_pixels;
-  int cache_pixels;
-  int cache_top_pixels;
-  int total_num_pixels;
 
+  // Sanity checks.
   if (dec == NULL) return 0;
 
   io = dec->io_;
@@ -905,26 +996,36 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     goto Err;
   }
 
-  num_pixels = dec->width_ * dec->height_;
-  // Scratch buffer corresponding to top-prediction row for transforming the
-  // first row in the row-blocks.
-  cache_top_pixels = output->width;
-  // Scratch buffer for temporary BGRA storage.
-  cache_pixels = output->width * NUM_ARGB_CACHE_ROWS;
-  total_num_pixels = num_pixels + cache_top_pixels + cache_pixels;
-  dec->argb_ = (argb_t*)malloc(total_num_pixels * sizeof(*dec->argb_));
-  if (dec->argb_ == NULL) {
-    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-    goto Err;
-  }
-  dec->argb_cache_ = dec->argb_ + num_pixels + cache_top_pixels;
+  // Initialization.
+  if (!WebPIoInitFromOptions(params->options, io)) goto Err;
 
+  {
+    const int num_pixels = dec->width_ * dec->height_;
+    // Scratch buffer corresponding to top-prediction row for transforming the
+    // first row in the row-blocks.
+    const int cache_top_pixels = io->width;
+    // Scratch buffer for temporary BGRA storage.
+    const int cache_pixels = io->width * NUM_ARGB_CACHE_ROWS;
+    const int total_num_pixels =
+        num_pixels + cache_top_pixels + cache_pixels;
+    dec->argb_ = (argb_t*)malloc(total_num_pixels * sizeof(*dec->argb_));
+    if (dec->argb_ == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      goto Err;
+    }
+    dec->argb_cache_ = dec->argb_ + num_pixels + cache_top_pixels;
+  }
+
+  if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) goto Err;
+
+  // Decode.
   dec->action_ = READ_DATA;
   if (!DecodeImageData(dec, dec->argb_, dec->width_, dec->height_, 1)) {
     goto Err;
   }
 
-  params->last_y = dec->last_row_;
+  // Cleanup.
+  params->last_y = dec->last_out_row_;
   VP8LClear(dec);
   return 1;
 
@@ -945,6 +1046,14 @@ void VP8LClear(VP8LDecoder* const dec) {
     ClearTransform(&dec->transforms_[i]);
   }
   dec->next_transform_ = 0;
+
+  if (dec->io_ != NULL) {
+    WebPDecParams* params = (WebPDecParams*)dec->io_->opaque;
+    if (params != NULL) {
+      free(params->memory);
+      params->memory = NULL;
+    }
+  }
 }
 
 //------------------------------------------------------------------------------

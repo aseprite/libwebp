@@ -14,6 +14,7 @@
 #define WEBP_DEC_VP8LI_H_
 
 #include <string.h>     // for memcpy()
+#include "./webpi.h"
 #include "../utils/bit_reader.h"
 #include "../utils/color_cache.h"
 
@@ -73,20 +74,24 @@ typedef struct {
   VP8LDecodeState  state_;
   VP8Io           *io_;
 
-  argb_t          *argb_;        // Internal data: always in BGRA color mode.
-  argb_t          *argb_cache_;  // Scratch buffer for temporary BGRA storage.
+  argb_t          *argb_;          // Internal data: always in BGRA color mode.
+  argb_t          *argb_cache_;    // Scratch buffer for temporary BGRA storage.
+
   BitReader        br_;
   uint32_t         br_offset_;
 
   int              width_;
   int              height_;
-  int              last_row_;  // last dislayed row so far.
+  int              last_row_;      // last input row decoded so far.
+  int              last_out_row_;  // last row output so far.
   int              level_;
 
   VP8LMetadata     hdr_;
 
   int              next_transform_;
   VP8LTransform    transforms_[NUM_TRANSFORMS];
+
+  WebPRescaler     wrk;  // Common rescaler for all channels.
 } VP8LDecoder;
 
 //------------------------------------------------------------------------------
