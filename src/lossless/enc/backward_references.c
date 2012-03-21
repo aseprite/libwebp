@@ -362,15 +362,14 @@ static inline double CostModel_LiteralCost(const CostModel* p, uint32_t v) {
 }
 
 static inline double CostModel_PaletteCost(const CostModel* p, uint32_t ix) {
-  int literal_ix = VALUES_IN_BYTE + ix;
+  int literal_ix = VALUES_IN_BYTE + kLengthCodes + ix;
   return p->literal_[literal_ix];
 }
 
 static inline double CostModel_LengthCost(const CostModel* p, uint32_t len) {
   int code, extra_bits_count, extra_bits_value;
   PrefixEncode(len, &code, &extra_bits_count, &extra_bits_value);
-  return p->literal_[VALUES_IN_BYTE + (1 << p->palette_bits_) + code] +
-      extra_bits_count;
+  return p->literal_[VALUES_IN_BYTE + code] + extra_bits_count;
 }
 
 static inline double CostModel_DistanceCost(const CostModel* p,

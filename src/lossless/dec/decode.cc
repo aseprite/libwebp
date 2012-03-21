@@ -366,8 +366,6 @@ static int DecodeImageInternal(const int original_xsize,
   int blue = 0;
   int alpha = 0xff000000;
   int meta_ix = -1;
-  // Green values >= 256 but < palette_limit are from the palette.
-  const int palette_limit = 256 + palette_size;
   const HuffmanTreeNode *huff_green = 0;
   const HuffmanTreeNode *huff_red = 0;
   const HuffmanTreeNode *huff_blue = 0;
@@ -410,26 +408,12 @@ static int DecodeImageInternal(const int original_xsize,
       ++pos;
       continue;
     }
-    // Palette
-    if (green < palette_limit) {
-      int palette_symbol = green - 256;
-      const uint32_t argb = VP8LColorCacheLookup(hashers, palette_symbol);
-      image[pos] = argb;
-      VP8LColorCacheInsert(hashers, argb);
-      ++x;
-      if (x >= xsize) {
-        x = 0;
-        ++y;
-      }
-      ++pos;
-      continue;
-    }
 
     // Backward reference
-    const int length_symbol = green - palette_limit;
-    if (length_symbol < kNumLengthSymbols) {
+    if (green < 256 + kNumLengthSymbols) {
+      const int length_symbol = green - 256;
       const int length = GetCopyLength(length_symbol, br);
-      // Here, we have read the length code prefix + extra bits for the length,
+      // We have read the length code prefix + extra bits for the length,
       // so reading the next 15 bits can exhaust the bit window.
       // We must fill the window before the next read.
       FillBitWindow(br);
@@ -444,7 +428,7 @@ static int DecodeImageInternal(const int original_xsize,
           ++pos;
         }
         x += length;
-        while(x >= xsize) {
+        while (x >= xsize) {
           x -= xsize;
           ++y;
         }
@@ -475,9 +459,26 @@ static int DecodeImageInternal(const int original_xsize,
       }
       continue;
     }
+
+    // Palette
+    {
+      int palette_symbol = green - 256 - kNumLengthSymbols;
+      const uint32_t argb = VP8LColorCacheLookup(hashers, palette_symbol);
+      image[pos] = argb;
+      VP8LColorCacheInsert(hashers, argb);
+      ++x;
+      if (x >= xsize) {
+        x = 0;
+        ++y;
+      }
+      ++pos;
+      continue;
+    }
+
     printf("Error: Could not interpret GREEN symbol %d\n", green);
     abort();
   }
+
   if (hashers) {
     VP8LColorCacheDelete(hashers);
     delete hashers;

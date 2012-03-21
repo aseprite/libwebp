@@ -181,15 +181,15 @@ static int PackLiteralBitLengths(const uint8_t* bit_lengths,
   for (i = 0; i < 256; ++i) {
     (*new_lengths)[i] = bit_lengths[i];
   }
+  for (i = 0; i < kLengthCodes; ++i) {
+    (*new_lengths)[length_code_offset + i] = bit_lengths[256 + i];
+  }
+  length_code_offset += kLengthCodes;
   if (use_palette) {
     for (i = 0; i < (1 << palette_bits); ++i) {
-      (*new_lengths)[256 + i] = bit_lengths[256 + i];
+      (*new_lengths)[length_code_offset + i] =
+          bit_lengths[256 + kLengthCodes + i];
     }
-    length_code_offset += 1 << palette_bits;
-  }
-  for (i = 0; i < kLengthCodes; ++i) {
-    (*new_lengths)[length_code_offset + i] =
-        bit_lengths[256 + (1 << palette_bits) + i];
   }
   return 1;
 }
@@ -350,7 +350,7 @@ static inline int MetaSize(int size, int bits) {
 }
 
 static void StoreImageToBitMask(
-    int xsize, int histo_bits, int palette_bits,
+    int xsize, int histo_bits,
     const PixOrCopy* literals, int literals_size,
     const uint32_t* histogram_symbols,
     uint8_t** const bitdepths, uint16_t** const bit_symbols,
@@ -367,7 +367,7 @@ static void StoreImageToBitMask(
                                         (x >> histo_bits) : 0];
     if (PixOrCopyIsPaletteIx(&v)) {
       const int code = PixOrCopyPaletteIx(&v);
-      int literal_ix = 256 + code;
+      int literal_ix = 256 + kLengthCodes + code;
       WriteBits(bitdepths[5 * histogram_ix][literal_ix],
                 bit_symbols[5 * histogram_ix][literal_ix], bw);
     } else if (PixOrCopyIsLiteral(&v)) {
@@ -385,7 +385,7 @@ static void StoreImageToBitMask(
       int distance;
       int len_ix;
       PixOrCopyLengthCodeAndBits(&v, &code, &n_bits, &bits);
-      len_ix = 256 + (1 << palette_bits) + code;
+      len_ix = 256 + code;
       WriteBits(bitdepths[5 * histogram_ix][len_ix],
                 bit_symbols[5 * histogram_ix][len_ix], bw);
       WriteBits(n_bits, bits, bw);
@@ -665,7 +665,7 @@ static int GetHuffBitLengthsAndCodes(
       // and so number of palette entries = (1 << 0) = 1.
       // Optimization might have smeared population count in this single
       // palette entry, so zero it out.
-      histogram_image[i]->literal_[256] = 0;
+      histogram_image[i]->literal_[256 + kLengthCodes] = 0;
     }
     ok = ok && OptimizeHuffmanForRle(256, histogram_image[i]->red_);
     ok = ok && OptimizeHuffmanForRle(256, histogram_image[i]->blue_);
@@ -830,8 +830,7 @@ static int EncodeImageInternal(int xsize, int ysize,
                                     bit_codes[i]);
   }
   // Store actual literals.
-  StoreImageToBitMask(xsize, histogram_bits, palette_bits,
-                      backward_refs, backward_refs_size,
+  StoreImageToBitMask(xsize, histogram_bits, backward_refs, backward_refs_size,
                       histogram_symbols, bit_lengths, bit_codes, bw);
   ok = 1;
 Error:

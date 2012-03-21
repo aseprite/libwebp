@@ -151,13 +151,13 @@ void HistogramAddSinglePixOrCopy(Histogram* const p, const PixOrCopy v) {
     ++p->literal_[PixOrCopyLiteral(&v, 1)];
     ++p->blue_[PixOrCopyLiteral(&v, 0)];
   } else if (PixOrCopyIsPaletteIx(&v)) {
-    int literal_ix = 256 + PixOrCopyPaletteIx(&v);
+    int literal_ix = 256 + kLengthCodes + PixOrCopyPaletteIx(&v);
     ++p->literal_[literal_ix];
   } else {
     int code, extra_bits_count, extra_bits_value;
     PrefixEncode(PixOrCopyLength(&v),
                  &code, &extra_bits_count, &extra_bits_value);
-    ++p->literal_[256 + (1 << p->palette_code_bits_) + code];
+    ++p->literal_[256 + code];
     PrefixEncode(PixOrCopyDistance(&v),
                  &code, &extra_bits_count, &extra_bits_value);
     ++p->distance_[code];
@@ -234,7 +234,7 @@ double HistogramEstimateBitsBulk(const Histogram* const p) {
   size_t i;
   for (i = 2; i < kLengthCodes - 2; ++i) {
     retval +=
-        (i >> 1) * p->literal_[256 + (1 << p->palette_code_bits_) + i + 2];
+        (i >> 1) * p->literal_[256 + i + 2];
   }
   for (i = 2; i < DISTANCE_CODES_MAX - 2; ++i) {
     retval += (i >> 1) * p->distance_[i + 2];
