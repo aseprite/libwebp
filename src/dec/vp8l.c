@@ -76,6 +76,7 @@ static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
 };
 
 static int DecodeImageStream(int xsize, int ysize,
+                             int read_transforms,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data);
 
@@ -326,7 +327,7 @@ static int ReadHuffmanCodes(
     const int huffman_xsize = VP8LSubSampleSize(xsize, huffman_precision);
     const int huffman_ysize = VP8LSubSampleSize(ysize, huffman_precision);
     const int huffman_pixs = huffman_xsize * huffman_ysize;
-    if (!DecodeImageStream(huffman_xsize, huffman_ysize, dec,
+    if (!DecodeImageStream(huffman_xsize, huffman_ysize, 0, dec,
                            &huffman_image)) {
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       goto Error;
@@ -575,9 +576,8 @@ static int DecodeImageData(VP8LDecoder* const dec,
   argb_t* src = data;
   argb_t* last_cached = data;
   argb_t* const src_end = data + width * height;
-  // Color cache codes are in range [NUM_CODES_PER_BYTE .. color_cache_limit).
-  const int color_cache_limit = NUM_LITERAL_CODES + hdr->color_cache_size_;
-  const int code_limit = NUM_LENGTH_CODES + color_cache_limit;
+  const int len_code_limit = NUM_LITERAL_CODES + NUM_LENGTH_CODES;
+  const int color_cache_limit = len_code_limit + hdr->color_cache_size_;
   const int mask = hdr->huffman_mask_;
 
   assert(hdr->htrees_ != NULL);
@@ -616,17 +616,9 @@ static int DecodeImageData(VP8LDecoder* const dec,
           }
         }
       }
-    } else if (code < color_cache_limit) {    // Color cache.
-      const int key = code - NUM_LITERAL_CODES;
-      assert(color_cache != NULL);
-      while (last_cached < src) {
-        VP8LColorCacheInsert(color_cache, *last_cached++);
-      }
-      *src = VP8LColorCacheLookup(color_cache, key);
-      goto AdvanceByOne;
-    } else if (code < code_limit) {           // Backward reference
+    } else if (code < len_code_limit) {           // Backward reference
       int dist_code, dist;
-      const int length_sym = code - color_cache_limit;
+      const int length_sym = code - NUM_LITERAL_CODES;
       const int length = GetCopyLength(length_sym, br);
       const int dist_symbol = ReadSymbol(hdr->meta_htrees_[DIST], br);
       VP8LFillBitWindow(br);
@@ -657,6 +649,14 @@ static int DecodeImageData(VP8LDecoder* const dec,
           }
         }
       }
+    } else if (code < color_cache_limit) {    // Color cache.
+      const int key = code - len_code_limit;
+      assert(color_cache != NULL);
+      while (last_cached < src) {
+        VP8LColorCacheInsert(color_cache, *last_cached++);
+      }
+      *src = VP8LColorCacheLookup(color_cache, key);
+      goto AdvanceByOne;
     } else {    // Not reached.
       ok = 0;
       goto Error;
@@ -750,7 +750,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
                                                transform->bits_),
                              VP8LSubSampleSize(transform->ysize_,
                                                transform->bits_),
-                             dec, &transform->data_);
+                             0, dec, &transform->data_);
       break;
     case COLOR_INDEXING_TRANSFORM: {
        const int num_colors = VP8LReadBits(br, 8) + 1;
@@ -760,7 +760,7 @@ static int ReadTransform(int* const xsize, int* const ysize,
                       : 3;
        *xsize = VP8LSubSampleSize(transform->xsize_, bits);
        transform->bits_ = bits;
-       ok = DecodeImageStream(num_colors, 1, dec, &transform->data_);
+       ok = DecodeImageStream(num_colors, 1, 0, dec, &transform->data_);
        ok = ok && ExpandColorMap(num_colors, transform);
       break;
     }
@@ -846,6 +846,7 @@ static void UpdateDecoder(
 }
 
 static int DecodeImageStream(int xsize, int ysize,
+                             int read_transforms,
                              VP8LDecoder* const dec,
                              argb_t** const decoded_data) {
   int ok = 1;
@@ -869,8 +870,10 @@ static int DecodeImageStream(int xsize, int ysize,
   ++dec->level_;
 
   // Step#1: Read the transforms.
-  while (ok && VP8LReadBits(br, 1)) {
-    ok = ReadTransform(&transform_xsize, &transform_ysize, dec);
+  if (read_transforms) {
+    while (ok && VP8LReadBits(br, 1)) {
+      ok = ReadTransform(&transform_xsize, &transform_ysize, dec);
+    }
   }
 
   // Step#2: Read the Huffman codes.
@@ -969,7 +972,7 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   assert(params != NULL);
 
   dec->action_ = READ_HDR;
-  if (!DecodeImageStream(width, height, dec, &decoded_data)) {
+  if (!DecodeImageStream(width, height, 1, dec, &decoded_data)) {
     free(decoded_data);
     VP8LClear(dec);
     assert(dec->status_ != VP8_STATUS_OK);
