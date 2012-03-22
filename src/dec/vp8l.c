@@ -442,29 +442,16 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
   return 1;
 }
 
-static int Import(const uint8_t* src, int src_stride,
-                  int new_lines, WebPRescaler* const wrk) {
-  int num_lines_in = 0;
-  while (num_lines_in < new_lines && wrk->y_accum > 0) {
-    int channel;
-    for (channel = 0; channel < wrk->num_channels; ++channel) {
-      WebPRescalerImportRow(src, channel, wrk);  // Scale a row of each channel.
-    }
-    src += src_stride;
-    ++num_lines_in;
-    wrk->y_accum -= wrk->y_sub;
-  }
-  return num_lines_in;
-}
-
+// We have special "export" function since we need to convert from BGRA
 static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
                   int rgba_stride, uint8_t* const rgba) {
   const argb_t* const src = (const argb_t* const)dec->wrk.dst;
-  const int dst_width = dec->wrk.dst_width;
+  WebPRescaler* const rescaler = &dec->wrk;
+  const int dst_width = rescaler->dst_width;
   int num_lines_out = 0;
-  while (dec->wrk.y_accum <= 0) {
+  while (WebPRescalerHasPendingOutput(rescaler)) {
     uint8_t* const dst = rgba + num_lines_out * rgba_stride;
-    WebPRescalerExportRow(&dec->wrk);
+    WebPRescalerExportRow(rescaler);
     VP8LConvertFromBGRA(src, dst_width, colorspace, dst);
     ++num_lines_out;
   }
@@ -481,7 +468,8 @@ static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
   while (num_lines_in < mb_h) {
     const uint8_t* row_in = data + num_lines_in * in_stride;
     uint8_t* const row_out = out + num_lines_out * out_stride;
-    num_lines_in += Import(row_in, in_stride, mb_h - num_lines_in, &dec->wrk);
+    num_lines_in += WebPRescalerImport(&dec->wrk, mb_h - num_lines_in,
+                                       row_in, in_stride);
     num_lines_out += Export(dec, colorspace, out_stride, row_out);
   }
   return num_lines_out;
