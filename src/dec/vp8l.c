@@ -1027,7 +1027,7 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   }
 
   // Initialization.
-  if (!WebPIoInitFromOptions(params->options, io)) {
+  if (!WebPIoInitFromOptions(params->options, io, MODE_BGRA)) {
     dec->status_ = VP8_STATUS_INVALID_PARAM;
     goto Err;
   }
