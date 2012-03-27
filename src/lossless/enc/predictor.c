@@ -205,7 +205,7 @@ static ColorSpaceTransformElement GetBestColorTransformForTile(
     const uint32_t* argb) {
   double best_diff = 1e99;
   double cur_diff;
-  const int step = (quality == 0) ? 16 : 8;
+  const int step = (quality == 0) ? 32 : 8;
   const int halfstep = step / 2;
   const int max_tile_size = 1 << bits;
   const int tile_y_offset = tile_y * max_tile_size;
