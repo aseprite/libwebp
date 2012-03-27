@@ -460,13 +460,13 @@ static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
 
 // Emit scaled rows.
 static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
-                            const uint8_t* const data, int mb_h,
+                            const argb_t* const data, int in_stride, int mb_h,
                             uint8_t* const out, int out_stride) {
-  const int in_stride = dec->wrk.src_width * dec->wrk.num_channels;
+  const uint8_t* const in = (const uint8_t*)data;
   int num_lines_in = 0;
   int num_lines_out = 0;
   while (num_lines_in < mb_h) {
-    const uint8_t* row_in = data + num_lines_in * in_stride;
+    const uint8_t* row_in = in + num_lines_in * in_stride;
     uint8_t* const row_out = out + num_lines_out * out_stride;
     num_lines_in += WebPRescalerImport(&dec->wrk, mb_h - num_lines_in,
                                        row_in, in_stride);
@@ -477,15 +477,48 @@ static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
 
 // Emit rows without any scaling.
 static int EmitRows(WEBP_CSP_MODE colorspace,
-                    const argb_t* const data, int mb_w, int mb_h,
+                    const argb_t* const data, int in_stride,
+                    int mb_w, int mb_h,
                     uint8_t* const out, int out_stride) {
-  int num_lines_in;
-  for (num_lines_in = 0; num_lines_in < mb_h; ++num_lines_in) {
-    const argb_t* const row_in = data + num_lines_in * mb_w;
-    uint8_t* const row_out = out + num_lines_in * out_stride;
-    VP8LConvertFromBGRA(row_in, mb_w, colorspace, row_out);
+  int lines = mb_h;
+  const uint8_t* row_in = (const uint8_t*)data;
+  uint8_t* row_out = out;
+  while (lines-- > 0) {
+    VP8LConvertFromBGRA((const argb_t*)row_in, mb_w, colorspace, row_out);
+    row_in += in_stride;
+    row_out += out_stride;
   }
   return mb_h;  // Num rows out == num rows in.
+}
+
+//------------------------------------------------------------------------------
+// Cropping.
+
+// Sets io->mb_y, io->mb_h & io->mb_w according to start row, end row and
+// crop options. Also updates the input data pointer, so that it points to the
+// start of the cropped window.
+// Note that 'pixel_stride' is in units of 'argb_t' (and not 'bytes).
+// Returns true if the crop window is not empty.
+static int SetCropWindow(VP8Io* const io, int y_start, int y_end,
+                         argb_t** const in_data, int pixel_stride) {
+  assert(y_start < y_end);
+  assert(io->crop_left < io->crop_right);
+  if (y_end > io->crop_bottom) {
+    y_end = io->crop_bottom;  // make sure we don't overflow on last row.
+  }
+  if (y_start < io->crop_top) {
+    const int delta = io->crop_top - y_start;
+    y_start = io->crop_top;
+    *in_data += pixel_stride * delta;
+  }
+  if (y_start >= y_end) return 0;  // Crop window is empty.
+
+  *in_data += io->crop_left;
+
+  io->mb_y = y_start - io->crop_top;
+  io->mb_w = io->crop_right - io->crop_left;
+  io->mb_h = y_end - y_start;
+  return 1;  // Non-empty crop window.
 }
 
 //------------------------------------------------------------------------------
@@ -521,12 +554,13 @@ static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
   const int argb_offset = dec->width_ * dec->last_row_;
   const int num_rows = row - dec->last_row_;
   const int cache_pixs = dec->width_ * num_rows;
-  argb_t* const rows_data = dec->argb_cache_;
+  argb_t* rows_data = dec->argb_cache_;
   int num_rows_out = num_rows;  // Default.
 
   if (num_rows <= 0) return;  // Nothing to be done.
 
   // Inverse transforms.
+  // TODO: most transforms only need to operate on the cropped region only.
   memcpy(rows_data, dec->argb_ + argb_offset, cache_pixs * sizeof(*rows_data));
   while (n-- > 0) {
     VP8LTransform* const transform = &dec->transforms_[n];
@@ -539,11 +573,16 @@ static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
     const WebPRGBABuffer* const buf = &output->u.RGBA;
     uint8_t* const rgba = buf->rgba + dec->last_out_row_ * buf->stride;
     const WEBP_CSP_MODE colorspace = output->colorspace;
-    io->mb_h = num_rows;
-    num_rows_out = io->use_scaling ?
-        EmitRescaledRows(dec, colorspace, (uint8_t*)rows_data, io->mb_h, rgba,
-                         buf->stride) :
-        EmitRows(colorspace, rows_data, io->mb_w, io->mb_h, rgba, buf->stride);
+    if (!SetCropWindow(io, dec->last_row_, row, &rows_data, io->width)) {
+      num_rows_out = 0;  // Nothing to output.
+    } else {
+      const int in_stride = io->width * sizeof(*rows_data);
+      num_rows_out = io->use_scaling ?
+          EmitRescaledRows(dec, colorspace, rows_data, in_stride, io->mb_h,
+                           rgba, buf->stride) :
+          EmitRows(colorspace, rows_data, in_stride, io->mb_w, io->mb_h,
+                   rgba, buf->stride);
+    }
   }
 
   // Update 'last_row' and 'last_out_row'.
@@ -988,7 +1027,10 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   }
 
   // Initialization.
-  if (!WebPIoInitFromOptions(params->options, io)) goto Err;
+  if (!WebPIoInitFromOptions(params->options, io)) {
+    dec->status_ = VP8_STATUS_INVALID_PARAM;
+    goto Err;
+  }
 
   {
     const int num_pixels = dec->width_ * dec->height_;
@@ -1007,7 +1049,10 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     dec->argb_cache_ = dec->argb_ + num_pixels + cache_top_pixels;
   }
 
-  if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) goto Err;
+  if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) {
+    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+    goto Err;
+  }
 
   // Decode.
   dec->action_ = READ_DATA;

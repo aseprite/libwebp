@@ -328,6 +328,8 @@ static VP8StatusCode DecodeInto(const uint8_t* data, uint32_t data_size,
           status = VP8_STATUS_BITSTREAM_ERROR;
         }
       }
+    } else if (dec->is_lossless_) {  // Clear lossless decoder on error.
+      VP8LClear(&dec->vp8l_decoder_);
     }
   }
   VP8Delete(dec);
