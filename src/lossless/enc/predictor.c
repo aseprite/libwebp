@@ -85,10 +85,11 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
         } else {
           predict = PredictValue(mode, xsize, argb + all_y * xsize + all_x);
         }
-        predict_diff =
-            Subtract(argb[all_y * xsize + all_x], predict);
-        HistogramAddSinglePixOrCopy(
-            &histo, PixOrCopyCreateLiteral(predict_diff));
+        predict_diff = Subtract(argb[all_y * xsize + all_x], predict);
+        ++histo.alpha_[predict_diff >> 24];
+        ++histo.red_[(predict_diff >> 16) & 0xff];
+        ++histo.literal_[(predict_diff >> 8) & 0xff];
+        ++histo.blue_[predict_diff & 0xff];
       }
     }
     cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
@@ -125,7 +126,7 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
         all_x_max = xsize;
       }
       pred = GetBestPredictorForTile(tile_x, tile_y, max_tile_size,
-                                         xsize, ysize, &histo, from_argb);
+                                     xsize, ysize, &histo, from_argb);
       image[tile_y * tile_xsize + tile_x] = 0xff000000 | (pred << 8);
       CopyTileWithPrediction(xsize, ysize, from_argb,
                              tile_x, tile_y, bits, pred,
