@@ -571,7 +571,7 @@ int main(int argc, char **argv) {
 
   uint32_t palette[256];
   int palette_size;
-  int try_with_small_palette =
+  int try_with_small_palette = (quality > 0) &&
       CreatePalette256(xsize * ysize, argb_orig, &palette_size, &palette[0]);
   double nonpredicted_bits = 0.0;
   double predicted_bits = 0.0;
@@ -627,6 +627,10 @@ int main(int argc, char **argv) {
     strategy.quality = quality;
     strategy.histogram_bits = histogram_bits;
     strategy.use_small_palette = use_small_palette;
+    if (quality == 0) {
+      strategy.cross_color_transform_bits += 2;
+      strategy.predict_bits += 2;
+    }
     EncodeWebpLLImage(png_decoder.width(),
                       png_decoder.height(),
                       argb_to_compress,
