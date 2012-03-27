@@ -884,28 +884,30 @@ int EncodeWebpLLImage(int xsize, int ysize, const uint32_t* argb_orig,
   WriteImageSize(xsize, ysize, &bw);
 
   if (!use_small_palette) {
+    // Check if it would be a good idea to subtract green from red and blue.
     Histogram* after = (Histogram*)malloc(sizeof(*after));
     Histogram* before = (Histogram*)malloc(sizeof(*before));
-    if (!after || !before) {
+    if (after == NULL || before == NULL) {
       free(after);
       free(before);
       goto Error;
     }
     HistogramInit(before, 1);
-    for (i = 0; i < xsize * ysize; ++i) {
-      HistogramAddSinglePixOrCopy(before, PixOrCopyCreateLiteral(argb[i]));
-    }
-    SubtractGreenFromBlueAndRed(xsize * ysize, argb);
     HistogramInit(after, 1);
     for (i = 0; i < xsize * ysize; ++i) {
-      HistogramAddSinglePixOrCopy(after, PixOrCopyCreateLiteral(argb[i]));
+      // We only impact entropy in red and blue components, don't bother
+      // to look at others.
+      uint32_t c = argb[i];
+      int green = (c >> 8) & 0xff;
+      ++(before->red_[(c >> 16) & 0xff]);
+      ++(before->blue_[c & 0xff]);
+      ++(after->red_[((c >> 16) - green) & 0xff]);
+      ++(after->blue_[(c - green) & 0xff]);
     }
     if (HistogramEstimateBits(after) < HistogramEstimateBits(before)) {
       WriteBits(1, 1, &bw);
       WriteBits(2, 2, &bw);
-    } else {
-      // Undo subtract green from blue and red -- rewrite with original data.
-      memcpy(argb, argb_orig, xsize * ysize * sizeof(argb[0]));
+      SubtractGreenFromBlueAndRed(xsize * ysize, argb);
     }
     free(before);
     free(after);
