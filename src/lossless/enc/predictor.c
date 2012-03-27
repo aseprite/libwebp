@@ -34,8 +34,7 @@ static double PredictionCostSpatialHistogram(Histogram* accumulated,
                                              Histogram* tile) {
   const double exp_val = 0.94;
   Histogram combo;
-  HistogramInit(&combo, 0);
-  HistogramAdd(&combo, accumulated);
+  memcpy(&combo, accumulated, sizeof(combo));
   HistogramAdd(&combo, tile);
   return
       HistogramEstimateBitsBulk(tile) +
