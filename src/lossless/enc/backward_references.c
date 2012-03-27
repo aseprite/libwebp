@@ -52,7 +52,7 @@ static inline int FindMatchLength(const uint32_t* array1,
   return matched;
 }
 
-#define HASH_BITS 20
+#define HASH_BITS 18
 #define HASH_SIZE (1 << HASH_BITS)
 static const uint64_t kHashMultiplier = 0xc6a4a7935bd1e995ULL;
 static const int kWindowSize = (1 << 20) - 120;  // A window with 1M pixels
