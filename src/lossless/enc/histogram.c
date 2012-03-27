@@ -343,7 +343,6 @@ int BuildHistogramImage(int xsize, int ysize,
 int CombineHistogramImage(Histogram** in,
                           int in_size,
                           int quality,
-                          int palettebits,
                           Histogram*** out_arg,
                           int* out_size) {
   int ok = 0;
@@ -365,7 +364,6 @@ int CombineHistogramImage(Histogram** in,
     if (new_histo == NULL) {
       goto Error;
     }
-    HistogramInit(new_histo, palettebits);
     *new_histo = *(in[i]);
     out[i] = new_histo;
     bit_costs[i] = HistogramEstimateBits(out[i]);
@@ -395,7 +393,6 @@ int CombineHistogramImage(Histogram** in,
       if (combo == NULL) {
         goto Error;
       }
-      HistogramInit(combo, palettebits);
       *combo = *out[ix0];
       HistogramAdd(combo, out[ix1]);
       cost_val = HistogramEstimateBits(combo) - bit_costs[ix0] - bit_costs[ix1];
@@ -457,7 +454,6 @@ static double HistogramDistance(const Histogram* const square_histogram,
         HistogramEstimateBits(candidate_histograms[cur_symbol]);
   }
 
-  HistogramInit(&modified, square_histogram->palette_code_bits_);
   // Compute the bit cost of the histogram where the data moves to.
   modified = *candidate_histograms[candidate_symbol];
   HistogramAdd(&modified, square_histogram);

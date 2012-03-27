@@ -613,9 +613,7 @@ static int GetHistImageSymbols(int xsize, int ysize,
   }
   // Collapse similar histograms.
   if (!CombineHistogramImage(histogram_image_raw, histogram_image_raw_size,
-                             quality, palette_bits,
-                             histogram_image,
-                             histogram_image_size)) {
+                             quality, histogram_image, histogram_image_size)) {
     goto Error;
   }
   // Refine histogram image.

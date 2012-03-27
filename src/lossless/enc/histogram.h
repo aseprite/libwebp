@@ -131,7 +131,6 @@ int BuildHistogramImage(int xsize, int ysize,
 int CombineHistogramImage(Histogram** in,
                           int in_size,
                           int quality,
-                          int palette_bits,
                           Histogram*** out,
                           int* out_size);
 
