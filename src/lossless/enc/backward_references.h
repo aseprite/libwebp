@@ -183,6 +183,7 @@ int BackwardReferencesHashChain(
     int use_palette,
     const uint32_t *argb,
     int palette_bits,
+    int quality,
     PixOrCopy *stream,
     int *stream_size);
 

@@ -109,6 +109,7 @@ static void VP8LHashChain_Insert(VP8LHashChain* p,
 }
 
 static int VP8LHashChain_FindCopy(VP8LHashChain* p,
+                                  int quality,
                                   int index, int xsize,
                                   const uint32_t* argb,
                                   int maxlen, int* offset_out,
@@ -117,7 +118,7 @@ static int VP8LHashChain_FindCopy(VP8LHashChain* p,
   const uint64_t hash_code = GetHash64(next_two_pixels);
   int prev_length = 0;
   int64_t best_val = 0;
-  int give_up = 0;
+  int give_up = quality * 3 / 4 + 25;
   const int min_pos = (index > kWindowSize) ? index - kWindowSize : 0;
   int32_t pos;
   int64_t length;
@@ -129,13 +130,13 @@ static int VP8LHashChain_FindCopy(VP8LHashChain* p,
   for (pos = p->hash_to_first_index_[hash_code];
        pos >= min_pos;
        pos = p->chain_[pos]) {
-    if (give_up >= 101) {
-      if (give_up >= 1001 ||
+    if (give_up < 0) {
+      if (give_up < -quality * 8 ||
           best_val >= 0xff0000) {
         break;
       }
     }
-    ++give_up;
+    --give_up;
     if (len != 0 && argb[pos + len - 1] != argb[index + len - 1]) {
       continue;
     }
@@ -212,8 +213,9 @@ void BackwardReferencesRle(int xsize, int ysize, const uint32_t* argb,
 
 // Returns 1 when successful.
 int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
-                                 const uint32_t* argb, int palette_bits,
-                                 PixOrCopy* stream, int* stream_size) {
+                                const uint32_t* argb, int palette_bits,
+                                int quality,
+                                PixOrCopy* stream, int* stream_size) {
   const int pix_count = xsize * ysize;
   int i;
   int ok = 0;
@@ -234,7 +236,8 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
       if (maxlen > kMaxLength) {
         maxlen = kMaxLength;
       }
-      VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen, &offset, &len);
+      VP8LHashChain_FindCopy(hash_chain, quality,
+                             i, xsize, argb, maxlen, &offset, &len);
     }
     if (len >= kMinLength) {
       // Alternative#2: Insert the pixel at 'i' as literal, and code the
@@ -248,8 +251,8 @@ int BackwardReferencesHashChain(int xsize, int ysize, int use_palette,
         if (maxlen > kMaxLength) {
           maxlen = kMaxLength;
         }
-        VP8LHashChain_FindCopy(hash_chain, i + 1, xsize, argb, maxlen, &offset2,
-                               &len2);
+        VP8LHashChain_FindCopy(hash_chain, quality,
+                               i + 1, xsize, argb, maxlen, &offset2, &len2);
         if (len2 > len + 1) {
           // Alternative#2 is a better match. So push pixel at 'i' as literal.
           if (use_palette && VP8LColorCacheContains(&hashers, argb[i])) {
@@ -331,8 +334,10 @@ static int CostModel_Build(CostModel* p, int xsize, int ysize,
       goto Error;
     }
   } else {
+    const int quality = 100;
     if (!BackwardReferencesHashChain(xsize, ysize, use_palette, argb,
-                                     palette_bits, &stream[0], &stream_size)) {
+                                     palette_bits, quality,
+                                     &stream[0], &stream_size)) {
       goto Error;
     }
   }
@@ -389,6 +394,7 @@ static int BackwardReferencesHashChainDistanceOnly(
     const uint32_t* argb,
     int palette_bits,
     uint32_t* dist_array) {
+  const int quality = 100;
   const int pix_count = xsize * ysize;
   double* cost = (double*)malloc(pix_count * sizeof(*cost));
   int i;
@@ -426,7 +432,7 @@ static int BackwardReferencesHashChainDistanceOnly(
         if (maxlen > pix_count - i) {
           maxlen = pix_count - i;
         }
-        VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen,
+        VP8LHashChain_FindCopy(hash_chain, quality, i, xsize, argb, maxlen,
                                &offset, &len);
       }
       if (len >= kMinLength) {
@@ -532,6 +538,7 @@ static int BackwardReferencesHashChainFollowChosenPath(
     int chosen_path_size,
     PixOrCopy* stream,
     int* stream_size) {
+  const int quality = 100;
   const int pix_count = xsize * ysize;
   int i = 0;
   int k;
@@ -550,7 +557,8 @@ static int BackwardReferencesHashChainFollowChosenPath(
     int len = 0;
     int maxlen = chosen_path[ix];
     if (maxlen != 1) {
-      VP8LHashChain_FindCopy(hash_chain, i, xsize, argb, maxlen, &offset, &len);
+      VP8LHashChain_FindCopy(hash_chain, quality,
+                             i, xsize, argb, maxlen, &offset, &len);
       assert(len == maxlen);
       stream[*stream_size] = PixOrCopyCreateCopy(offset, len);
       ++(*stream_size);
@@ -749,9 +757,10 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
   PixOrCopy* stream = (PixOrCopy*)malloc(xsize * ysize * sizeof(*stream));
   int stream_size;
   static const double kSmallPenaltyForLargePalette = 4.0;
+  static const int quality = 30;
   if (stream == NULL ||
       !BackwardReferencesHashChain(xsize, ysize,
-                                   0, argb, 0, stream, &stream_size)) {
+                                   0, argb, 0, quality, stream, &stream_size)) {
     goto Error;
   }
   for (palette_bits = 0; palette_bits < 12; ++palette_bits) {

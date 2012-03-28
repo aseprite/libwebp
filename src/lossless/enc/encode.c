@@ -526,7 +526,7 @@ static int GetBackwardReferences(int xsize, int ysize,
     goto Error;
   }
   if (!BackwardReferencesHashChain(xsize, ysize, use_palette,
-                                   argb, palette_bits,
+                                   argb, palette_bits, quality,
                                    backward_refs_lz77,
                                    &backward_refs_lz77_size)) {
     goto Error;
