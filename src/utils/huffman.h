@@ -30,8 +30,8 @@ typedef struct {
 typedef struct HuffmanTree HuffmanTree;
 struct HuffmanTree {
   HuffmanTreeNode* root_;   // all the nodes, starting at root.
-  int max_nodes_;  // max number of nodes
-  int num_nodes_;  // number of currently occupied nodes
+  int max_nodes_;           // max number of nodes
+  int num_nodes_;           // number of currently occupied nodes
 };
 
 // Returns true if the given node is a leaf of the Huffman tree.
@@ -40,7 +40,7 @@ static WEBP_INLINE int HuffmanTreeNodeIsLeaf(
   return (node->children_ == 0);
 }
 
-// Go down one level. Most critical function.
+// Go down one level. Most critical function. 'right_child' must be 0 or 1.
 static WEBP_INLINE const HuffmanTreeNode* HuffmanTreeNextNode(
     const HuffmanTreeNode* node, int right_child) {
   return node + node->children_ + right_child;
@@ -51,14 +51,14 @@ static WEBP_INLINE const HuffmanTreeNode* HuffmanTreeNextNode(
 void HuffmanTreeRelease(HuffmanTree* const tree);
 
 // Builds Huffman tree assuming code lengths are implicitly in symbol order.
-// Returns false case of error (invalid tree or memory error).
+// Returns false in case of error (invalid tree or memory error).
 int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
                              const int* const code_lengths,
                              int code_lengths_size);
 
-// Build a Huffman tree with explicitly given lists of symbols, codes and
-// code lengths.
-// Returns false case of error (invalid tree or memory error).
+// Build a Huffman tree with explicitly given lists of code lengths, codes
+// and symbols.
+// Returns false in case of error (invalid tree or memory error).
 int HuffmanTreeBuildExplicit(HuffmanTree* const tree,
                              const int* const code_lengths,
                              const int* const codes,

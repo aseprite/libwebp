@@ -29,13 +29,13 @@ static int IsFull(const HuffmanTree* const tree) {
   return (tree->num_nodes_ == tree->max_nodes_);
 }
 
-static int AllocChildren(HuffmanTree* const tree,
-                         HuffmanTreeNode* const node) {
+static int AssignChildren(HuffmanTree* const tree,
+                          HuffmanTreeNode* const node) {
   if (IsFull(tree)) {
     return 0;   // already complete tree.
   } else {
     HuffmanTreeNode* const children = tree->root_ + tree->num_nodes_;
-    node->children_ = tree->num_nodes_ - (node - tree->root_);
+    node->children_ = children - node;
     tree->num_nodes_ += 2;
     TreeNodeInit(children + 0);
     TreeNodeInit(children + 1);
@@ -123,7 +123,7 @@ static int TreeAddSymbol(HuffmanTree* const tree,
     if (node >= max_node) {
       return 0;
     }
-    if (HuffmanTreeNodeIsLeaf(node) && !AllocChildren(tree, node)) {
+    if (HuffmanTreeNodeIsLeaf(node) && !AssignChildren(tree, node)) {
       return 0;   // error
     }
     node += node->children_ + ((code >> code_length) & 1);
