@@ -31,13 +31,13 @@ struct VP8LTransform;  // Defined in dec/vp8li.h.
 // corresponding to the intermediate row (row_start).
 void VP8LInverseTransform(const struct VP8LTransform* const transform,
                           size_t row_start, size_t row_end,
-                          argb_t* const data_in, argb_t* const data_out);
+                          uint32_t* const data_in, uint32_t* const data_out);
 
 //------------------------------------------------------------------------------
 // Color space conversion.
 
 // Converts from BGRA to other color spaces.
-void VP8LConvertFromBGRA(const argb_t* const in_data, int num_pixels,
+void VP8LConvertFromBGRA(const uint32_t* const in_data, int num_pixels,
                         WEBP_CSP_MODE out_colorspace,
                         uint8_t* const rgba);
 

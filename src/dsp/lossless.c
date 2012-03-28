@@ -101,61 +101,61 @@ static WEBP_INLINE uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
 //------------------------------------------------------------------------------
 // Predictors
 
-static void Predictor0(argb_t* src, const argb_t* top) {
+static void Predictor0(uint32_t* src, const uint32_t* top) {
   (void)top;
   AddPixelsEq(src, ARGB_BLACK);
 }
-static void Predictor1(argb_t* src, const argb_t* top) {
+static void Predictor1(uint32_t* src, const uint32_t* top) {
   (void)top;
   AddPixelsEq(src, src[-1]);  // left
 }
-static void Predictor2(argb_t* src, const argb_t* top) {
+static void Predictor2(uint32_t* src, const uint32_t* top) {
   AddPixelsEq(src, top[0]);
 }
-static void Predictor3(argb_t* src, const argb_t* top) {
+static void Predictor3(uint32_t* src, const uint32_t* top) {
   AddPixelsEq(src, top[1]);
 }
-static void Predictor4(argb_t* src, const argb_t* top) {
+static void Predictor4(uint32_t* src, const uint32_t* top) {
   AddPixelsEq(src, top[-1]);
 }
-static void Predictor5(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average3(src[-1], top[0], top[1]);
+static void Predictor5(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average3(src[-1], top[0], top[1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor6(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average2(src[-1], top[-1]);
+static void Predictor6(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average2(src[-1], top[-1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor7(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average2(src[-1], top[0]);
+static void Predictor7(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average2(src[-1], top[0]);
   AddPixelsEq(src, pred);
 }
-static void Predictor8(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average2(top[-1], top[0]);
+static void Predictor8(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average2(top[-1], top[0]);
   AddPixelsEq(src, pred);
 }
-static void Predictor9(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average2(top[0], top[1]);
+static void Predictor9(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average2(top[0], top[1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor10(argb_t* src, const argb_t* top) {
-  const argb_t pred = Average4(src[-1], top[-1], top[0], top[1]);
+static void Predictor10(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Average4(src[-1], top[-1], top[0], top[1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor11(argb_t* src, const argb_t* top) {
-  const argb_t pred = Select(top[0], src[-1], top[-1]);
+static void Predictor11(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = Select(top[0], src[-1], top[-1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor12(argb_t* src, const argb_t* top) {
-  const argb_t pred = ClampedAddSubtractFull(src[-1], top[0], top[-1]);
+static void Predictor12(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = ClampedAddSubtractFull(src[-1], top[0], top[-1]);
   AddPixelsEq(src, pred);
 }
-static void Predictor13(argb_t* src, const argb_t* top) {
-  const argb_t pred = ClampedAddSubtractHalf(src[-1], top[0], top[-1]);
+static void Predictor13(uint32_t* src, const uint32_t* top) {
+  const uint32_t pred = ClampedAddSubtractHalf(src[-1], top[0], top[-1]);
   AddPixelsEq(src, pred);
 }
 
-typedef void (*PredictorFunc)(argb_t* src, const argb_t* top);
+typedef void (*PredictorFunc)(uint32_t* src, const uint32_t* top);
 static const PredictorFunc kPredictors[16] = {
   Predictor0, Predictor1, Predictor2, Predictor3,
   Predictor4, Predictor5, Predictor6, Predictor7,
@@ -166,7 +166,7 @@ static const PredictorFunc kPredictors[16] = {
 
 // Inverse prediction.
 static void PredictorInverseTransform(const VP8LTransform* const transform,
-                                      int y_start, int y_end, argb_t* data) {
+                                      int y_start, int y_end, uint32_t* data) {
   const int width = transform->xsize_;
   if (y_start == 0) {  // First Row follows the L (mode=1) mode.
     int x;
@@ -213,14 +213,14 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
 // Add Green to Blue and Red channels (i.e. perform the inverse transform of
 // 'Subtract Green').
 static void AddGreenToBlueAndRed(const VP8LTransform* const transform,
-                                 int y_start, int y_end, argb_t* data) {
+                                 int y_start, int y_end, uint32_t* data) {
   const int width = transform->xsize_;
-  const argb_t* const data_end = data + (y_end - y_start) * width;
+  const uint32_t* const data_end = data + (y_end - y_start) * width;
   while (data < data_end) {
-    const argb_t argb = *data;
+    const uint32_t argb = *data;
     // "* 0001001u" is equivalent to "(green << 16) + green)"
-    const argb_t green = ((argb >> 8) & 0xff);
-    argb_t red_blue = (argb & 0x00ff00ffu);
+    const uint32_t green = ((argb >> 8) & 0xff);
+    uint32_t red_blue = (argb & 0x00ff00ffu);
     red_blue += (green << 16) | green;
     red_blue &= 0x00ff00ffu;
     *data++ = (argb & 0xff00ff00u) | red_blue;
@@ -233,12 +233,12 @@ typedef struct {
   int red_to_blue_;
 } Multipliers;
 
-static WEBP_INLINE argb_t ColorTransformDelta(int8_t color_pred,
+static WEBP_INLINE uint32_t ColorTransformDelta(int8_t color_pred,
                                               int8_t color) {
-  return (argb_t)((int)(color_pred) * color) >> 5;
+  return (uint32_t)((int)(color_pred) * color) >> 5;
 }
 
-static WEBP_INLINE void ColorCodeToMultipliers(argb_t color_code,
+static WEBP_INLINE void ColorCodeToMultipliers(uint32_t color_code,
                                                Multipliers* const m) {
   m->green_to_red_  = (color_code >>  0) & 0xff;
   m->green_to_blue_ = (color_code >>  8) & 0xff;
@@ -246,11 +246,11 @@ static WEBP_INLINE void ColorCodeToMultipliers(argb_t color_code,
 }
 
 static WEBP_INLINE void TransformColor(const Multipliers* const m,
-                                       argb_t* const argb) {
-  const argb_t green = *argb >> 8;
-  const argb_t red = *argb >> 16;
-  argb_t new_red = red;
-  argb_t new_blue = *argb;
+                                       uint32_t* const argb) {
+  const uint32_t green = *argb >> 8;
+  const uint32_t red = *argb >> 16;
+  uint32_t new_red = red;
+  uint32_t new_blue = *argb;
 
   new_red += ColorTransformDelta(m->green_to_red_, green);
   new_red &= 0xff;
@@ -262,7 +262,7 @@ static WEBP_INLINE void TransformColor(const Multipliers* const m,
 
 // Color space inverse transform.
 static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
-                                       int y_start, int y_end, argb_t* data) {
+                                       int y_start, int y_end, uint32_t* data) {
   const int width = transform->xsize_;
   const int mask = (1 << transform->bits_) - 1;
   const int tiles_per_row = VP8LSubSampleSize(width, transform->bits_);
@@ -289,7 +289,7 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
 static void ColorIndexInverseTransform(
     const VP8LTransform* const transform,
     int y_start, int y_end,
-    argb_t* const data_in, argb_t* const data_out) {
+    uint32_t* const data_in, uint32_t* const data_out) {
   int y;
   const int bits_per_pixel = 8 >> transform->bits_;
   const int width = transform->xsize_;
@@ -324,7 +324,7 @@ static void ColorIndexInverseTransform(
 
 void VP8LInverseTransform(const VP8LTransform* const transform,
                           size_t row_start, size_t row_end,
-                          argb_t* const data_in, argb_t* const data_out) {
+                          uint32_t* const data_in, uint32_t* const data_out) {
   assert(row_start < row_end);
   assert(row_end <= transform->ysize_);
   switch (transform->type_) {
@@ -354,20 +354,22 @@ void VP8LInverseTransform(const VP8LTransform* const transform,
 //------------------------------------------------------------------------------
 // Color space conversion.
 
-static void ConvertBGRAToRGB(const argb_t* src, int num_pixels, uint8_t* dst) {
-  const argb_t* src_end = src + num_pixels;
+static void ConvertBGRAToRGB(const uint32_t* src,
+                             int num_pixels, uint8_t* dst) {
+  const uint32_t* src_end = src + num_pixels;
   while (src < src_end) {
-    const argb_t argb = *src++;
+    const uint32_t argb = *src++;
     *dst++ = (argb >> 16) & 0xff;
     *dst++ = (argb >>  8) & 0xff;
     *dst++ = (argb >>  0) & 0xff;
   }
 }
 
-static void ConvertBGRAToRGBA(const argb_t* src, int num_pixels, uint8_t* dst) {
-  const argb_t* src_end = src + num_pixels;
+static void ConvertBGRAToRGBA(const uint32_t* src,
+                              int num_pixels, uint8_t* dst) {
+  const uint32_t* src_end = src + num_pixels;
   while (src < src_end) {
-    const argb_t argb = *src++;
+    const uint32_t argb = *src++;
     *dst++ = (argb >> 16) & 0xff;
     *dst++ = (argb >>  8) & 0xff;
     *dst++ = (argb >>  0) & 0xff;
@@ -375,20 +377,22 @@ static void ConvertBGRAToRGBA(const argb_t* src, int num_pixels, uint8_t* dst) {
   }
 }
 
-static void ConvertBGRAToBGR(const argb_t* src, int num_pixels, uint8_t* dst) {
-  const argb_t* src_end = src + num_pixels;
+static void ConvertBGRAToBGR(const uint32_t* src,
+                             int num_pixels, uint8_t* dst) {
+  const uint32_t* src_end = src + num_pixels;
   while (src < src_end) {
-    const argb_t argb = *src++;
+    const uint32_t argb = *src++;
     *dst++ = (argb >>  0) & 0xff;
     *dst++ = (argb >>  8) & 0xff;
     *dst++ = (argb >> 16) & 0xff;
   }
 }
 
-static void ConvertBGRAToARGB(const argb_t* src, int num_pixels, uint8_t* dst) {
-  const argb_t* src_end = src + num_pixels;
+static void ConvertBGRAToARGB(const uint32_t* src,
+                              int num_pixels, uint8_t* dst) {
+  const uint32_t* src_end = src + num_pixels;
   while (src < src_end) {
-    const argb_t argb = *src++;
+    const uint32_t argb = *src++;
     *dst++ = (argb >> 24) & 0xff;
     *dst++ = (argb >> 16) & 0xff;
     *dst++ = (argb >>  8) & 0xff;
@@ -396,7 +400,7 @@ static void ConvertBGRAToARGB(const argb_t* src, int num_pixels, uint8_t* dst) {
   }
 }
 
-void VP8LConvertFromBGRA(const argb_t* const in_data, int num_pixels,
+void VP8LConvertFromBGRA(const uint32_t* const in_data, int num_pixels,
                         WEBP_CSP_MODE out_colorspace,
                         uint8_t* const rgba) {
   switch (out_colorspace) {

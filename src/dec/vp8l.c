@@ -78,7 +78,7 @@ static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
 static int DecodeImageStream(int xsize, int ysize,
                              int read_transforms,
                              VP8LDecoder* const dec,
-                             argb_t** const decoded_data);
+                             uint32_t** const decoded_data);
 
 //------------------------------------------------------------------------------
 
@@ -425,7 +425,7 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
   const int work_size = 2 * num_channels * out_width;
   int32_t* work;        // Rescaler work area.
   const int scaled_data_size = num_channels * out_width;
-  argb_t* scaled_data;  // Temporary storage for scaled BGRA data.
+  uint32_t* scaled_data;  // Temporary storage for scaled BGRA data.
 
   const int memory_size = work_size * sizeof(*work) +
                           scaled_data_size * sizeof(*scaled_data);
@@ -435,7 +435,7 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
     return 0;
   }
   work = (int32_t*)params->memory;
-  scaled_data = (argb_t*)(work + work_size);
+  scaled_data = (uint32_t*)(work + work_size);
 
   WebPRescalerInit(&dec->wrk, in_width, in_height, (uint8_t*)scaled_data,
                    out_width, out_height, 0, num_channels,
@@ -446,7 +446,7 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
 // We have special "export" function since we need to convert from BGRA
 static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
                   int rgba_stride, uint8_t* const rgba) {
-  const argb_t* const src = (const argb_t* const)dec->wrk.dst;
+  const uint32_t* const src = (const uint32_t* const)dec->wrk.dst;
   WebPRescaler* const rescaler = &dec->wrk;
   const int dst_width = rescaler->dst_width;
   int num_lines_out = 0;
@@ -461,7 +461,7 @@ static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
 
 // Emit scaled rows.
 static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
-                            const argb_t* const data, int in_stride, int mb_h,
+                            const uint32_t* const data, int in_stride, int mb_h,
                             uint8_t* const out, int out_stride) {
   const uint8_t* const in = (const uint8_t*)data;
   int num_lines_in = 0;
@@ -478,14 +478,14 @@ static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
 
 // Emit rows without any scaling.
 static int EmitRows(WEBP_CSP_MODE colorspace,
-                    const argb_t* const data, int in_stride,
+                    const uint32_t* const data, int in_stride,
                     int mb_w, int mb_h,
                     uint8_t* const out, int out_stride) {
   int lines = mb_h;
   const uint8_t* row_in = (const uint8_t*)data;
   uint8_t* row_out = out;
   while (lines-- > 0) {
-    VP8LConvertFromBGRA((const argb_t*)row_in, mb_w, colorspace, row_out);
+    VP8LConvertFromBGRA((const uint32_t*)row_in, mb_w, colorspace, row_out);
     row_in += in_stride;
     row_out += out_stride;
   }
@@ -498,10 +498,10 @@ static int EmitRows(WEBP_CSP_MODE colorspace,
 // Sets io->mb_y, io->mb_h & io->mb_w according to start row, end row and
 // crop options. Also updates the input data pointer, so that it points to the
 // start of the cropped window.
-// Note that 'pixel_stride' is in units of 'argb_t' (and not 'bytes).
+// Note that 'pixel_stride' is in units of 'uint32_t' (and not 'bytes).
 // Returns true if the crop window is not empty.
 static int SetCropWindow(VP8Io* const io, int y_start, int y_end,
-                         argb_t** const in_data, int pixel_stride) {
+                         uint32_t** const in_data, int pixel_stride) {
   assert(y_start < y_end);
   assert(io->crop_left < io->crop_right);
   if (y_end > io->crop_bottom) {
@@ -555,7 +555,7 @@ static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
   const int argb_offset = dec->width_ * dec->last_row_;
   const int num_rows = row - dec->last_row_;
   const int cache_pixs = dec->width_ * num_rows;
-  argb_t* rows_data = dec->argb_cache_;
+  uint32_t* rows_data = dec->argb_cache_;
   int num_rows_out = num_rows;  // Default.
 
   if (num_rows <= 0) return;  // Nothing to be done.
@@ -594,16 +594,16 @@ static WEBP_INLINE void ProcessRows(VP8LDecoder* const dec, int row) {
 }
 
 static int DecodeImageData(VP8LDecoder* const dec,
-                           argb_t* const data, int width, int height,
+                           uint32_t* const data, int width, int height,
                            int process_row) {
   int ok = 1;
   int col = 0, row = 0;
   BitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
   VP8LColorCache* const color_cache = hdr->color_cache_;
-  argb_t* src = data;
-  argb_t* last_cached = data;
-  argb_t* const src_end = data + width * height;
+  uint32_t* src = data;
+  uint32_t* last_cached = data;
+  uint32_t* const src_end = data + width * height;
   const int len_code_limit = NUM_LITERAL_CODES + NUM_LENGTH_CODES;
   const int color_cache_limit = len_code_limit + hdr->color_cache_size_;
   const int mask = hdr->huffman_mask_;
@@ -716,7 +716,7 @@ static void ClearTransform(VP8LTransform* const transform) {
 }
 
 static void ApplyInverseTransforms(VP8LDecoder* const dec, int start_idx,
-                                   argb_t* const decoded_data) {
+                                   uint32_t* const decoded_data) {
   int n = dec->next_transform_;
   assert(start_idx >= 0);
   while (n-- > start_idx) {
@@ -876,12 +876,12 @@ static void UpdateDecoder(
 static int DecodeImageStream(int xsize, int ysize,
                              int read_transforms,
                              VP8LDecoder* const dec,
-                             argb_t** const decoded_data) {
+                             uint32_t** const decoded_data) {
   int ok = 1;
   int transform_xsize = xsize;
   int transform_ysize = ysize;
 
-  argb_t* data = NULL;
+  uint32_t* data = NULL;
   uint32_t* huffman_image = NULL;
   HuffmanTree* htrees = NULL;
   int num_huffman_trees = 0;
@@ -937,7 +937,7 @@ static int DecodeImageStream(int xsize, int ysize,
     goto End;
   }
 
-  data = (argb_t*)malloc(transform_xsize * transform_ysize * sizeof(argb_t));
+  data = (uint32_t*)malloc(transform_xsize * transform_ysize * sizeof(*data));
   if (data == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
     ok = 0;
@@ -976,7 +976,7 @@ static int DecodeImageStream(int xsize, int ysize,
 
 int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
-  argb_t* decoded_data = NULL;
+  uint32_t* decoded_data = NULL;
   WebPDecParams* params = NULL;
 
   if (dec == NULL) return 0;
@@ -1042,7 +1042,7 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
     const int cache_pixels = io->width * NUM_ARGB_CACHE_ROWS;
     const int total_num_pixels =
         num_pixels + cache_top_pixels + cache_pixels;
-    dec->argb_ = (argb_t*)malloc(total_num_pixels * sizeof(*dec->argb_));
+    dec->argb_ = (uint32_t*)malloc(total_num_pixels * sizeof(*dec->argb_));
     if (dec->argb_ == NULL) {
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       goto Err;

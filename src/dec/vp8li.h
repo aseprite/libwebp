@@ -74,8 +74,8 @@ typedef struct {
   VP8LDecodeState  state_;
   VP8Io           *io_;
 
-  argb_t          *argb_;          // Internal data: always in BGRA color mode.
-  argb_t          *argb_cache_;    // Scratch buffer for temporary BGRA storage.
+  uint32_t        *argb_;          // Internal data: always in BGRA color mode.
+  uint32_t        *argb_cache_;    // Scratch buffer for temporary BGRA storage.
 
   BitReader        br_;
   uint32_t         br_offset_;
