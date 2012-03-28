@@ -183,6 +183,7 @@ X_OBJS= \
     $(DIROBJ)\enc\syntax.obj \
     $(DIROBJ)\enc\tree.obj \
     $(DIROBJ)\enc\webpenc.obj \
+    $(DIROBJ)\enc\vp8l.obj \
     $(DIROBJ)\mux\muxedit.obj \
     $(DIROBJ)\mux\muxinternal.obj \
     $(DIROBJ)\mux\muxread.obj \
