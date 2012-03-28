@@ -129,22 +129,25 @@ static int VP8LHashChain_FindCopy(VP8LHashChain* p,
   for (pos = p->hash_to_first_index_[hash_code];
        pos >= min_pos;
        pos = p->chain_[pos]) {
-    ++give_up;
     if (give_up >= 101) {
       if (give_up >= 1001 ||
           best_val >= 0xff0000) {
         break;
       }
     }
+    ++give_up;
     if (len != 0 && argb[pos + len - 1] != argb[index + len - 1]) {
       continue;
     }
     length = FindMatchLength(argb + pos, argb + index, maxlen);
+    if (length < prev_length) {
+      continue;
+    }
     val = 65536 * length;
-    y = (index - pos) / xsize;
-    x = (index - pos) % xsize;
     // Favoring 2d locality here gives savings for certain images.
-    if (y < 8) {
+    if (index - pos < 9 * xsize) {
+      y = (index - pos) / xsize;
+      x = (index - pos) % xsize;
       if (x > xsize / 2) {
         x = xsize - x;
       }
