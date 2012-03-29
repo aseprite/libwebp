@@ -21,7 +21,6 @@ extern "C" {
 #define NON_EXISTENT_SYMBOL (-1)
 
 static void TreeNodeInit(HuffmanTreeNode* const node) {
-  assert(node != NULL);
   node->children_ = 0;
 }
 
@@ -142,8 +141,9 @@ int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
   int root_symbol = 0;
 
   assert(tree != NULL);
+  assert(code_lengths != NULL);
 
-  // Find out number of symbols & the root symbol.
+  // Find out number of symbols and the root symbol.
   for (symbol = 0; symbol < code_lengths_size; ++symbol) {
     if (code_lengths[symbol] > 0) {
       // Note: code length = 0 indicates non-existent symbol.
@@ -152,9 +152,11 @@ int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
     }
   }
 
+  // Initialize the tree. Will fail for num_symbols = 0
+  if (!TreeInit(tree, num_symbols)) return 0;
+
   // Build tree.
-  if (num_symbols < 2) {  // Trivial case.
-    if (!TreeInit(tree, 1)) return 0;
+  if (num_symbols == 1) {  // Trivial case.
     return TreeAddSymbol(tree, root_symbol, 0, 0);
   } else {  // Normal case.
     int ok = 0;
@@ -167,16 +169,10 @@ int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
       goto End;
     }
 
-    // Initialize the HuffmanTree based on num_symbols.
-    if (!TreeInit(tree, num_symbols)) {
-      goto End;
-    }
-
     // Add symbols one-by-one.
     for (symbol = 0; symbol < code_lengths_size; ++symbol) {
-      if (codes[symbol] != NON_EXISTENT_SYMBOL) {
-        if (!TreeAddSymbol(tree, symbol, codes[symbol],
-                           code_lengths[symbol])) {
+      if (code_lengths[symbol] > 0) {
+        if (!TreeAddSymbol(tree, symbol, codes[symbol], code_lengths[symbol])) {
           goto End;
         }
       }
@@ -199,15 +195,17 @@ int HuffmanTreeBuildExplicit(HuffmanTree* const tree,
   int i;
 
   assert(tree != NULL);
+  assert(code_lengths != NULL);
+  assert(codes != NULL);
+  assert(symbols != NULL);
 
-  // Initialize the HuffmanTree based on num_symbols.
+  // Initialize the tree. Will fail if num_symbols = 0.
   if (!TreeInit(tree, num_symbols)) return 0;
 
   // Add symbols one-by-one.
   for (i = 0; i < num_symbols; ++i) {
     if (codes[i] != NON_EXISTENT_SYMBOL) {
-      if (!TreeAddSymbol(tree, symbols[i], codes[i],
-                         code_lengths[i])) {
+      if (!TreeAddSymbol(tree, symbols[i], codes[i], code_lengths[i])) {
         goto End;
       }
     }
