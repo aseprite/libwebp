@@ -548,17 +548,22 @@ static int GetBackwardReferences(int xsize, int ysize,
   // Choose appropriate backward reference.
   if (quality >= 50 && lz77_is_useful) {
     const int recursion_level = (xsize * ysize < 320 * 200) ? 1 : 0;
+    PixOrCopy* const backward_refs_trace =
+        (PixOrCopy*)malloc(xsize * ysize * sizeof(*backward_refs_trace));
+    int backward_refs_trace_size;
     free(backward_refs_rle);
     free(backward_refs_lz77);
-    *backward_refs = (PixOrCopy*)malloc(xsize * ysize * sizeof(*backward_refs));
-    if (*backward_refs == NULL ||
+    if (backward_refs_trace == NULL ||
         !BackwardReferencesTraceBackwards(xsize, ysize,
                                           recursion_level, use_palette,
                                           argb, palette_bits,
-                                          *backward_refs,
-                                          backward_refs_size)) {
+                                          backward_refs_trace,
+                                          &backward_refs_trace_size)) {
+      free(backward_refs_trace);
       goto Error;
     }
+    *backward_refs = backward_refs_trace;
+    *backward_refs_size = backward_refs_trace_size;
   } else {
     if (lz77_is_useful) {
       *backward_refs = backward_refs_lz77;
