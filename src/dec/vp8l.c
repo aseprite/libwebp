@@ -228,26 +228,16 @@ static int ReadHuffmanCodeLengths(
 
 static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
                            HuffmanTree* const tree) {
-  int* symbols = NULL;
-  int* codes = NULL;
-  int* code_lengths = NULL;
   int ok = 0;
   BitReader* const br = &dec->br_;
   const int simple_code = VP8LReadBits(br, 1);
 
   if (simple_code) {  // Read symbols, codes & code lengths directly.
-    int num_symbols;
+    int symbols[2];
+    int codes[2];
+    int code_lengths[2];
     const int nbits = VP8LReadBits(br, 3);
-    num_symbols = 1 + ((nbits == 0) ? 0 : VP8LReadBits(br, 1));
-
-    symbols = (int*)malloc(num_symbols * sizeof(*symbols));
-    codes = (int*)malloc(num_symbols * sizeof(*codes));
-    code_lengths = (int*)malloc(num_symbols * sizeof(*code_lengths));
-    ok = (symbols != NULL && codes != NULL && code_lengths != NULL);
-    if (!ok) {
-      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-      goto End;
-    }
+    const int num_symbols = 1 + ((nbits == 0) ? 0 : VP8LReadBits(br, 1));
 
     if (nbits == 0) {
       symbols[0] = 0;
@@ -262,28 +252,26 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
         code_lengths[i] = num_symbols - 1;
       }
     }
-    if (ok) {
-      ok = HuffmanTreeBuildExplicit(tree, code_lengths, codes,
-                                    symbols, num_symbols);
-    }
+    ok = HuffmanTreeBuildExplicit(tree, code_lengths, codes,
+                                  symbols, num_symbols);
   } else {  // Decode Huffman-coded code lengths.
+    int* code_lengths = NULL;
     int i;
     int code_length_code_lengths[NUM_CODE_LENGTH_CODES] = { 0 };
     const int num_codes = VP8LReadBits(br, 4) + 4;
     if (num_codes > NUM_CODE_LENGTH_CODES) {
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-      goto End;
+      return 0;
     }
 
     code_lengths = (int*)calloc(alphabet_size, sizeof(*code_lengths));
     if (code_lengths == NULL) {
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-      goto End;
+      return 0;
     }
 
     for (i = 0; i < num_codes; ++i) {
-      code_length_code_lengths[kCodeLengthCodeOrder[i]] =
-          VP8LReadBits(br, 3);
+      code_length_code_lengths[kCodeLengthCodeOrder[i]] = VP8LReadBits(br, 3);
     }
     ok = ReadHuffmanCodeLengths(dec, code_length_code_lengths,
                                 NUM_CODE_LENGTH_CODES,
@@ -291,18 +279,14 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
     if (ok) {
       ok = HuffmanTreeBuildImplicit(tree, code_lengths, alphabet_size);
     }
+    free(code_lengths);
   }
   ok = ok && !br->error_;
   if (!ok) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-    goto End;
+    return 0;
   }
-
- End:
-  free(symbols);
-  free(codes);
-  free(code_lengths);
-  return ok;
+  return 1;
 }
 
 static int ReadHuffmanCodes(
