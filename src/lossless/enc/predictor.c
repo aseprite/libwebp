@@ -18,7 +18,8 @@
 #include "./histogram.h"
 #include "../common/predictor.h"
 
-static double PredictionCostSpatial(int* counts, int weight_0, double exp_val) {
+static double PredictionCostSpatial(const int* counts,
+                                    int weight_0, double exp_val) {
   const int significant_symbols = 16;
   const double exp_decay_factor = 0.6;
   double bits = weight_0 * counts[0];
@@ -30,24 +31,27 @@ static double PredictionCostSpatial(int* counts, int weight_0, double exp_val) {
   return -0.1 * bits;
 }
 
-static double PredictionCostSpatialHistogram(Histogram* accumulated,
-                                             Histogram* tile) {
-  const double exp_val = 0.94;
-  Histogram combo;
-  memcpy(&combo, accumulated, sizeof(combo));
-  HistogramAdd(&combo, tile);
-  return
-      HistogramEstimateBitsBulk(tile) +
-      HistogramEstimateBitsBulk(&combo) +
-      PredictionCostSpatial(tile->alpha_, 1, exp_val) +
-      PredictionCostSpatial(tile->literal_, 1, exp_val) +
-      PredictionCostSpatial(tile->red_, 1, exp_val) +
-      PredictionCostSpatial(tile->blue_, 1, exp_val);
+static double PredictionCostSpatialHistogram(int accumulated[4][256],
+                                             int tile[4][256]) {
+  int i;
+  int k;
+  int combo[256];
+  double retval = 0;
+  for (i = 0; i < 4; ++i) {
+    const double exp_val = 0.94;
+    retval += PredictionCostSpatial(&tile[i][0], 1, exp_val);
+    retval += BitsEntropy(&tile[i][0], 256);
+    for (k = 0; k < 256; ++k) {
+      combo[k] = accumulated[i][k] + tile[i][k];
+    }
+    retval += BitsEntropy(&combo[0], 256);
+  }
+  return retval;
 }
 
 static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
                                    int xsize, int ysize,
-                                   Histogram* accumulated,
+                                   int accumulated[4][256],
                                    const uint32_t* argb) {
   const int num_pred_modes = 14;
   const int tile_y_offset = tile_y * max_tile_size;
@@ -58,6 +62,9 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   int mode;
   int all_x_max = tile_x_offset + max_tile_size;
   int all_y_max = tile_y_offset + max_tile_size;
+  //  int mask = 0x827;
+  //  int mask = 0x3fff;
+  int histo[4][256];
   if (all_x_max > xsize) {
     all_x_max = xsize;
   }
@@ -66,8 +73,12 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
   }
   for (mode = 0; mode < num_pred_modes; ++mode) {
     int all_y;
-    Histogram histo;
-    HistogramInit(&histo, 0);  // 0 is for only 1 (unused) palette value.
+    // TODO(jyrki): add a mask control here to have more control for fastest
+    // compression (with mask >>= 1 in the loop).
+    //    if ((mask & 1) == 0) {
+    //      continue;
+    //    }
+    memset(&histo[0][0], 0, sizeof(histo));
     for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
       int all_x;
       for (all_x = tile_x_offset; all_x < all_x_max; ++all_x) {
@@ -85,13 +96,13 @@ static int GetBestPredictorForTile(int tile_x, int tile_y, int max_tile_size,
           predict = PredictValue(mode, xsize, argb + all_y * xsize + all_x);
         }
         predict_diff = Subtract(argb[all_y * xsize + all_x], predict);
-        ++histo.alpha_[predict_diff >> 24];
-        ++histo.red_[(predict_diff >> 16) & 0xff];
-        ++histo.literal_[(predict_diff >> 8) & 0xff];
-        ++histo.blue_[predict_diff & 0xff];
+        ++histo[0][predict_diff >> 24];
+        ++histo[1][((predict_diff >> 16) & 0xff)];
+        ++histo[2][((predict_diff >> 8) & 0xff)];
+        ++histo[3][(predict_diff & 0xff)];
       }
     }
-    cur_diff = PredictionCostSpatialHistogram(accumulated, &histo);
+    cur_diff = PredictionCostSpatialHistogram(accumulated, histo);
     if (cur_diff < best_diff) {
       best_diff = cur_diff;
       best_mode = mode;
@@ -106,13 +117,13 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
   const int tile_xsize = (xsize + max_tile_size - 1) >> bits;
   const int tile_ysize = (ysize + max_tile_size - 1) >> bits;
   int tile_y;
-  Histogram histo;
+  int histo[4][256];
 #ifndef NDEBUG
   uint32_t* argb_orig = (uint32_t*)
       malloc(sizeof(from_argb[0]) * xsize * ysize);
   memcpy(argb_orig, from_argb, sizeof(from_argb[0]) * xsize * ysize);
 #endif
-  HistogramInit(&histo, 0);
+  memset(histo, 0, sizeof(histo));
   for (tile_y = 0; tile_y < tile_ysize; ++tile_y) {
     const int tile_y_offset = tile_y * max_tile_size;
     int tile_x;
@@ -125,7 +136,7 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
         all_x_max = xsize;
       }
       pred = GetBestPredictorForTile(tile_x, tile_y, max_tile_size,
-                                     xsize, ysize, &histo, from_argb);
+                                     xsize, ysize, histo, from_argb);
       image[tile_y * tile_xsize + tile_x] = 0xff000000 | (pred << 8);
       CopyTileWithPrediction(xsize, ysize, from_argb,
                              tile_x, tile_y, bits, pred,
@@ -139,8 +150,11 @@ void PredictorImage(int xsize, int ysize, int bits, const uint32_t* from_argb,
         }
         ix = all_y * xsize + tile_x_offset;
         for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          HistogramAddSinglePixOrCopy(
-              &histo, PixOrCopyCreateLiteral(to_argb[ix]));
+          const uint32_t a = to_argb[ix];
+          ++histo[0][a >> 24];
+          ++histo[1][((a >> 16) & 0xff)];
+          ++histo[2][((a >> 8) & 0xff)];
+          ++histo[3][(a & 0xff)];
         }
       }
     }
