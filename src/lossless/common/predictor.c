@@ -34,15 +34,6 @@ uint32_t Add(uint32_t a, uint32_t b) {
   return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
 }
 
-uint32_t Subtract(uint32_t a, uint32_t b) {
-  // This subtracts each component with mod 256.
-  const uint32_t alpha_and_green =
-      0x00ff00ff + (a & 0xff00ff00) - (b & 0xff00ff00);
-  const uint32_t red_and_blue =
-      0xff00ff00 + (a & 0x00ff00ff) - (b & 0x00ff00ff);
-  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
-}
-
 static uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
   const int p0 = (int)(a >> 24) + (int)(b >> 24) - (int)(c >> 24);
   const int p1 = (int)((a >> 16) & 0xff) + (int)((b >> 16) & 0xff) -

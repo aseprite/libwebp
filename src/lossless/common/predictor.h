@@ -25,7 +25,15 @@ static inline uint32_t ColorTransformDelta(int8_t transform, int8_t color) {
 uint32_t PredictValue(int mode, int xsize, const uint32_t* argb);
 
 uint32_t Add(uint32_t a, uint32_t b);
-uint32_t Subtract(uint32_t a, uint32_t b);
+
+static inline uint32_t Subtract(uint32_t a, uint32_t b) {
+  // This subtracts each component with mod 256.
+  const uint32_t alpha_and_green =
+      0x00ff00ff + (a & 0xff00ff00) - (b & 0xff00ff00);
+  const uint32_t red_and_blue =
+      0xff00ff00 + (a & 0x00ff00ff) - (b & 0x00ff00ff);
+  return (alpha_and_green & 0xff00ff00) | (red_and_blue & 0x00ff00ff);
+}
 
 // from_argb and to_argb represent images of size (xsize, ysize).
 // This function copies only the tile at tile_x, tile_y where the tile size is
