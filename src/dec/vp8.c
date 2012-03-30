@@ -482,7 +482,7 @@ typedef const uint8_t (*ProbaArray)[NUM_CTX][NUM_PROBAS];  // for const-casting
 // (and 0 if there's no coeff at all)
 static int GetCoeffs(VP8BitReader* const br, ProbaArray prob,
                      int ctx, const quant_t dq, int n, int16_t* out) {
-  const uint8_t* p = prob[kBands[n]][ctx];
+  const uint8_t* p = prob[n][ctx];  // n is either 0 or 1 here. kBands[n] is not necessary.
   if (!VP8GetBit(br, p[0])) {   // first EOB is more a 'CBP' bit.
     return 0;
   }
@@ -571,6 +571,7 @@ static void ParseResiduals(VP8Decoder* const dec,
   uint32_t non_zero_dc = 0;
   int x, y, ch;
 
+  nz_dc.i32 = nz_ac.i32 = 0;
   memset(dst, 0, 384 * sizeof(*dst));
   if (!dec->is_i4x4_) {    // parse DC
     int16_t dc[16] = { 0 };
