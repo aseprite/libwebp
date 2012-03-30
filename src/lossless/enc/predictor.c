@@ -40,11 +40,11 @@ static double PredictionCostSpatialHistogram(int accumulated[4][256],
   for (i = 0; i < 4; ++i) {
     const double exp_val = 0.94;
     retval += PredictionCostSpatial(&tile[i][0], 1, exp_val);
-    retval += BitsEntropy(&tile[i][0], 256);
+    retval += ShannonEntropy(&tile[i][0], 256);
     for (k = 0; k < 256; ++k) {
       combo[k] = accumulated[i][k] + tile[i][k];
     }
-    retval += BitsEntropy(&combo[0], 256);
+    retval += ShannonEntropy(&combo[0], 256);
   }
   return retval;
 }
@@ -183,8 +183,8 @@ static double PredictionCostCrossColor(int* accumulated, int* counts) {
   for (i = 0; i < length; ++i) {
     combo[i] = accumulated[i] + counts[i];
   }
-  return BitsEntropy(&combo[0], length) +
-      BitsEntropy(counts, length) +
+  return ShannonEntropy(&combo[0], length) +
+      ShannonEntropy(counts, length) +
       PredictionCostSpatial(counts, 3, 2.4); // Favor small absolute values.
 }
 

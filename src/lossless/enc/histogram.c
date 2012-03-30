@@ -174,7 +174,22 @@ void HistogramBuild(Histogram* const p,
   }
 }
 
-double BitsEntropy(const int* const array, int n) {
+double ShannonEntropy(const int* const array, int n) {
+  int i;
+  double retval = 0;
+  int sum = 0;
+  for (i = 0; i < n; ++i) {
+    if (array[i] != 0) {
+      sum += array[i];
+      retval += array[i] * FastLog(array[i]);
+    }
+  }
+  retval -= sum * FastLog(sum);
+  retval *= -1.4426950408889634;  // 1.0 / -FastLog(2);
+  return retval;
+}
+
+static double BitsEntropy(const int* const array, int n) {
   double retval = 0;
   int sum = 0;
   int nonzeros = 0;

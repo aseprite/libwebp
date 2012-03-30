@@ -115,7 +115,7 @@ static inline int HistogramNumPixOrCopyCodes(const Histogram* const p) {
 void ConvertPopulationCountTableToBitEstimates(
     int n, const int* const population_counts, double* const output);
 
-double BitsEntropy(const int* const array, int n);
+double ShannonEntropy(const int* const array, int n);
 
 // Build a 2d image of histograms, subresolutioned by (1 << histobits) to
 // the original image.
