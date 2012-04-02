@@ -354,6 +354,14 @@ void VP8LInverseTransform(const VP8LTransform* const transform,
 //------------------------------------------------------------------------------
 // Color space conversion.
 
+static int is_big_endian(void) {
+  static const union {
+    uint16_t w;
+    uint8_t b[2];
+  } tmp = { 1 };
+  return (tmp.b[0] != 1);
+}
+
 static void ConvertBGRAToRGB(const uint32_t* src,
                              int num_pixels, uint8_t* dst) {
   const uint32_t* src_end = src + num_pixels;
@@ -388,15 +396,29 @@ static void ConvertBGRAToBGR(const uint32_t* src,
   }
 }
 
-static void ConvertBGRAToARGB(const uint32_t* src,
-                              int num_pixels, uint8_t* dst) {
-  const uint32_t* src_end = src + num_pixels;
-  while (src < src_end) {
-    const uint32_t argb = *src++;
-    *dst++ = (argb >> 24) & 0xff;
-    *dst++ = (argb >> 16) & 0xff;
-    *dst++ = (argb >>  8) & 0xff;
-    *dst++ = (argb >>  0) & 0xff;
+static void CopyOrSwap(const uint32_t* src, int num_pixels, uint8_t* dst,
+                       int swap_on_big_endian) {
+  if (is_big_endian() == swap_on_big_endian) {
+    const uint32_t* src_end = src + num_pixels;
+    while (src < src_end) {
+      uint32_t argb = *src++;
+#if !defined(__BIG_ENDIAN__) && (defined(__i386__) || defined(__x86_64__))
+      __asm__ volatile("bswap %0" : "=r"(argb) : "0"(argb));
+      *(uint32_t*)dst = argb;
+      dst += sizeof(argb);
+#elif !defined(__BIG_ENDIAN__) && defined(_MSC_VER)
+      argb = _byteswap_ulong(argb);
+      *(uint32_t*)dst = argb;
+      dst += sizeof(argb);
+#else
+      *dst++ = (argb >> 24) & 0xff;
+      *dst++ = (argb >> 16) & 0xff;
+      *dst++ = (argb >>  8) & 0xff;
+      *dst++ = (argb >>  0) & 0xff;
+#endif
+    }
+  } else {
+    memcpy(dst, src, num_pixels * sizeof(*src));
   }
 }
 
@@ -414,10 +436,10 @@ void VP8LConvertFromBGRA(const uint32_t* const in_data, int num_pixels,
       ConvertBGRAToBGR(in_data, num_pixels, rgba);
       break;
     case MODE_BGRA:
-      memcpy(rgba, in_data, num_pixels * sizeof(*in_data));
+      CopyOrSwap(in_data, num_pixels, rgba, 1);
       break;
     case MODE_ARGB:
-      ConvertBGRAToARGB(in_data, num_pixels, rgba);
+      CopyOrSwap(in_data, num_pixels, rgba, 0);
       break;
     default:
       assert(0);          // Code flow should not reach here.
