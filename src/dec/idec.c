@@ -255,19 +255,21 @@ static void ChangeState(WebPIDecoder* const idec, DecState new_state,
 // Headers
 static VP8StatusCode DecodeWebPHeaders(WebPIDecoder* const idec) {
   const uint8_t* data = idec->mem_.buf_ + idec->mem_.start_;
+  VP8Decoder* const dec = idec->dec_;
   uint32_t curr_size = MemDataSize(&idec->mem_);
-  uint32_t vp8_size;
-  uint32_t bytes_skipped;
   VP8StatusCode status;
+  WebPHeaderStructure headers;
 
-  status = WebPParseHeaders(&data, &curr_size, &vp8_size, &bytes_skipped,
-                            &idec->dec_->alpha_data_,
-                            &idec->dec_->alpha_data_size_);
+  headers.data = data;
+  headers.data_size = curr_size;
+  status = WebPParseHeaders(&headers);
   if (status == VP8_STATUS_NOT_ENOUGH_DATA) {
     return VP8_STATUS_SUSPENDED;  // We haven't found a VP8 chunk yet.
   } else if (status == VP8_STATUS_OK) {
-    idec->vp8_size_ = vp8_size;
-    ChangeState(idec, STATE_VP8_FRAME_HEADER, bytes_skipped);
+    idec->vp8_size_ = headers.vp8_size;
+    dec->alpha_data_ = headers.alpha_data;
+    dec->alpha_data_size_ = headers.alpha_data_size;
+    ChangeState(idec, STATE_VP8_FRAME_HEADER, headers.offset);
     return VP8_STATUS_OK;  // We have skipped all pre-VP8 chunks.
   } else {
     return IDecError(idec, status);
