@@ -62,6 +62,7 @@ typedef struct {
   const uint8_t* alpha_data;   // points to alpha chunk (if present)
   uint32_t alpha_data_size;    // alpha chunk size
   uint32_t vp8_size;           // vp8 compressed data size
+  uint32_t riff_size;          // size of the riff payload (or 0 if absent)
   int is_lossless;             // true if a VP8L chunk is present
 } WebPHeaderStructure;
 
