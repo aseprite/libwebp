@@ -76,7 +76,7 @@ static const uint8_t code_to_plane_lut[CODE_TO_PLANE_CODES] = {
 };
 
 static int DecodeImageStream(int xsize, int ysize,
-                             int read_transforms,
+                             int is_level0,
                              VP8LDecoder* const dec,
                              uint32_t** const decoded_data);
 
@@ -737,7 +737,7 @@ static int ExpandColorMap(int num_colors, VP8LTransform* const transform) {
   return 1;
 }
 
-static int ReadTransform(int* const xsize, int* const ysize,
+static int ReadTransform(int* const xsize, int const* ysize,
                          VP8LDecoder* const dec) {
   int ok = 1;
   BitReader* const br = &dec->br_;
@@ -831,7 +831,6 @@ void VP8LInitDecoder(VP8LDecoder* const dec) {
   dec->next_transform_ = 0;
   dec->argb_ = NULL;
   dec->argb_cache_ = NULL;
-  dec->level_ = 0;
   InitMetadata(&dec->hdr_);
 }
 
@@ -858,7 +857,7 @@ static void UpdateDecoder(
 }
 
 static int DecodeImageStream(int xsize, int ysize,
-                             int read_transforms,
+                             int is_level0,
                              VP8LDecoder* const dec,
                              uint32_t** const decoded_data) {
   int ok = 1;
@@ -879,16 +878,15 @@ static int DecodeImageStream(int xsize, int ysize,
 
   BitReader* const br = &dec->br_;
   int transform_start_idx = dec->next_transform_;
-  ++dec->level_;
 
-  // Step#1: Read the transforms.
-  if (read_transforms) {
+  // Step#1: Read the transforms (may recurse).
+  if (is_level0) {
     while (ok && VP8LReadBits(br, 1)) {
       ok = ReadTransform(&transform_xsize, &transform_ysize, dec);
     }
   }
 
-  // Step#2: Read the Huffman codes.
+  // Step#2: Read the Huffman codes (may recurse).
   ok = ok && ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
                               &color_cache_bits,
                               &huffman_image, &huffman_subsample_bits,
@@ -916,7 +914,7 @@ static int DecodeImageStream(int xsize, int ysize,
                 huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
                 dec);
 
-  if (dec->level_ == 1) {
+  if (is_level0) {   // level 0 complete
     dec->state_ = READ_HDR;
     goto End;
   }
@@ -936,11 +934,9 @@ static int DecodeImageStream(int xsize, int ysize,
   if (ok) ApplyInverseTransforms(dec, transform_start_idx, data);
 
  End:
-  UpdateDecoder(transform_xsize, transform_ysize,
-                color_cache, color_cache_size, huffman_image,
-                huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
-                dec);
-  if (dec->level_ > 1) ClearMetadata(&dec->hdr_);
+  if (!is_level0) {   // cleanup
+    ClearMetadata(&dec->hdr_);
+  }
 
   if (!ok) {
     free(data);
@@ -952,7 +948,6 @@ static int DecodeImageStream(int xsize, int ysize,
   } else {
     *decoded_data = data;
   }
-  --dec->level_;
   return ok;
 }
 

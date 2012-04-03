@@ -84,7 +84,6 @@ typedef struct {
   int              height_;
   int              last_row_;      // last input row decoded so far.
   int              last_out_row_;  // last row output so far.
-  int              level_;
 
   VP8LMetadata     hdr_;
 
