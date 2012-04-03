@@ -57,42 +57,42 @@ static VP8StatusCode ParseRIFF(const uint8_t** data, uint32_t* data_size,
   assert(data_size);
   assert(riff_size);
 
+  *riff_size = 0;  // Default: no RIFF present.
   if (*data_size >= RIFF_HEADER_SIZE && !memcmp(*data, "RIFF", TAG_SIZE)) {
     if (memcmp(*data + 8, "WEBP", TAG_SIZE)) {
       return VP8_STATUS_BITSTREAM_ERROR;  // Wrong image file signature.
     } else {
-      *riff_size = get_le32(*data + TAG_SIZE);
+      const uint32_t size = get_le32(*data + TAG_SIZE);
       // Check that we have at least one chunk (i.e "WEBP" + "VP8?nnnn").
-      if (*riff_size < TAG_SIZE + CHUNK_HEADER_SIZE) {
+      if (size < TAG_SIZE + CHUNK_HEADER_SIZE) {
         return VP8_STATUS_BITSTREAM_ERROR;
       }
       // We have a RIFF container. Skip it.
+      *riff_size = size;
       *data += RIFF_HEADER_SIZE;
       *data_size -= RIFF_HEADER_SIZE;
     }
-  } else {
-    *riff_size = 0;  // Did not get full RIFF header.
   }
   return VP8_STATUS_OK;
 }
 
-// Validates the VP8X Header and skips over it.
+// Validates the VP8X header and skips over it.
 // Returns VP8_STATUS_BITSTREAM_ERROR for invalid VP8X header,
 //         VP8_STATUS_NOT_ENOUGH_DATA in case of insufficient data, and
 //         VP8_STATUS_OK otherwise.
-// If a VP8 chunk is found, bytes_skipped is set to the total number of bytes
-// that are skipped; also Width, Height & Flags are set to the corresponding
-// fields extracted from the VP8X chunk.
+// If a VP8X chunk is found, found_vp8x is set to true and *width, *height and
+// *flags are set to the corresponding values extracted from the VP8X chunk.
 static VP8StatusCode ParseVP8X(const uint8_t** data, uint32_t* data_size,
-                               uint32_t* bytes_skipped,
+                               int* found_vp8x,
                                int* width, int* height, uint32_t* flags) {
+  const uint32_t vp8x_size = CHUNK_HEADER_SIZE + VP8X_CHUNK_SIZE;
   assert(data);
   assert(data_size);
-  assert(bytes_skipped);
+  assert(found_vp8x);
 
-  *bytes_skipped = 0;
+  *found_vp8x = 0;
 
-  if (*data_size < CHUNK_HEADER_SIZE + VP8X_CHUNK_SIZE) {
+  if (*data_size < vp8x_size) {
     return VP8_STATUS_NOT_ENOUGH_DATA;  // Insufficient data.
   }
 
@@ -111,9 +111,9 @@ static VP8StatusCode ParseVP8X(const uint8_t** data, uint32_t* data_size,
       *height = get_le32(*data + 16);
     }
     // Skip over VP8X header bytes.
-    *bytes_skipped = CHUNK_HEADER_SIZE + VP8X_CHUNK_SIZE;
-    *data += *bytes_skipped;
-    *data_size -= *bytes_skipped;
+    *data += vp8x_size;
+    *data_size -= vp8x_size;
+    *found_vp8x = 1;
   }
   return VP8_STATUS_OK;
 }
@@ -123,36 +123,31 @@ static VP8StatusCode ParseVP8X(const uint8_t** data, uint32_t* data_size,
 // Returns VP8_STATUS_BITSTREAM_ERROR if any invalid chunk size is encountered,
 //         VP8_STATUS_NOT_ENOUGH_DATA in case of insufficient data, and
 //         VP8_STATUS_OK otherwise.
-// If a VP8 chunk is found, bytes_skipped is set to the total number of bytes
-// that are skipped. Also, if an alpha chunk is found, alpha_data and alpha_size
-// are set appropriately.
+// If an alpha chunk is found, alpha_data and alpha_size are set appropriately.
 static VP8StatusCode ParseOptionalChunks(const uint8_t** data,
                                          uint32_t* data_size,
                                          uint32_t riff_size,
-                                         uint32_t* bytes_skipped,
                                          const uint8_t** alpha_data,
                                          uint32_t* alpha_size) {
   const uint8_t* buf;
   uint32_t buf_size;
-
+  uint32_t total_size = TAG_SIZE +           // "WEBP".
+                        CHUNK_HEADER_SIZE +  // "VP8Xnnnn".
+                        VP8X_CHUNK_SIZE;     // data.
   assert(data);
   assert(data_size);
-  assert(bytes_skipped);
-  assert(alpha_data);
-  assert(alpha_size);
-
   buf = *data;
   buf_size = *data_size;
-  *bytes_skipped = 0;
+
+  assert(alpha_data);
+  assert(alpha_size);
   *alpha_data = NULL;
   *alpha_size = 0;
 
   while (1) {
     uint32_t chunk_size;
-    uint32_t cur_skip_size;
-    const uint32_t bytes_skipped_header = TAG_SIZE +           // "WEBP".
-                                          CHUNK_HEADER_SIZE +  // "VP8Xnnnn".
-                                          VP8X_CHUNK_SIZE;     // data.
+    uint32_t disk_chunk_size;   // chunk_size with padding
+
     *data = buf;
     *data_size = buf_size;
 
@@ -162,20 +157,19 @@ static VP8StatusCode ParseOptionalChunks(const uint8_t** data,
 
     chunk_size = get_le32(buf + TAG_SIZE);
     // For odd-sized chunk-payload, there's one byte padding at the end.
-    cur_skip_size = (CHUNK_HEADER_SIZE + chunk_size + 1) & ~1;
+    disk_chunk_size = (CHUNK_HEADER_SIZE + chunk_size + 1) & ~1;
+    total_size += disk_chunk_size;
 
-    // Check that total bytes skipped along with current chunk size
-    // does not exceed riff_size.
-    if (riff_size > 0 &&
-        (bytes_skipped_header + *bytes_skipped + cur_skip_size > riff_size)) {
-      return VP8_STATUS_BITSTREAM_ERROR;  // Not a valid chunk size.
+    // Check that total bytes skipped so far does not exceed riff_size.
+    if (riff_size > 0 && (total_size > riff_size)) {
+      return VP8_STATUS_BITSTREAM_ERROR;          // Not a valid chunk size.
     }
 
-    if (buf_size < cur_skip_size) {  // Insufficient data.
+    if (buf_size < disk_chunk_size) {             // Insufficient data.
       return VP8_STATUS_NOT_ENOUGH_DATA;
     }
 
-    if (!memcmp(buf, "ALPH", TAG_SIZE)) {  // A valid ALPH header.
+    if (!memcmp(buf, "ALPH", TAG_SIZE)) {         // A valid ALPH header.
       *alpha_data = buf + CHUNK_HEADER_SIZE;
       *alpha_size = chunk_size;
     } else if (!memcmp(buf, "VP8 ", TAG_SIZE)) {  // A valid VP8 header.
@@ -183,9 +177,8 @@ static VP8StatusCode ParseOptionalChunks(const uint8_t** data,
     }
 
     // We have a full and valid chunk; skip it.
-    buf += cur_skip_size;
-    buf_size -= cur_skip_size;
-    *bytes_skipped += cur_skip_size;
+    buf += disk_chunk_size;
+    buf_size -= disk_chunk_size;
   }
 }
 
@@ -194,47 +187,42 @@ static VP8StatusCode ParseOptionalChunks(const uint8_t** data,
 //         riff_size) VP8 header,
 //         VP8_STATUS_NOT_ENOUGH_DATA in case of insufficient data, and
 //         VP8_STATUS_OK otherwise.
-// If a VP8 chunk is found, bytes_skipped is set to the total number of
-// bytes that are skipped and vp8_chunk_size is set to the corresponding size
+// If a VP8 chunk is found, vp8_chunk_size is set to the total number of bytes
 // extracted from the VP8 chunk header.
-// For a partial VP8 chunk, vp8_chunk_size is set to 0.
 static VP8StatusCode ParseVP8Header(const uint8_t** data, uint32_t* data_size,
-                                    uint32_t riff_size, uint32_t* bytes_skipped,
+                                    uint32_t riff_size,
                                     uint32_t* vp8_chunk_size) {
+  const uint32_t minimal_size =
+      TAG_SIZE + CHUNK_HEADER_SIZE;  // "WEBP" + "VP8 nnnn"
   assert(data);
   assert(data_size);
-  assert(bytes_skipped);
   assert(vp8_chunk_size);
 
-  *bytes_skipped = 0;
-  *vp8_chunk_size = 0;
+  *vp8_chunk_size = *data_size;   // default: raw data
 
   if (*data_size < CHUNK_HEADER_SIZE) {
     return VP8_STATUS_NOT_ENOUGH_DATA;  // Insufficient data.
   }
 
   if (!memcmp(*data, "VP8 ", TAG_SIZE)) {
-    *vp8_chunk_size = get_le32(*data + TAG_SIZE);
-    if ((riff_size >= TAG_SIZE + CHUNK_HEADER_SIZE) &&  // "WEBP" + "VP8 nnnn".
-        (*vp8_chunk_size > riff_size - (TAG_SIZE + CHUNK_HEADER_SIZE))) {
+    const uint32_t size = get_le32(*data + TAG_SIZE);
+    if ((riff_size >= minimal_size) && (size > riff_size - minimal_size)) {
       return VP8_STATUS_BITSTREAM_ERROR;  // Inconsistent size information.
     }
     // Skip over CHUNK_HEADER_SIZE bytes from VP8 Header.
-    *bytes_skipped = CHUNK_HEADER_SIZE;
-    *data += *bytes_skipped;
-    *data_size -= *bytes_skipped;
+    *vp8_chunk_size = size;
+    *data += CHUNK_HEADER_SIZE;
+    *data_size -= CHUNK_HEADER_SIZE;
   }
   return VP8_STATUS_OK;
 }
 
+//------------------------------------------------------------------------------
+
 VP8StatusCode WebPParseHeaders(WebPHeaderStructure* const headers) {
   const uint8_t* buf;
   uint32_t buf_size;
-  uint32_t riff_size;
-  uint32_t vp8_size_tmp;
-  uint32_t optional_data_size;
-  uint32_t vp8x_skip_size;
-  uint32_t vp8_skip_size;
+  int found_vp8x;
   VP8StatusCode status;
 
   assert(headers);
@@ -245,25 +233,25 @@ VP8StatusCode WebPParseHeaders(WebPHeaderStructure* const headers) {
   headers->alpha_data_size = 0;
   headers->vp8_size = 0;
   headers->offset = 0;
+  headers->riff_size = 0;
 
   if (buf == NULL || buf_size < RIFF_HEADER_SIZE) {
     return VP8_STATUS_NOT_ENOUGH_DATA;
   }
 
   // Skip over RIFF header.
-  if (ParseRIFF(&buf, &buf_size, &riff_size) != VP8_STATUS_OK) {
+  if (ParseRIFF(&buf, &buf_size, &headers->riff_size) != VP8_STATUS_OK) {
     return VP8_STATUS_BITSTREAM_ERROR;  // Wrong RIFF header.
   }
 
   // Skip over VP8X header.
-  status = ParseVP8X(&buf, &buf_size, &vp8x_skip_size, NULL, NULL, NULL);
+  status = ParseVP8X(&buf, &buf_size, &found_vp8x, NULL, NULL, NULL);
   if (status != VP8_STATUS_OK) {
     return status;  // Wrong VP8X chunk / insufficient data.
   }
-  if (vp8x_skip_size > 0) {
+  if (found_vp8x) {
     // Skip over optional chunks.
-    status = ParseOptionalChunks(&buf, &buf_size, riff_size,
-                                 &optional_data_size,
+    status = ParseOptionalChunks(&buf, &buf_size, headers->riff_size,
                                  &headers->alpha_data,
                                  &headers->alpha_data_size);
     if (status != VP8_STATUS_OK) {
@@ -272,13 +260,10 @@ VP8StatusCode WebPParseHeaders(WebPHeaderStructure* const headers) {
   }
 
   // Skip over VP8 chunk header.
-  status = ParseVP8Header(&buf, &buf_size, riff_size, &vp8_skip_size,
-                          &vp8_size_tmp);
+  status = ParseVP8Header(&buf, &buf_size, headers->riff_size,
+                          &headers->vp8_size);
   if (status != VP8_STATUS_OK) {
     return status;  // Invalid VP8 header / insufficient data.
-  }
-  if (vp8_skip_size > 0) {
-    headers->vp8_size = vp8_size_tmp;
   }
 
   headers->offset = (uint32_t)(buf - headers->data);
@@ -502,11 +487,9 @@ static VP8StatusCode GetFeatures(const uint8_t* data, uint32_t data_size,
                                  WebPBitstreamFeatures* const features) {
   uint32_t vp8_chunk_size = 0;
   uint32_t riff_size = 0;
-  uint32_t flags = 0;
-  uint32_t vp8x_skip_size = 0;
-  uint32_t vp8_skip_size = 0;
   int* const width = &features->width;
   int* const height = &features->height;
+  int found_vp8x;
   VP8StatusCode status;
 
   if (features == NULL || data == NULL) {
@@ -520,25 +503,23 @@ static VP8StatusCode GetFeatures(const uint8_t* data, uint32_t data_size,
     return status;   // Wrong RIFF header / insufficient data.
   }
 
-  // Skip over VP8X.
-  status = ParseVP8X(&data, &data_size, &vp8x_skip_size,
-                     width, height, &flags);
-  if (status != VP8_STATUS_OK) {
-    return status;  // Wrong VP8X / insufficient data.
-  }
-  features->has_alpha = !!(flags & ALPHA_FLAG);
-  if (vp8x_skip_size > 0) {
-    return VP8_STATUS_OK;  // Return features from VP8X header.
+  {
+    uint32_t flags = 0;
+    status = ParseVP8X(&data, &data_size, &found_vp8x, width, height, &flags);
+    if (status != VP8_STATUS_OK) {
+      return status;  // Wrong VP8X / insufficient data.
+    }
+    features->has_alpha = !!(flags & ALPHA_FLAG);
+    if (found_vp8x) {
+      return VP8_STATUS_OK;  // Return features from VP8X header.
+    }
   }
 
   // Skip over VP8 header.
-  status = ParseVP8Header(&data, &data_size, riff_size, &vp8_skip_size,
+  status = ParseVP8Header(&data, &data_size, riff_size,
                           &vp8_chunk_size);
   if (status != VP8_STATUS_OK) {
     return status;  // Wrong VP8 chunk-header / insufficient data.
-  }
-  if (vp8_skip_size == 0) {
-    vp8_chunk_size = data_size;  // No VP8 chunk wrapper over raw VP8 data.
   }
 
   // Validates raw VP8 data.
