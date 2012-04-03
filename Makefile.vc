@@ -184,6 +184,8 @@ X_OBJS= \
     $(DIROBJ)\enc\tree.obj \
     $(DIROBJ)\enc\webpenc.obj \
     $(DIROBJ)\enc\vp8l.obj \
+    $(DIROBJ)\enc\backward_references.obj \
+    $(DIROBJ)\enc\histogram.obj \
     $(DIROBJ)\mux\muxedit.obj \
     $(DIROBJ)\mux\muxinternal.obj \
     $(DIROBJ)\mux\muxread.obj \
@@ -193,6 +195,7 @@ X_OBJS= \
     $(DIROBJ)\utils\color_cache.obj \
     $(DIROBJ)\utils\filters.obj \
     $(DIROBJ)\utils\huffman.obj \
+    $(DIROBJ)\utils\huffman_encode.obj \
     $(DIROBJ)\utils\quant_levels.obj \
     $(DIROBJ)\utils\rescaler.obj \
     $(DIROBJ)\utils\tcoder.obj \
