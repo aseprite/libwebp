@@ -88,7 +88,7 @@ int HuffmanCodeLengthsToCodes(const int* const code_lengths,
   if (max_code_length > MAX_ALLOWED_CODE_LENGTH) return 0;
 
   // Calculate code length histogram.
-  for(symbol = 0; symbol < code_lengths_size; ++symbol) {
+  for (symbol = 0; symbol < code_lengths_size; ++symbol) {
     ++code_length_hist[code_lengths[symbol]];
   }
   code_length_hist[0] = 0;
