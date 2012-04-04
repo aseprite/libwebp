@@ -289,16 +289,12 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
   return 1;
 }
 
-static int ReadHuffmanCodes(
-    int xsize, int ysize, VP8LDecoder* const dec,
-    int* const color_cache_bits_ptr,
-    uint32_t** const huffman_image_ptr, int* const huffman_precision_ptr,
-    uint32_t** const meta_codes_ptr, int* const meta_codes_size_ptr,
-    HuffmanTree** htrees_ptr, int* const num_huffman_trees_ptr) {
+static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
+                            int* const color_cache_bits_ptr) {
   int ok = 0;
   int i;
   BitReader* const br = &dec->br_;
-
+  VP8LMetadata* const hdr = &dec->hdr_;
   uint32_t* huffman_image = NULL;
   HuffmanTree* htrees = NULL;
   int num_htrees = HUFFMAN_CODES_PER_META_CODE;
@@ -317,7 +313,7 @@ static int ReadHuffmanCodes(
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       goto Error;
     }
-    *huffman_precision_ptr = huffman_precision;
+    hdr->huffman_subsample_bits_ = huffman_precision;
     for (i = 0; i < huffman_pixs; ++i) {
       // The huffman data is stored in red and green bytes.
       huffman_image[i] = (huffman_image[i] >> 8) & 0xffff;
@@ -376,11 +372,10 @@ static int ReadHuffmanCodes(
   }
 
   if (ok) {   // finalize pointers and return
-    *huffman_image_ptr     = huffman_image;
-    *meta_codes_size_ptr   = meta_codes_size;
-    *meta_codes_ptr        = meta_codes;
-    *num_huffman_trees_ptr = num_htrees;
-    *htrees_ptr            = htrees;
+    hdr->huffman_image_ = huffman_image;
+    hdr->meta_codes_ = meta_codes;
+    hdr->num_huffman_trees_ = num_htrees;
+    hdr->htrees_ = htrees;
     return ok;
   }
 
@@ -834,26 +829,14 @@ void VP8LDelete(VP8LDecoder* const dec) {
   free(dec);
 }
 
-static void UpdateDecoder(
-    int width, int height,
-    VP8LColorCache* const color_cache, int color_cache_size,
-    uint32_t* const huffman_image, uint32_t huffman_subsample_bits,
-    uint32_t* const meta_codes, HuffmanTree* htrees, int num_huffman_trees_,
-    VP8LDecoder* const dec) {
+static void UpdateDecoder(VP8LDecoder* const dec, int width, int height) {
   VP8LMetadata* const hdr = &dec->hdr_;
+  const int num_bits = hdr->huffman_subsample_bits_;
   dec->width_ = width;
   dec->height_ = height;
 
-  hdr->color_cache_ = color_cache;
-  hdr->color_cache_size_ = color_cache_size;
-  hdr->huffman_image_ = huffman_image;
-  hdr->huffman_subsample_bits_ = huffman_subsample_bits;
-  hdr->meta_codes_ = meta_codes;
-  hdr->htrees_ = htrees;
-  hdr->num_huffman_trees_ = num_huffman_trees_;
-  hdr->huffman_xsize_ = VP8LSubSampleSize(width, huffman_subsample_bits);
-  hdr->huffman_mask_ = (huffman_subsample_bits == 0) ?
-      ~0 : (1 << huffman_subsample_bits) - 1;
+  hdr->huffman_xsize_ = VP8LSubSampleSize(width, num_bits);
+  hdr->huffman_mask_ = (num_bits == 0) ? ~0 : (1 << num_bits) - 1;
 }
 
 static int DecodeImageStream(int xsize, int ysize,
@@ -863,18 +846,9 @@ static int DecodeImageStream(int xsize, int ysize,
   int ok = 1;
   int transform_xsize = xsize;
   int transform_ysize = ysize;
-
+  VP8LMetadata* const hdr = &dec->hdr_;
   uint32_t* data = NULL;
-  uint32_t* huffman_image = NULL;
-  HuffmanTree* htrees = NULL;
-  int num_huffman_trees = 0;
-  // TODO: htrees & num_huffman_trees should be part of a struct.
-  int huffman_subsample_bits = 0;
-  uint32_t* meta_codes = NULL;
-  int num_meta_codes = 0;
-  VP8LColorCache* color_cache = NULL;
   int color_cache_bits = 0;
-  int color_cache_size = 0;
 
   BitReader* const br = &dec->br_;
   int transform_start_idx = dec->next_transform_;
@@ -887,11 +861,8 @@ static int DecodeImageStream(int xsize, int ysize,
   }
 
   // Step#2: Read the Huffman codes (may recurse).
-  ok = ok && ReadHuffmanCodes(transform_xsize, transform_ysize, dec,
-                              &color_cache_bits,
-                              &huffman_image, &huffman_subsample_bits,
-                              &meta_codes, &num_meta_codes,
-                              &htrees, &num_huffman_trees);
+  ok = ok && ReadHuffmanCodes(dec, transform_xsize, transform_ysize,
+                              &color_cache_bits);
 
   if (!ok) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
@@ -899,20 +870,17 @@ static int DecodeImageStream(int xsize, int ysize,
   }
 
   if (color_cache_bits > 0) {
-    color_cache_size = 1 << color_cache_bits;
-    color_cache = (VP8LColorCache*)malloc(sizeof(*color_cache));
-    if (color_cache == NULL ||
-        !VP8LColorCacheInit(color_cache, color_cache_bits)) {
+    hdr->color_cache_size_ = 1 << color_cache_bits;
+    hdr->color_cache_ = (VP8LColorCache*)malloc(sizeof(*hdr->color_cache_));
+    if (hdr->color_cache_ == NULL ||
+        !VP8LColorCacheInit(hdr->color_cache_, color_cache_bits)) {
       dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
       ok = 0;
       goto End;
     }
   }
 
-  UpdateDecoder(transform_xsize, transform_ysize,
-                color_cache, color_cache_size, huffman_image,
-                huffman_subsample_bits, meta_codes, htrees, num_huffman_trees,
-                dec);
+  UpdateDecoder(dec, transform_xsize, transform_ysize);
 
   if (is_level0) {   // level 0 complete
     dec->state_ = READ_HDR;
@@ -934,12 +902,10 @@ static int DecodeImageStream(int xsize, int ysize,
   if (ok) ApplyInverseTransforms(dec, transform_start_idx, data);
 
  End:
-  if (!is_level0) {   // cleanup
-    ClearMetadata(&dec->hdr_);
-  }
 
   if (!ok) {
     free(data);
+    ClearMetadata(hdr);
     // If not enough data (br.eos_) resulted in BIT_STREAM_ERROR, update the
     // status appropriately.
     if (dec->status_ == VP8_STATUS_BITSTREAM_ERROR && dec->br_.eos_) {
@@ -947,6 +913,7 @@ static int DecodeImageStream(int xsize, int ysize,
     }
   } else {
     *decoded_data = data;
+    if (!is_level0) ClearMetadata(hdr);  // Clean up temporary data behind.
   }
   return ok;
 }
