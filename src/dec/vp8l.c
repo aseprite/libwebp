@@ -791,16 +791,7 @@ static int ReadTransform(int* const xsize, int const* ysize,
 
 static void InitMetadata(VP8LMetadata* const hdr) {
   assert(hdr);
-
-  hdr->color_cache_ = NULL;
-  hdr->color_cache_size_ = 0;
-  hdr->huffman_image_ = NULL;
-  hdr->huffman_subsample_bits_ = 0;
-  hdr->meta_codes_ = NULL;
-  hdr->htrees_ = NULL;
-  hdr->num_huffman_trees_ = 0;
-  hdr->huffman_xsize_ = 0;
-  hdr->huffman_mask_ = 0;
+  memset(hdr, 0, sizeof(*hdr));
 }
 
 static void ClearMetadata(VP8LMetadata* const hdr) {
@@ -824,14 +815,18 @@ static void ClearMetadata(VP8LMetadata* const hdr) {
 // VP8LDecoder
 
 void VP8LInitDecoder(VP8LDecoder* const dec) {
-  dec->width_ = 0;
-  dec->height_ = 0;
-  dec->last_row_ = 0;
-  dec->last_out_row_ = 0;
-  dec->next_transform_ = 0;
-  dec->argb_ = NULL;
-  dec->argb_cache_ = NULL;
-  InitMetadata(&dec->hdr_);
+  assert(dec);
+  memset(dec, 0, sizeof(*dec));
+}
+
+VP8LDecoder* VP8LNew(void) {
+  VP8LDecoder* const dec = (VP8LDecoder*)malloc(sizeof(*dec));
+  if (dec != NULL) VP8LInitDecoder(dec);
+  return dec;
+}
+
+void VP8LDelete(VP8LDecoder* const dec) {
+  free(dec);
 }
 
 static void UpdateDecoder(

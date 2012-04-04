@@ -105,6 +105,9 @@ int VP8LGetInfo(const uint8_t* data,
                 int data_size,    // data available so far
                 int *width, int *height);
 
+// Allocates and initialize a new lossless decoder instance.
+VP8LDecoder* VP8LNew(void);
+
 // Initializes the decoder object.
 void VP8LInitDecoder(VP8LDecoder* const dec);
 
@@ -117,6 +120,9 @@ int VP8LDecodeImage(VP8LDecoder* const dec);
 
 // Resets the decoder in its initial state, reclaiming memory.
 void VP8LClear(VP8LDecoder* const dec);
+
+// Clears and deallocate a lossless decoder instance.
+void VP8LDelete(VP8LDecoder* const dec);
 
 //------------------------------------------------------------------------------
 
