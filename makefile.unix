@@ -86,11 +86,12 @@ EXPERIMENTAL_OBJS = src/experimental/alpha.o \
 
 HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/enc/vp8li.h \
        src/enc/backward_references.h src/enc/histogram.h src/webp/mux.h \
-       src/dec/vp8i.h src/dec/vp8li.h src/dsp/yuv.h src/dsp/dsp.h src/dsp/lossless.h \
        src/experimental/alpha.h \
-       src/utils/alpha.h src/utils/bit_writer.h src/utils/bit_reader.h \
-       src/utils/color_cache.h src/utils/filters.h src/utils/huffman.h \
-       src/utils/huffman_encode.h src/utils/thread.h src/utils/tcoder.h
+       src/dec/vp8i.h src/dec/vp8li.h src/dsp/yuv.h src/dsp/dsp.h \
+       src/dsp/lossless.h src/utils/alpha.h src/utils/bit_writer.h \
+       src/utils/bit_reader.h src/utils/color_cache.h src/utils/filters.h \
+       src/utils/huffman.h src/utils/huffman_encode.h src/utils/thread.h \
+       src/utils/tcoder.h
 
 OUT_LIBS = src/libwebp.a src/mux/libwebpmux.a
 OUT_EXAMPLES = examples/cwebp examples/dwebp examples/webpmux \
