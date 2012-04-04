@@ -400,28 +400,33 @@ static int ReadHuffmanCodes(
 // Scaling.
 
 static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
-  WebPDecParams* const params = (WebPDecParams*)io->opaque;
   const int num_channels = 4;
   const int in_width = io->mb_w;
   const int out_width = io->scaled_width;
   const int in_height = io->mb_h;
   const int out_height = io->scaled_height;
-  const int work_size = 2 * num_channels * out_width;
+  const size_t work_size = 2 * num_channels * out_width;
   int32_t* work;        // Rescaler work area.
-  const int scaled_data_size = num_channels * out_width;
+  const size_t scaled_data_size = num_channels * out_width;
   uint32_t* scaled_data;  // Temporary storage for scaled BGRA data.
-
-  const int memory_size = work_size * sizeof(*work) +
-                          scaled_data_size * sizeof(*scaled_data);
-  params->memory = calloc(1, memory_size);
-  if (params->memory == NULL) {
+  const size_t memory_size = sizeof(*dec->rescaler) +
+                             work_size * sizeof(*work) +
+                             scaled_data_size * sizeof(*scaled_data);
+  uint8_t* memory = calloc(1, memory_size);
+  if (memory == NULL) {
     dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
     return 0;
   }
-  work = (int32_t*)params->memory;
-  scaled_data = (uint32_t*)(work + work_size);
+  assert(dec->rescaler_memory == NULL);
+  dec->rescaler_memory = memory;
 
-  WebPRescalerInit(&dec->wrk, in_width, in_height, (uint8_t*)scaled_data,
+  dec->rescaler = (WebPRescaler*)memory;
+  memory += sizeof(*dec->rescaler);
+  work = (int32_t*)memory;
+  memory += work_size * sizeof(*work);
+  scaled_data = (uint32_t*)memory;
+
+  WebPRescalerInit(dec->rescaler, in_width, in_height, (uint8_t*)scaled_data,
                    out_width, out_height, 0, num_channels,
                    in_width, out_width, in_height, out_height, work);
   return 1;
@@ -430,8 +435,8 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
 // We have special "export" function since we need to convert from BGRA
 static int Export(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
                   int rgba_stride, uint8_t* const rgba) {
-  const uint32_t* const src = (const uint32_t* const)dec->wrk.dst;
-  WebPRescaler* const rescaler = &dec->wrk;
+  WebPRescaler* const rescaler = dec->rescaler;
+  const uint32_t* const src = (const uint32_t* const)rescaler->dst;
   const int dst_width = rescaler->dst_width;
   int num_lines_out = 0;
   while (WebPRescalerHasPendingOutput(rescaler)) {
@@ -453,7 +458,7 @@ static int EmitRescaledRows(VP8LDecoder* const dec, WEBP_CSP_MODE colorspace,
   while (num_lines_in < mb_h) {
     const uint8_t* row_in = in + num_lines_in * in_stride;
     uint8_t* const row_out = out + num_lines_out * out_stride;
-    num_lines_in += WebPRescalerImport(&dec->wrk, mb_h - num_lines_in,
+    num_lines_in += WebPRescalerImport(dec->rescaler, mb_h - num_lines_in,
                                        row_in, in_stride);
     num_lines_out += Export(dec, colorspace, out_stride, row_out);
   }
@@ -951,7 +956,6 @@ static int DecodeImageStream(int xsize, int ysize,
 int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   int width, height;
   uint32_t* decoded_data = NULL;
-  WebPDecParams* params = NULL;
 
   if (dec == NULL) return 0;
   if (io == NULL || dec->br_offset_ > io->data_size) {
@@ -970,8 +974,6 @@ int VP8LDecodeHeader(VP8LDecoder* const dec, VP8Io* const io) {
   dec->state_ = READ_DIM;
   io->width = width;
   io->height = height;
-  params = (WebPDecParams*)io->opaque;
-  assert(params != NULL);
 
   dec->action_ = READ_HDR;
   if (!DecodeImageStream(width, height, 1, dec, &decoded_data)) {
@@ -1058,13 +1060,8 @@ void VP8LClear(VP8LDecoder* const dec) {
   }
   dec->next_transform_ = 0;
 
-  if (dec->io_ != NULL) {
-    WebPDecParams* params = (WebPDecParams*)dec->io_->opaque;
-    if (params != NULL) {
-      free(params->memory);
-      params->memory = NULL;
-    }
-  }
+  free(dec->rescaler_memory);
+  dec->rescaler_memory = NULL;
 }
 
 //------------------------------------------------------------------------------

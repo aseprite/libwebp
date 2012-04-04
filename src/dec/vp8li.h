@@ -90,7 +90,8 @@ typedef struct {
   int              next_transform_;
   VP8LTransform    transforms_[NUM_TRANSFORMS];
 
-  WebPRescaler     wrk;  // Common rescaler for all channels.
+  uint8_t         *rescaler_memory;  // Working memory for rescaling work.
+  WebPRescaler    *rescaler;         // Common rescaler for all channels.
 } VP8LDecoder;
 
 //------------------------------------------------------------------------------
