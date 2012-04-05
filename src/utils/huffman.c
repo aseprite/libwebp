@@ -21,25 +21,24 @@ extern "C" {
 #define NON_EXISTENT_SYMBOL (-1)
 
 static void TreeNodeInit(HuffmanTreeNode* const node) {
-  node->children_ = 0;
+  node->children_ = -1;   // means: 'unassigned so far'
+}
+
+static int NodeIsEmpty(const HuffmanTreeNode* const node) {
+  return (node->children_ < 0);
 }
 
 static int IsFull(const HuffmanTree* const tree) {
   return (tree->num_nodes_ == tree->max_nodes_);
 }
 
-static int AssignChildren(HuffmanTree* const tree,
-                          HuffmanTreeNode* const node) {
-  if (IsFull(tree)) {
-    return 0;   // already complete tree.
-  } else {
-    HuffmanTreeNode* const children = tree->root_ + tree->num_nodes_;
-    node->children_ = children - node;
-    tree->num_nodes_ += 2;
-    TreeNodeInit(children + 0);
-    TreeNodeInit(children + 1);
-    return 1;
-  }
+static void AssignChildren(HuffmanTree* const tree,
+                           HuffmanTreeNode* const node) {
+  HuffmanTreeNode* const children = tree->root_ + tree->num_nodes_;
+  node->children_ = children - node;
+  tree->num_nodes_ += 2;
+  TreeNodeInit(children + 0);
+  TreeNodeInit(children + 1);
 }
 
 static int TreeInit(HuffmanTree* const tree, int num_leaves) {
@@ -122,13 +121,19 @@ static int TreeAddSymbol(HuffmanTree* const tree,
     if (node >= max_node) {
       return 0;
     }
-    if (HuffmanTreeNodeIsLeaf(node) && !AssignChildren(tree, node)) {
-      return 0;   // error
+    if (NodeIsEmpty(node)) {
+      if (IsFull(tree)) return 0;    // error: too many symbols.
+      AssignChildren(tree, node);
+    } else if (HuffmanTreeNodeIsLeaf(node)) {
+      return 0;  // leaf is already occupied.
     }
     node += node->children_ + ((code >> code_length) & 1);
   }
-  // Verify we are at a leaf, so that prefix-tree property is not violated.
-  if (!HuffmanTreeNodeIsLeaf(node)) return 0;
+  if (NodeIsEmpty(node)) {
+    node->children_ = 0;      // turn newly created node into a leaf.
+  } else if (!HuffmanTreeNodeIsLeaf(node)) {
+    return 0;   // trying to assign a symbol to already used code.
+  }
   node->symbol_ = symbol;  // Add symbol in this node.
   return 1;
 }
