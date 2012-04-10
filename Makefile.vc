@@ -72,7 +72,6 @@ OUTPUT_DIRS = $(DIRBIN) $(DIRINC) $(DIRLIB) \
               $(DIROBJ)\dsp \
               $(DIROBJ)\enc \
               $(DIROBJ)\examples \
-              $(DIROBJ)\experimental \
               $(DIROBJ)\mux \
               $(DIROBJ)\utils \
 
@@ -207,13 +206,6 @@ EXAMPLES_OBJS = \
     $(DIROBJ)\examples\dwebp.obj \
     $(DIROBJ)\examples\webpmux.obj
 
-!IF "$(EXPERIMENTAL)" == "y"
-X_OBJS= \
-    $(X_OBJS) \
-    $(DIROBJ)\experimental\alpha.obj \
-
-!ENDIF
-
 all: $(DIRLIB)\$(TARGET) $(DIRBIN)\dwebp.exe $(DIRBIN)\cwebp.exe \
      $(DIRBIN)\webpmux.exe
 
@@ -274,8 +266,6 @@ $(DIROBJ)\$(DLLC): $(DIROBJ)\$(DLLINC)
 	$(CC) $(CFLAGS) /Fd$(LIBPDBNAME) /Fo$(DIROBJ)\dsp\ $<
 {src\enc}.c{$(DIROBJ)\enc}.obj::
 	$(CC) $(CFLAGS) /Fd$(LIBPDBNAME) /Fo$(DIROBJ)\enc\ $<
-{src\experimental}.c{$(DIROBJ)\experimental}.obj::
-	$(CC) $(CFLAGS) /Fd$(LIBPDBNAME) /Fo$(DIROBJ)\experimental\ $<
 {src\mux}.c{$(DIROBJ)\mux}.obj::
 	$(CC) $(CFLAGS) /Fd$(LIBPDBNAME) /Fo$(DIROBJ)\mux\ $<
 {src\utils}.c{$(DIROBJ)\utils}.obj::

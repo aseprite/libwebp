@@ -2,8 +2,7 @@
 # system, for simple local building of the libraries and tools.
 # It will not install the libraries system-wide, but just create the 'cwebp',
 # 'dwebp' & 'webpmux' tools in the examples/ directory,
-# along with the static libraries 'src/libwebp.a', 'src/mux/libwebpmux.a' and
-# 'src/experimental/libwebpexperimental.a'.
+# along with the static libraries 'src/libwebp.a' and 'src/mux/libwebpmux.a'.
 #
 # To build the library and examples, use:
 #    make -f makefile.unix
@@ -82,11 +81,8 @@ OBJS = $(DEC_OBJS) $(ENC_OBJS) $(DSP_OBJS) $(UTILS_OBJS)
 
 MUX_OBJS = src/mux/muxedit.o src/mux/muxinternal.o src/mux/muxread.o
 
-EXPERIMENTAL_OBJS = src/experimental/alpha.o \
-
 HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/enc/vp8li.h \
        src/enc/backward_references.h src/enc/histogram.h src/webp/mux.h \
-       src/experimental/alpha.h \
        src/dec/vp8i.h src/dec/vp8li.h src/dsp/yuv.h src/dsp/dsp.h \
        src/dsp/lossless.h src/utils/alpha.h src/utils/bit_writer.h \
        src/utils/bit_reader.h src/utils/color_cache.h src/utils/filters.h \
@@ -107,9 +103,6 @@ src/libwebp.a: $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 src/mux/libwebpmux.a: $(MUX_OBJS)
-	$(AR) $(ARFLAGS) $@ $^
-
-src/experimental/libwebpexperimental.a:  $(EXPERIMENTAL_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 ex: $(OUT_EXAMPLES)
@@ -143,7 +136,6 @@ clean:
               src/dec/*.o src/dec/*~ \
               src/dsp/*.o src/dsp/*~ \
               src/enc/*.o src/enc/*~ \
-              src/experimental/*.o src/experimental/*~ \
               src/mux/*.o src/mux/*~ \
               src/utils/*.o src/utils/*~ \
               src/webp/*~ man/*~ doc/*~ swig/*~ \

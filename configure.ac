@@ -164,7 +164,6 @@ AC_CONFIG_FILES([Makefile src/Makefile man/Makefile \
                  src/enc/Makefile src/dsp/Makefile \
                  src/utils/Makefile \
                  src/mux/Makefile \
-                 src/experimental/Makefile \
                  src/lossless/Makefile \
                  src/lossless/common/Makefile \
                  src/lossless/dec/Makefile \

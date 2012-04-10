@@ -1,5 +1,5 @@
 if EXPERIMENTAL
-  OPTIONAL_DIRS = experimental lossless
+  OPTIONAL_DIRS = lossless
 endif
 SUBDIRS = dec enc dsp utils mux $(OPTIONAL_DIRS)
 
