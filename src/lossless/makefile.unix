@@ -33,23 +33,23 @@ endif
 CXXFLAGS = -O3 -DNDEBUG $(EXTRA_FLAGS)
 LDFLAGS = $(EXTRA_LIBS) -lm
 
-HDRS = common/integral_types.h common/pixel_hasher.h common/predictor.h \
-       dec/bit_stream.h dec/constants.h dec/decode.h dec/huffman.h \
-       dec/image_transform.h enc/backward_distance.h enc/backward_references.h \
-       enc/bit_stream.h enc/entropy_encode.h enc/histogram.h \
-       enc/histogram_image.h enc/predictor.h enc/webp_bit_stream.h
+HDRS = common/color_cache.h common/predictor.h \
+       dec/bit_reader.h dec/constants.h dec/decode.h dec/huffman.h \
+       dec/image_transform.h enc/backward_references.h enc/bit_writer.h \
+       enc/entropy_encode.h enc/histogram.h enc/predictor.h
 
 OUTPUT = tools/png2webpll tools/webpll2png
 OBJS = \
     common/predictor.o \
-    dec/bit_stream.o \
     dec/decode.o \
     enc/backward_references.o \
+    enc/encode.o \
     enc/entropy_encode.o \
     enc/histogram.o \
-    enc/histogram_image.o \
     enc/predictor.o \
-    enc/webp_bit_stream.o \
+
+%.o: %.c $(HDRS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.cc $(HDRS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
