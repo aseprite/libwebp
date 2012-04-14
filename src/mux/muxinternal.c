@@ -302,7 +302,8 @@ static int SearchImageToGetOrDelete(WebPMuxImage** wpi_list, uint32_t nth,
     WebPMuxImage* const cur_wpi = *wpi_list;
     WebPChunk** const wpi_chunk_ptr = MuxImageGetListFromId(cur_wpi, id);
     assert(wpi_chunk_ptr != NULL);
-    if ((*wpi_chunk_ptr)->tag_ == kChunks[id].chunkTag) {
+    if (*wpi_chunk_ptr != NULL &&
+        (*wpi_chunk_ptr)->tag_ == kChunks[id].chunkTag) {
       ++count;
       if (count == nth) return 1;  // Found.
     }
@@ -541,6 +542,11 @@ WebPMuxError WebPMuxValidate(const WebPMux* const mux) {
   if (num_alpha > 0 && num_alpha != num_images) {
     // Note that "num_alpha > 0" is the correct check but "flags && ALPHA_FLAG"
     // is NOT, because ALPHA_FLAG is based on first image only.
+    return WEBP_MUX_INVALID_ARGUMENT;
+  }
+
+  // num_tiles & num_images are consistent.
+  if (num_tiles > 0 && num_images != num_tiles) {
     return WEBP_MUX_INVALID_ARGUMENT;
   }
 
