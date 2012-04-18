@@ -763,9 +763,7 @@ static int EncodeImageInternal(int xsize, int ysize,
   write_histogram_image = (histogram_image_size > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
-    int nbits;
     int image_size_bits;
-    int num_histograms;
     uint32_t* histogram_argb = (uint32_t*)
         malloc(histogram_image_xysize * sizeof(*histogram_argb));
     if (!histogram_argb) {
@@ -789,12 +787,6 @@ static int EncodeImageInternal(int xsize, int ysize,
     image_size_bits = BitsLog2Ceiling(histogram_image_size - 1);
     WriteBits(4, image_size_bits, bw);
     WriteBits(image_size_bits, histogram_image_size - 2, bw);
-    num_histograms = 5 * histogram_image_size;
-    nbits = BitsLog2Ceiling(num_histograms);
-    WriteBits(4, nbits, bw);
-    for (i = 0; i < num_histograms; ++i) {
-      WriteBits(nbits, i, bw);
-    }
   }
 
   // Palette parameters.
