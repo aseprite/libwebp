@@ -115,11 +115,11 @@ static void InitImageInfo(WebPImageInfo* const image_info) {
 static WebPImageInfo* CreateImageInfo(uint32_t x_offset, uint32_t y_offset,
                                       uint32_t duration,
                                       const uint8_t* data, uint32_t size) {
-  int width;
-  int height;
   WebPImageInfo* image_info = NULL;
+  WebPBitstreamFeatures bitstream;
+  const VP8StatusCode status = WebPGetFeatures(data, size, &bitstream);
 
-  if (!VP8GetInfo(data, size, size, &width, &height)) {
+  if (status != VP8_STATUS_OK) {
     return NULL;
   }
 
@@ -129,8 +129,8 @@ static WebPImageInfo* CreateImageInfo(uint32_t x_offset, uint32_t y_offset,
     image_info->x_offset_ = x_offset;
     image_info->y_offset_ = y_offset;
     image_info->duration_ = duration;
-    image_info->width_ = width;
-    image_info->height_ = height;
+    image_info->width_ = bitstream.width;
+    image_info->height_ = bitstream.height;
   }
 
   return image_info;
@@ -515,14 +515,20 @@ static WebPMuxError GetImageCanvasHeightWidth(
     }
   } else {
     // For a single image, extract the width & height from VP8 image-data.
-    int w, h;
     const WebPChunk* const image_chunk = wpi->vp8_;
+    WebPBitstreamFeatures bitstream;
+    VP8StatusCode status;
     assert(image_chunk != NULL);
-    if (VP8GetInfo(image_chunk->data_, image_chunk->payload_size_,
-                   image_chunk->payload_size_, &w, &h)) {
-      *width = w;
-      *height = h;
+
+    status = WebPGetFeatures(
+        image_chunk->data_, image_chunk->payload_size_, &bitstream);
+    if (status != VP8_STATUS_OK) {
+      *width = 0;
+      *height = 0;
+      return WEBP_MUX_BAD_DATA;
     }
+    *width = bitstream.width;
+    *height = bitstream.height;
   }
   return WEBP_MUX_OK;
 }
