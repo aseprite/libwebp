@@ -300,9 +300,8 @@ static int SearchImageToGetOrDelete(WebPMuxImage** wpi_list, uint32_t nth,
 
   while (*wpi_list) {
     WebPMuxImage* const cur_wpi = *wpi_list;
-    WebPChunk** const wpi_chunk_ptr = MuxImageGetListFromId(cur_wpi, id);
-    assert(wpi_chunk_ptr != NULL);
-    if ((*wpi_chunk_ptr)->tag_ == kChunks[id].chunkTag) {
+    const WebPChunk* const wpi_chunk = *MuxImageGetListFromId(cur_wpi, id);
+    if (wpi_chunk != NULL && wpi_chunk->tag_ == kChunks[id].chunkTag) {
       ++count;
       if (count == nth) return 1;  // Found.
     }

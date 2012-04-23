@@ -18,8 +18,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "webp/decode.h"
+#include "webp/mux.h"
 
 #ifdef __APPLE__
 #include <GLUT/glut.h>
@@ -38,6 +41,7 @@
 static const WebPDecBuffer* kPic = NULL;
 static const char* file_name = NULL;
 static int print_info = 0;
+static int exiting = 0;
 
 //------------------------------------------------------------------------------
 // Callbacks
@@ -48,6 +52,7 @@ static void HandleKey(unsigned char key, int pos_x, int pos_y) {
   if (key == 'q' || key == 'Q' || key == 27 /* Esc */) {
 #ifdef FREEGLUT
     glutLeaveMainLoop();
+    exiting = 1;
 #else
     WebPFreeDecBuffer((WebPDecBuffer*)kPic);
     kPic = NULL;
@@ -112,29 +117,21 @@ static void Show(const WebPDecBuffer* const pic) {
   glutKeyboardFunc(HandleKey);
   glClearColor(0.0, 0.0, 0.0, 0.0);
   HandleReshape(pic->width, pic->height);
-  glutMainLoop();
 }
 
 //------------------------------------------------------------------------------
 // File decoding
 
-static const char* const kStatusMessages[] = {
-  "OK", "OUT_OF_MEMORY", "INVALID_PARAM", "BITSTREAM_ERROR",
-  "UNSUPPORTED_FEATURE", "SUSPENDED", "USER_ABORT", "NOT_ENOUGH_DATA"
-};
-
-static int Decode(const char* const in_file, WebPDecoderConfig* const config) {
-  WebPDecBuffer* const output_buffer = &config->output;
-  WebPBitstreamFeatures* const bitstream = &config->input;
-  VP8StatusCode status = VP8_STATUS_OK;
+static void* ReadFile(const char* const in_file, size_t* size) {
   int ok;
   size_t data_size = 0;
   void* data = NULL;
   FILE* const in = fopen(in_file, "rb");
+  *size = 0;
 
   if (!in) {
     fprintf(stderr, "cannot open input file '%s'\n", in_file);
-    return 0;
+    return NULL;
   }
   fseek(in, 0, SEEK_END);
   data_size = ftell(in);
@@ -143,27 +140,42 @@ static int Decode(const char* const in_file, WebPDecoderConfig* const config) {
   if (data == NULL) return 0;
   ok = (fread(data, data_size, 1, in) == 1);
   fclose(in);
+
   if (!ok) {
     fprintf(stderr, "Could not read %zu bytes of data from file %s\n",
             data_size, in_file);
     free(data);
-    return 0;
+    return NULL;
   }
 
-  status = WebPGetFeatures((const uint8_t*)data, data_size, bitstream);
-  if (status != VP8_STATUS_OK) {
+  *size = data_size;
+  return data;
+}
+
+static int Decode(WebPMux* const mux, const int frame_number,
+                  WebPDecoderConfig* const config,
+                  uint32_t* const duration) {
+  WebPData image;
+  uint32_t x_off = 0, y_off = 0;
+  WebPDecBuffer* const output_buffer = &config->output;
+  int ok = 0;
+
+  WebPFreeDecBuffer((WebPDecBuffer*)kPic);
+  kPic = NULL;
+
+  if (WebPMuxGetFrame(mux, frame_number, &image, NULL,
+                      &x_off, &y_off, duration) != WEBP_MUX_OK) {
     goto end;
   }
-
+  
   output_buffer->colorspace = MODE_RGBA;
-  status = WebPDecode((const uint8_t*)data, data_size, config);
+  ok = (WebPDecode(image.bytes_, image.size_, config) == VP8_STATUS_OK);
 
  end:
-  free(data);
-  ok = (status == VP8_STATUS_OK);
   if (!ok) {
-    fprintf(stderr, "Decoding of %s failed.\n", in_file);
-    fprintf(stderr, "Status: %d (%s)\n", status, kStatusMessages[status]);
+    fprintf(stderr, "Decoding of frame #%d failed!\n", frame_number);
+  } else {
+    kPic = output_buffer;
   }
   return ok;
 }
@@ -187,6 +199,8 @@ static void Help(void) {
 
 int main(int argc, char *argv[]) {
   WebPDecoderConfig config;
+  void* data;
+  size_t size;
   int c;
 
   if (!WebPInitDecoderConfig(&config)) {
@@ -233,19 +247,86 @@ int main(int argc, char *argv[]) {
     Help();
     return -1;
   }
-  if (!Decode(file_name, &config)) {
+  data = ReadFile(file_name, &size);
+  if (data == NULL) {
     return -1;
   }
 
-  kPic = &config.output;
-  printf("Displaying [%s]: %d x %d. Press Esc to exit, 'i' for info.\n",
-         file_name, kPic->width, kPic->height);
+  {
+    uint32_t loop_count = 1, loop_num = 0, duration = 0;
+    uint32_t flags;
+    int num_images;
+    WebPMuxError mux_err;
+    WebPMux* const mux = WebPMuxCreate(data, size, 0, NULL);
+    if (mux == NULL) {
+      printf("Could not create demuxing object!\n");
+      free(data);
+      return -1;
+    }
 
-  glutInit(&argc, argv);
-  Show(kPic);
+    mux_err = WebPMuxGetFeatures(mux, &flags);
+    if (mux_err != WEBP_MUX_OK) {
+      goto End;
+    }
+
+    if (flags & ~ANIMATION_FLAG) {
+      fprintf(stderr, "Only extended format files containing "
+                      "animation are supported for now!\n");
+ End:
+      free(data);
+      WebPMuxDelete(mux);
+      WebPFreeDecBuffer((WebPDecBuffer*)kPic);
+      return -1;
+    }
+    mux_err = WebPMuxGetLoopCount(mux, &loop_count);
+    if (mux_err != WEBP_MUX_OK && mux_err != WEBP_MUX_NOT_FOUND) {
+      goto End;
+    }
+    num_images = 1;
+    mux_err = WebPMuxNumNamedElements(mux, "image", &num_images);
+    if (mux_err != WEBP_MUX_OK && mux_err != WEBP_MUX_NOT_FOUND) {
+      goto End;
+    }
+    printf("Found %d images in file (loop_count = %d)\n",
+           num_images, loop_count);
+
+    glutInit(&argc, argv);
+    for (loop_num = 0; !exiting && loop_num < loop_count; ++loop_num) {
+      struct timeval now;
+      uint64_t now_ms, then_ms;
+      int i;
+
+      for (i = 1; !exiting && i <= num_images; ++i) {
+        if (!Decode(mux, i, &config, &duration)) {
+          goto End;
+        }
+        gettimeofday(&now, NULL);
+        now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+        then_ms = now_ms + duration;
+
+        if (i == 1) {
+          printf("Displaying [%s]: %d x %d. Press Esc to exit, 'i' for info.\n",
+              file_name, kPic->width, kPic->height);
+          Show(kPic);
+        }
+        while (now_ms < then_ms) {
+          gettimeofday(&now, NULL);
+          now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+          if (i > 1) {
+            HandleDisplay();
+          }
+        }
+        glutMainLoopEvent();
+        sleep(0);
+      }
+    }
+    WebPMuxDelete(mux);
+  }
+  if (!exiting) glutMainLoop();
 
   // Should only be reached when using FREEGLUT:
-  WebPFreeDecBuffer(&config.output);
+  free(data);
+  WebPFreeDecBuffer((WebPDecBuffer*)kPic);
   return 0;
 }
 

@@ -44,7 +44,7 @@ EXTRA_LIBS += -lpthread
 EXTRA_FLAGS += -Wextra -Wold-style-definition
 EXTRA_FLAGS += -Wmissing-prototypes
 EXTRA_FLAGS += -Wmissing-declarations
-EXTRA_FLAGS += -Wdeclaration-after-statement
+# EXTRA_FLAGS += -Wdeclaration-after-statement
 # EXTRA_FLAGS += -Wvla
 
 #### Nothing should normally be changed below this line ####
@@ -53,7 +53,7 @@ AR = ar
 ARFLAGS = r
 CC = gcc
 CPPFLAGS = -Isrc/ -Iexamples/ -Wall
-CFLAGS = -O3 -DNDEBUG $(EXTRA_FLAGS)
+CFLAGS = -std=gnu99 -O3 -DNDEBUG $(EXTRA_FLAGS)
 INSTALL = install
 GROFF = /usr/bin/groff
 COL = /usr/bin/col
@@ -88,7 +88,7 @@ HDRS = src/webp/encode.h src/enc/vp8enci.h src/enc/cost.h src/webp/mux.h \
        src/utils/tcoder.h
 
 OUT_LIBS = src/libwebp.a src/mux/libwebpmux.a
-OUT_EXAMPLES = examples/cwebp examples/dwebp examples/webpmux
+OUT_EXAMPLES = examples/cwebp examples/dwebp examples/vwebp examples/webpmux
 
 OUTPUT = $(OUT_LIBS) $(OUT_EXAMPLES)
 
@@ -107,6 +107,7 @@ ex: $(OUT_EXAMPLES)
 
 examples/cwebp: examples/cwebp.o src/libwebp.a
 examples/dwebp: examples/dwebp.o src/libwebp.a
+examples/vwebp: examples/vwebp.o src/mux/libwebpmux.a src/libwebp.a -lglut -lGL
 examples/webpmux: examples/webpmux.o src/mux/libwebpmux.a src/libwebp.a
 
 $(OUT_EXAMPLES):
