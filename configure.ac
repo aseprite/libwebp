@@ -34,11 +34,13 @@ if test -n "$LIBPNG_CONFIG"; then
   fi
 fi
 
-AC_ARG_WITH(pngincludedir,
-            [--with-pngincludedir=DIR use PNG includes from DIR],
+AC_ARG_WITH([pngincludedir],
+            AS_HELP_STRING([--with-pngincludedir=PATH],
+                           [use PNG includes from PATH]),
             PNG_INCLUDES="-I$withval")
-AC_ARG_WITH(pnglibdir,
-            [--with-pnglibdir=DIR    use PNG libraries from DIR],
+AC_ARG_WITH([pnglibdir],
+            AS_HELP_STRING([--with-pnglibdir=PATH],
+                           [use PNG libraries from PATH]),
             [PNG_LIBS="-L$withval"])
 
 SAVED_CPPFLAGS=$CPPFLAGS
@@ -66,11 +68,13 @@ dnl === check for JPEG support ===
 
 JPEG_INCLUDES=""
 JPEG_LIBS=""
-AC_ARG_WITH(jpegincludedir,
-            [--with-jpegincludedir=DIR use JPEG includes from DIR],
+AC_ARG_WITH([jpegincludedir],
+            [AS_HELP_STRING([--with-jpegincludedir=PATH],
+                            [use JPEG includes from PATH])],
             JPEG_INCLUDES="-I$withval")
-AC_ARG_WITH(jpeglibdir,
-            [--with-jpeglibdir=DIR    use JPEG libraries from DIR],
+AC_ARG_WITH([jpeglibdir],
+            AS_HELP_STRING([--with-jpeglibdir=PATH],
+                           [use JPEG libraries from PATH]),
             [JPEG_LIBS="-L$withval"])
 
 SAVED_CPPFLAGS=$CPPFLAGS
@@ -141,7 +145,8 @@ dnl === If --enable-experimental is defined, add the flag WEBP_EXPERIMENTAL_FEAT
 
 USE_EXPERIMENTAL_CODE=""
 AC_MSG_CHECKING(if --enable-experimental option is specified)
-AC_ARG_ENABLE(experimental, [  --enable-experimental         Activate experimental features])
+AC_ARG_ENABLE([experimental], AS_HELP_STRING([--enable-experimental],
+                                             [Activate experimental features]))
 if test "$enable_experimental" = "yes"; then
         AC_DEFINE(EXPERIMENTAL,,[Enable experimental code])
         USE_EXPERIMENTAL_CODE="-DWEBP_EXPERIMENTAL_FEATURES"
