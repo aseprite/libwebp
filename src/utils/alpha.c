@@ -46,7 +46,7 @@ typedef struct {
   if ((TOKEN)->dist == 0) {                                   \
     TCoderEncode(coder, (TOKEN)->literal, NULL);              \
   } else {                                                    \
-    TCoderEncode(coderl, (TOKEN)->len - MIN_LEN, NULL);       \
+    TCoderEncode(coderl, (int)((TOKEN)->len - MIN_LEN), NULL);\
   }                                                           \
 }
 
@@ -66,8 +66,8 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
   Token* const msg = (Token*)malloc(data_size * sizeof(*msg));
   int num_tokens;
   TCoder* const coder = TCoderNew(MAX_SYMBOLS);
-  TCoder* const coderd = TCoderNew(MAX_DIST);
-  TCoder* const coderl = TCoderNew(MAX_LEN - MIN_LEN);
+  TCoder* const coderd = TCoderNew((int)MAX_DIST);
+  TCoder* const coderl = TCoderNew((int)(MAX_LEN - MIN_LEN));
 
   if (coder == NULL || coderd == NULL || coderl == NULL) {
     goto End;
@@ -107,8 +107,8 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
         len = GetLongestMatch(data + pos, data + n, max_len);
         if (len >= MIN_LEN && len >= best.len) {
           // This is the cost of the coding proposal
-          const double cost = TCoderSymbolCost(coderl, len - MIN_LEN)
-                            + TCoderSymbolCost(coderd, dist);
+          const double cost = TCoderSymbolCost(coderl, (int)(len - MIN_LEN))
+                            + TCoderSymbolCost(coderd, (int)dist);
           // We're gaining an extra len-best.len coded message over the last
           // known best. Compute how this would have cost if coded all literal.
           // (TODO: we should fully re-evaluate at position best.len and not
@@ -124,7 +124,7 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
           if (best_cost + lit_cost >= cost) {
             best_cost = cost;
             best.len = len;
-            best.dist = dist;
+            best.dist = (int)dist;
           }
         }
         if (len >= max_len) {
@@ -189,7 +189,7 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
       if (is_literal) {  // literal
         TCoderEncode(coder, t->literal, bw);
       } else {
-        TCoderEncode(coderl, t->len - MIN_LEN, bw);
+        TCoderEncode(coderl, (int)(t->len - MIN_LEN), bw);
       }
     }
     ok = 1;
@@ -362,8 +362,8 @@ static int DecompressZlibTCoder(VP8BitReader* const br, int width,
   const size_t MAX_DIST = 3 * width;
   const size_t MAX_LEN = 2 * width;
   TCoder* const coder = TCoderNew(MAX_SYMBOLS);
-  TCoder* const coderd = TCoderNew(MAX_DIST);
-  TCoder* const coderl = TCoderNew(MAX_LEN - MIN_LEN);
+  TCoder* const coderd = TCoderNew((int)MAX_DIST);
+  TCoder* const coderl = TCoderNew((int)(MAX_LEN - MIN_LEN));
 
   if (coder == NULL || coderd == NULL || coderl == NULL) {
     goto End;
