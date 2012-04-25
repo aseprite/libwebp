@@ -103,6 +103,15 @@ struct VP8Io {
   const uint8_t* a;
 };
 
+// Validates the VP8 data-header and retrieves basic header information viz
+// width and height. Returns 0 in case of formatting error. *width/*height
+// can be passed NULL.
+WEBP_EXTERN(int) VP8GetInfo(
+    const uint8_t* data,
+    size_t data_size,    // data available so far
+    size_t chunk_size,   // total data size expected in the chunk
+    int *width, int *height);
+
 // Internal, version-checked, entry point
 WEBP_EXTERN(int) VP8InitIoInternal(VP8Io* const, int);
 

@@ -290,14 +290,6 @@ struct VP8Decoder {
 int VP8SetError(VP8Decoder* const dec,
                 VP8StatusCode error, const char * const msg);
 
-// Validates the VP8 data-header and retrieves basic header information viz
-// width and height. Returns 0 in case of formatting error. *width/*height
-// can be passed NULL.
-int VP8GetInfo(const uint8_t* data,
-               size_t data_size,    // data available so far
-               size_t chunk_size,   // total data size expect in the chunk
-               int *width, int *height);
-
 // in tree.c
 void VP8ResetProba(VP8Proba* const proba);
 void VP8ParseProba(VP8BitReader* const br, VP8Decoder* const dec);
