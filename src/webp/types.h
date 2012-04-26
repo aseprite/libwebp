@@ -39,4 +39,19 @@ typedef long long int int64_t;
 #define WEBP_EXTERN(type) extern type
 #endif  /* WEBP_EXTERN */
 
+#include <string.h>  // so that 'extern void memcpy(...) is defined first
+#define memcpy(dst, src, size) do {             \
+  uint8_t* const _dst = (uint8_t*)(dst);        \
+  const uint8_t* const _src = (const uint8_t*)(src);  \
+  const size_t _size = (size_t)(size);          \
+  if ((_dst >= _src && _dst < _src + _size) ||  \
+      (_dst < _src && _dst + _size >= _src)) {  \
+    printf("OVERLAP!!\n");  \
+    abort();                \
+  } else {                  \
+    size_t i;               \
+    for (i = 0; i < _size; ++i) _dst[i] = _src[i]; \
+  }                         \
+} while (0)
+
 #endif  /* WEBP_WEBP_TYPES_H_ */
