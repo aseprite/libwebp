@@ -158,13 +158,6 @@ int GetMetaIndex(int huffman_xsize, int bits, const uint32_t* image,
   return image[y * huffman_xsize + x];
 }
 
-static void ReadMetaCodes(BitReader* br,
-                          int* num_trees) {
-  int meta_codes_nbits = ReadBits(br, 4);
-  int num_meta_codes = ReadBits(br, meta_codes_nbits) + 2;
-  *num_trees = num_meta_codes * kHuffmanCodesPerMetaCode;
-}
-
 static const int kCodeLengthCodes = 19;
 static const uint8_t kCodeLengthCodeOrder[kCodeLengthCodes] = {
   17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
@@ -241,17 +234,14 @@ static int ReadHuffmanCode(int alphabet_size,
   int ok = 1;
   const int simple_code = ReadBits(br, 1);
   if (simple_code) {
-    const int nbits = ReadBits(br, 3);
-    if (nbits == 0) {
-      ok = root->AddSymbol(0, 0, 0);
-    } else {
-      int i;
-      const int num_bits = (nbits - 1) * 2 + 4;
-      const int num_symbols = ReadBits(br, 1) + 1;
-      VERIFY(num_bits <= 12);
-      for (i = 0; ok && i < num_symbols; ++i) {
-        ok = root->AddSymbol(ReadBits(br, num_bits), num_symbols - 1, i);
-      }
+    const int num_symbols = ReadBits(br, 1) + 1;
+    const int short_first_code = ReadBits(br, 1);
+    // The first code is either 1 bit or 8 bit code.
+    const int first_code = ReadBits(br, 1 + 7 * short_first_code);
+    ok = root->AddSymbol(first_code, num_symbols - 1, 0);
+    // The second code, when present, is always 8 bit long.
+    if (ok && num_symbols == 2) {
+      ok = root->AddSymbol(ReadBits(br, 8), num_symbols - 1, 1);
     }
     VERIFY(!ok || root->IsFull());
   } else {
@@ -289,6 +279,14 @@ static int DecodeImageInternal(const int original_xsize,
     }
   }
 
+  const bool use_palette = ReadBits(br, 1);
+  const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
+  const int palette_size = use_palette ? 1 << palette_code_bits : 0;
+  VP8LColorCache* hashers = use_palette ? new VP8LColorCache : NULL;
+  if (hashers) {
+    VP8LColorCacheInit(hashers, palette_code_bits);
+  }
+
   bool use_meta_codes = ReadBits(br, 1);
   int huffman_bits = 0;
   uint32_t* huffman_image = NULL;
@@ -299,22 +297,17 @@ static int DecodeImageInternal(const int original_xsize,
     const int huffman_ysize = MetaSize(ysize, huffman_bits);
     DecodeImageInternal(huffman_xsize, huffman_ysize, 0, br, &huffman_image);
     const int huffman_pixels = huffman_xsize * huffman_ysize;
+    int num_meta_codes = 0;
     for (int i = 0; i < huffman_pixels; ++i) {
       // The actual value is stored in red (high bits) and green (low bits).
-      huffman_image[i] >>= 8;
+      const int index = (huffman_image[i] >> 8) & 0xffff;
       // Strip alpha (in bits [24..17]).
-      huffman_image[i] &= 0xffff;
+      huffman_image[i] = index;
+      if (num_meta_codes <= index) num_meta_codes = index + 1;
     }
-    ReadMetaCodes(br, &num_huffman_trees);
+    num_huffman_trees = num_meta_codes * kHuffmanCodesPerMetaCode;
   }
 
-  const bool use_palette = ReadBits(br, 1);
-  const int palette_code_bits = use_palette ? ReadBits(br, 4) : 0;
-  const int palette_size = use_palette ? 1 << palette_code_bits : 0;
-  VP8LColorCache* hashers = use_palette ? new VP8LColorCache : NULL;
-  if (hashers) {
-    VP8LColorCacheInit(hashers, palette_code_bits);
-  }
 
   HuffmanTreeNode *htrees = (HuffmanTreeNode *)
       malloc(num_huffman_trees * sizeof(HuffmanTreeNode));
