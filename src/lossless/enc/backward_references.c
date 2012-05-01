@@ -763,7 +763,7 @@ int CalculateEstimateForPaletteSize(const uint32_t* argb,
                                    0, argb, 0, quality, stream, &stream_size)) {
     goto Error;
   }
-  for (palette_bits = 0; palette_bits < 12; ++palette_bits) {
+  for (palette_bits = 0; palette_bits <= kPaletteCodeBitsMax; ++palette_bits) {
     double cur_entropy;
     Histogram histo;
     HistogramInit(&histo, palette_bits);

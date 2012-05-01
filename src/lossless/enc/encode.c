@@ -264,19 +264,22 @@ static int StoreHuffmanCode(uint8_t* bit_lengths, int bit_lengths_size,
       ++count;
     }
   }
-  if (count <= 2) {
-    int num_bits = 4;
-    // 0, 1 or 2 symbols to encode.
-    WriteBits(1, 1, bw);
-    if (count == 0) {
-      WriteBits(3, 0, bw);
-      return 1;
+  if (count == 0) {
+    count = 1;
+    // implicitly symbols[0] = 0;
+  }
+  if (count <= 2 && symbols[0] < 256 && symbols[1] < 256) {
+    WriteBits(1, 1, bw);  // small tree marker.
+    WriteBits(1, count - 1, bw);  // 1 or 2 symbols to encode.
+    if (symbols[0] <= 1) {
+      WriteBits(1, 0, bw);  // Special code bit for a small symbols[0] value.
+      WriteBits(1, symbols[0], bw);  // Store the symbol as a 1-bit value.
+    } else {
+      WriteBits(1, 1, bw);  // Larger value case.
+      WriteBits(8, symbols[0], bw);  // Store the symbol as an 8-bit value.
     }
-    while (symbols[count - 1] >= (1 << num_bits)) num_bits += 2;
-    WriteBits(3, (num_bits - 4) / 2 + 1, bw);
-    WriteBits(1, count - 1, bw);
-    for (i = 0; i < count; ++i) {
-      WriteBits(num_bits, symbols[i], bw);
+    if (count == 2) {
+      WriteBits(8, symbols[1], bw);  // Store the second symbol.
     }
     return 1;
   }
@@ -759,11 +762,16 @@ static int EncodeImageInternal(int xsize, int ysize,
     goto Error;
   }
 
+  // Palette parameters.
+  WriteBits(1, use_palette, bw);
+  if (use_palette) {
+    WriteBits(4, palette_bits, bw);
+  }
+
   // Huffman image + meta huffman.
   write_histogram_image = (histogram_image_size > 1);
   WriteBits(1, write_histogram_image, bw);
   if (write_histogram_image) {
-    int image_size_bits;
     uint32_t* histogram_argb = (uint32_t*)
         malloc(histogram_image_xysize * sizeof(*histogram_argb));
     if (!histogram_argb) {
@@ -784,15 +792,6 @@ static int EncodeImageInternal(int xsize, int ysize,
                              bw)) {
       goto Error;
     }
-    image_size_bits = BitsLog2Ceiling(histogram_image_size - 1);
-    WriteBits(4, image_size_bits, bw);
-    WriteBits(image_size_bits, histogram_image_size - 2, bw);
-  }
-
-  // Palette parameters.
-  WriteBits(1, use_palette, bw);
-  if (use_palette) {
-    WriteBits(4, palette_bits, bw);
   }
 
   // Store Huffman codes.
