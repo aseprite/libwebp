@@ -223,6 +223,13 @@ static VP8StatusCode ParseVP8Header(const uint8_t** data, size_t* data_size,
     *data += CHUNK_HEADER_SIZE;
     *data_size -= CHUNK_HEADER_SIZE;
     *is_lossless = is_vp8l;
+  } else {
+    // Raw data. Try to validate the bitstreams.
+    *is_lossless = VP8LGetInfo(*data, *data_size, NULL, NULL);
+    if (!*is_lossless &&
+        !VP8GetInfo(*data, *data_size, *chunk_size, NULL, NULL)) {
+      return VP8_STATUS_BITSTREAM_ERROR;
+    }
   }
   return VP8_STATUS_OK;
 }
