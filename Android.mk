@@ -15,7 +15,6 @@ LOCAL_SRC_FILES := \
     src/dec/webp.c \
     src/dsp/cpu.c \
     src/dsp/dec.c \
-    src/dsp/dec_neon.c \
     src/dsp/dec_sse2.c \
     src/dsp/enc.c \
     src/dsp/enc_sse2.c \
@@ -50,6 +49,10 @@ LOCAL_SRC_FILES := \
     src/utils/tcoder.c \
     src/utils/thread.c \
 
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+  LOCAL_SRC_FILES += src/dsp/dec_neon.c.neon
+endif
+
 LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD \
                 -DNOT_HAVE_LOG2 -DWEBP_USE_THREAD \
                 -finline-functions -frename-registers -ffast-math \
@@ -57,10 +60,10 @@ LOCAL_CFLAGS := -Wall -DANDROID -DHAVE_MALLOC_H -DHAVE_PTHREAD \
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/src
 
-ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
-  LOCAL_ARM_NEON  := true
-endif
+LOCAL_STATIC_LIBRARIES := cpufeatures
 
 LOCAL_MODULE:= webp
 
 include $(BUILD_STATIC_LIBRARY)
+
+$(call import-module,android/cpufeatures)
