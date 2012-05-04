@@ -11,6 +11,10 @@
 
 #include "./dsp.h"
 
+#if defined(__ANDROID__)
+#include <cpu-features.h>
+#endif
+
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
@@ -54,11 +58,20 @@ static int x86CPUInfo(CPUFeature feature) {
 }
 VP8CPUInfo VP8GetCPUInfo = x86CPUInfo;
 #elif defined(__ARM_NEON__)
-// define a dummy function to enable turning off NEON at runtime by setting
-// VP8DecGetCPUInfo = NULL
 static int armCPUInfo(CPUFeature feature) {
+#if defined(__ANDROID__)
+  const AndroidCpuFamily cpu_family = android_getCpuFamily();
+  const uint64_t cpu_features = android_getCpuFeatures();
+  if (feature == kNEON) {
+    return cpu_family == ANDROID_CPU_FAMILY_ARM &&
+           0 != (cpu_features & ANDROID_CPU_ARM_FEATURE_NEON);
+  }
+#else
+  // define a dummy function to enable turning off NEON at runtime by setting
+  // VP8DecGetCPUInfo = NULL
   (void)feature;
   return 1;
+#endif  // __ANDROID__
 }
 VP8CPUInfo VP8GetCPUInfo = armCPUInfo;
 #else
