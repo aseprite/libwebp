@@ -55,6 +55,7 @@ ARFLAGS = r
 CC = gcc
 CPPFLAGS = -Isrc/ -Iexamples/ -Wall
 CFLAGS = -O3 -DNDEBUG $(EXTRA_FLAGS)
+CFLAGS = -O0 $(EXTRA_FLAGS)
 INSTALL = install
 GROFF = /usr/bin/groff
 COL = /usr/bin/col
