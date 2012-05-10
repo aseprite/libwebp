@@ -163,11 +163,6 @@ int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
 
   // Build tree.
   if (num_symbols == 1) {  // Trivial case.
-    const int max_symbol = code_lengths_size;
-    if (root_symbol < 0 || root_symbol >= max_symbol) {
-      HuffmanTreeRelease(tree);
-      return 0;
-    }
     return TreeAddSymbol(tree, root_symbol, 0, 0);
   } else {  // Normal case.
     int ok = 0;
@@ -200,7 +195,7 @@ int HuffmanTreeBuildImplicit(HuffmanTree* const tree,
 int HuffmanTreeBuildExplicit(HuffmanTree* const tree,
                              const int* const code_lengths,
                              const int* const codes,
-                             const int* const symbols, int max_symbol,
+                             const int* const symbols,
                              int num_symbols) {
   int ok = 0;
   int i;
@@ -216,9 +211,6 @@ int HuffmanTreeBuildExplicit(HuffmanTree* const tree,
   // Add symbols one-by-one.
   for (i = 0; i < num_symbols; ++i) {
     if (codes[i] != NON_EXISTENT_SYMBOL) {
-      if (symbols[i] < 0 || symbols[i] >= max_symbol) {
-        goto End;
-      }
       if (!TreeAddSymbol(tree, symbols[i], codes[i], code_lengths[i])) {
         goto End;
       }
