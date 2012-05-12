@@ -203,6 +203,59 @@ static int EncodeZlibTCoder(const uint8_t* data, int width, int height,
 
 // -----------------------------------------------------------------------------
 
+#include "../enc/vp8li.h"
+#include "../webp/encode.h"
+#include "../webp/decode.h"
+
+static int MyWriter(const uint8_t* data, size_t data_size,
+                    const WebPPicture* const picture) {
+  VP8BitWriter* const bw = (VP8BitWriter*)picture->custom_ptr;
+  if (data_size > 0) {
+    VP8BitWriterAppend(bw, data, data_size);
+  }
+  return !bw->error_;
+}
+
+static int EncodeLossless(const uint8_t* data, int width, int height,
+                          VP8BitWriter* const bw) {
+
+  int ok = 0;
+  WebPConfig config;
+  WebPPicture picture;
+
+  WebPPictureInit(&picture);
+  picture.width = width;
+  picture.height = height;
+  picture.use_argb_input = 1;
+  if (!WebPPictureAlloc(&picture)) return 0;
+
+  {
+    int i, j;
+    uint32_t* dst = picture.argb;
+    const uint8_t* src = data;
+    for (j = 0; j < picture.height; ++j) {
+      for (i = 0; i < picture.width; ++i) {
+        dst[i] = (src[i] << 8) | 0xff000000u;
+      }
+      src += width;
+      dst += picture.argb_stride;
+    }
+  }
+  picture.writer = MyWriter;
+  picture.custom_ptr = (void*)bw;
+
+  WebPConfigInit(&config);
+  config.lossless = 1;
+  config.method = 2;
+  config.quality = 100;
+
+  ok = WebPEncode(&config, &picture);
+  WebPPictureFree(&picture);
+  return ok && !bw->error_;
+}
+
+// -----------------------------------------------------------------------------
+
 static int EncodeAlphaInternal(const uint8_t* data, int width, int height,
                                int method, int filter, size_t data_size,
                                uint8_t* tmp_alpha, VP8BitWriter* const bw) {
@@ -228,8 +281,11 @@ static int EncodeAlphaInternal(const uint8_t* data, int width, int height,
   if (method == 0) {
     ok = VP8BitWriterAppend(bw, alpha_src, width * height);
     ok = ok && !bw->error_;
-  } else {
+  } else if (method == 1) {
     ok = EncodeZlibTCoder(alpha_src, width, height, bw);
+    VP8BitWriterFinish(bw);
+  } else {
+    ok = EncodeLossless(alpha_src, width, height, bw);
     VP8BitWriterFinish(bw);
   }
   return ok;
@@ -264,7 +320,7 @@ int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
     return 0;
   }
 
-  if (method < 0 || method > 1) {
+  if (method < 0 || method > 2) {
     return 0;
   }
 
@@ -417,8 +473,7 @@ int DecodeAlpha(const uint8_t* data, size_t data_size,
   method = data[0] & 0x0f;
   filter = data[0] >> 4;
   ok = (data[1] == 0);
-  if (method < 0 || method > 1 ||
-      filter > WEBP_FILTER_GRADIENT || !ok) {
+  if (method < 0 || method > 2 || filter > WEBP_FILTER_GRADIENT || !ok) {
     return 0;
   }
 
@@ -433,7 +488,28 @@ int DecodeAlpha(const uint8_t* data, size_t data_size,
     }
     VP8InitBitReader(&br, data + ALPHA_HEADER_LEN, data + data_size);
     ok = DecompressZlibTCoder(&br, width, decoded_data, decoded_size);
+  } else {
+    size_t i;
+    int w, h;
+    uint32_t* const output =
+        (uint32_t*)WebPDecodeRGBA(data + ALPHA_HEADER_LEN,
+                                  data_size - ALPHA_HEADER_LEN,
+                                  &w, &h);
+    if (w != width || h != height || output == NULL) {
+      free(output);
+      return 0;
+    }
+    decoded_data = (uint8_t*)malloc(decoded_size);
+    if (decoded_data == NULL) {
+      free(output);
+      return 0;
+    }
+    for (i = 0; i < decoded_size; ++i) {
+      decoded_data[i] = (output[i] >> 8) & 0xff;
+    }
+    free(output);
   }
+
   if (ok) {
     WebPFilterFunc unfilter_func = WebPUnfilters[filter];
     if (unfilter_func) {
