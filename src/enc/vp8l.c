@@ -271,21 +271,53 @@ static int GetHuffBitLengthsAndCodes(
     uint16_t** const bit_codes, uint8_t** const bit_lengths) {
   int i, k;
   int ok = 1;
+  int total_length_size = 0;
+  uint8_t* mem_buf = NULL;
   const int histogram_image_size = histogram_image->size;
+
+  // Iterate over all histograms and get the aggregate number of codes used.
   for (i = 0; i < histogram_image_size; ++i) {
     VP8LHistogram* const histo = histogram_image->histograms[i];
     const int num_literals = VP8LHistogramNumCodes(histo);
     k = 0;
-    // TODO(vikasa): Alloc one big buffer instead of allocating in the loop.
     bit_length_sizes[5 * i] = num_literals;
-    bit_lengths[5 * i] = (uint8_t*)calloc(num_literals, 1);
-    bit_codes[5 * i] = (uint16_t*)
-        malloc(num_literals * sizeof(*bit_codes[5 * i]));
-    if (bit_lengths[5 * i] == NULL || bit_codes[5 * i] == NULL) {
+    total_length_size += num_literals;
+    for (k = 1; k < 5; ++k) {
+      const int val = (k == 4) ? DISTANCE_CODES_MAX : 256;
+      bit_length_sizes[5 * i + k] = val;
+      total_length_size += val;
+    }
+  }
+
+  // Allocate and Set bit_lengths and bit_codes.
+  {
+    const size_t bit_code_size = sizeof(*bit_codes[0]);
+    const size_t bit_length_size = sizeof(*bit_lengths[0]);
+    const size_t bit_codes_size = total_length_size * bit_code_size;
+    const size_t bit_lengths_size = total_length_size * bit_length_size;
+    const size_t total_buf_size = bit_codes_size + bit_lengths_size;
+    int bit_codes_offset = 0;
+    int bit_lengths_offset = bit_codes_size;
+
+    mem_buf = (uint8_t*)calloc(total_buf_size, 1);
+    if (mem_buf == NULL) {
       ok = 0;
       goto Error;
     }
+    for (i = 0; i < 5 * histogram_image_size; ++i) {
+      const int bit_length = bit_length_sizes[i];
+      bit_codes[i] = (uint16_t*)&mem_buf[bit_codes_offset];
+      bit_codes_offset += bit_length * bit_code_size;
+      bit_lengths[i] = &mem_buf[bit_lengths_offset];
+      bit_lengths_offset += bit_length * bit_length_size;
+    }
+  }
 
+  // Create Huffman trees.
+  for (i = 0; i < histogram_image_size; ++i) {
+    const int ix = 5 * i;
+    VP8LHistogram* const histo = histogram_image->histograms[i];
+    const int num_literals = bit_length_sizes[ix];
     // For each component, optimize histogram for Huffman with RLE compression.
     ok = ok && OptimizeHuffmanForRle(num_literals, histo->literal_);
     if (!use_color_cache) {
@@ -295,53 +327,38 @@ static int GetHuffBitLengthsAndCodes(
       // palette entry, so zero it out.
       histo->literal_[256 + kLengthCodes] = 0;
     }
-    ok = ok && OptimizeHuffmanForRle(256, histo->red_);
-    ok = ok && OptimizeHuffmanForRle(256, histo->blue_);
-    ok = ok && OptimizeHuffmanForRle(256, histo->alpha_);
-    ok = ok && OptimizeHuffmanForRle(DISTANCE_CODES_MAX, histo->distance_);
-
     // Create a Huffman tree (in the form of bit lengths) for each component.
-    ok = ok && VP8LCreateHuffmanTree(histo->literal_, num_literals,
-                                     15, bit_lengths[5 * i]);
-    for (k = 1; k < 5; ++k) {
-      const int val = (k == 4) ? DISTANCE_CODES_MAX : 256;
-      bit_length_sizes[5 * i + k] = val;
-      bit_lengths[5 * i + k] = (uint8_t*)calloc(val, 1);
-      bit_codes[5 * i + k] = (uint16_t*)calloc(val, sizeof(*bit_codes[0]));
-      if (bit_lengths[5 * i + k] == NULL ||
-          bit_codes[5 * i + k] == NULL) {
-        ok = 0;
-        goto Error;
-      }
-    }
-    ok = ok &&
-        VP8LCreateHuffmanTree(histo->red_, 256, 15,
-                              bit_lengths[5 * i + 1]) &&
-        VP8LCreateHuffmanTree(histo->blue_, 256, 15,
-                              bit_lengths[5 * i + 2]) &&
-        VP8LCreateHuffmanTree(histo->alpha_, 256, 15,
-                              bit_lengths[5 * i + 3]) &&
-        VP8LCreateHuffmanTree(histo->distance_, DISTANCE_CODES_MAX, 15,
-                              bit_lengths[5 * i + 4]);
+    ok = ok && VP8LCreateHuffmanTree(histo->literal_, num_literals, 15,
+                                     bit_lengths[ix]);
+
+    ok = ok && OptimizeHuffmanForRle(256, histo->red_);
+    ok = ok && VP8LCreateHuffmanTree(histo->red_, 256, 15,
+                                     bit_lengths[ix + 1]);
+
+    ok = ok && OptimizeHuffmanForRle(256, histo->blue_);
+    ok = ok && VP8LCreateHuffmanTree(histo->blue_, 256, 15,
+                                     bit_lengths[ix + 2]);
+
+    ok = ok && OptimizeHuffmanForRle(256, histo->alpha_);
+    ok = ok && VP8LCreateHuffmanTree(histo->alpha_, 256, 15,
+                                     bit_lengths[ix + 3]);
+
+    ok = ok && OptimizeHuffmanForRle(DISTANCE_CODES_MAX, histo->distance_);
+    ok = ok && VP8LCreateHuffmanTree(histo->distance_, DISTANCE_CODES_MAX, 15,
+                                     bit_lengths[ix + 4]);
+
     // Create the actual bit codes for the bit lengths.
     for (k = 0; k < 5; ++k) {
-      int ix = 5 * i + k;
-      VP8LConvertBitDepthsToSymbols(bit_lengths[ix], bit_length_sizes[ix],
-                                    bit_codes[ix]);
+      VP8LConvertBitDepthsToSymbols(bit_lengths[ix + k],
+                                    bit_length_sizes[ix + k],
+                                    bit_codes[ix + k]);
     }
   }
   return ok;
 
  Error:
-  {
-    int idx;
-    for (idx = 0; idx <= 5 * i + k; ++idx) {
-      free(bit_lengths[idx]);
-      free(bit_codes[idx]);
-      bit_lengths[idx] = NULL;
-      bit_codes[idx] = NULL;
-    }
-  }
+  free(mem_buf);
+
   return 0;
 }
 
@@ -688,12 +705,9 @@ static int EncodeImageInternal(VP8LBitWriter* const bw,
   if (!ok) free(histogram_image);
 
   VP8LClearBackwardRefs(&refs);
-  for (i = 0; i < bit_array_size; ++i) {
-    free(bit_lengths[i]);
-    free(bit_codes[i]);
-  }
   free(bit_lengths_sizes);
   free(bit_lengths);
+  free(*bit_codes);
   free(bit_codes);
   free(histogram_symbols);
   return ok;
