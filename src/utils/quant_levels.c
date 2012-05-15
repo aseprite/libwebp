@@ -127,7 +127,6 @@ int QuantizeLevels(uint8_t* data, int width, int height,
     // once for all before remapping. We also perform the data[] -> slot
     // mapping, while at it (avoid one indirection in the final loop).
     uint8_t map[NUM_SYMBOLS];
-    int s;
     for (s = min_s; s <= max_s; ++s) {
       const int slot = q_level[s];
       map[s] = (uint8_t)(inv_q_level[slot] + .5);

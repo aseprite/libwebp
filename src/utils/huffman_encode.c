@@ -57,7 +57,7 @@ static int OptimizeHuffmanForRle(int length, int* const counts) {
     // Mark any seq of 0's that is longer as 5 as a good_for_rle.
     // Mark any seq of non-0's that is longer as 7 as a good_for_rle.
     int symbol = counts[0];
-    int stride = 0;
+    stride = 0;
     for (i = 0; i < length + 1; ++i) {
       if (i == length || counts[i] != symbol) {
         if ((symbol == 0 && stride >= 5) ||
@@ -266,7 +266,6 @@ static int GenerateOptimalTree(const int* const histogram, int histogram_size,
     {
       // Test if this Huffman tree satisfies our 'tree_depth_limit' criteria.
       int max_depth = bit_depths[0];
-      int j;
       for (j = 1; j < histogram_size; ++j) {
         if (max_depth < bit_depths[j]) {
           max_depth = bit_depths[j];
