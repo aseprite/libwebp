@@ -390,7 +390,7 @@ static WebPMuxError MuxAddFrameTileInternal(
   image_info = NULL;  // Owned by 'chunk' now.
   err = ChunkSetNth(&chunk, &wpi.img_, 1);
   if (err != WEBP_MUX_OK) goto Err;
-  ChunkInit(&chunk);  // chunk owned by wpi.vp8_ now.
+  ChunkInit(&chunk);  // chunk owned by wpi.img_ now.
 
   // Create frame/tile data from image_info.
   err = CreateDataFromImageInfo(wpi.img_->image_info_, is_frame,
@@ -622,6 +622,10 @@ static WebPMuxError CreateVP8XChunk(WebPMux* const mux) {
 
   err = GetImageCanvasWidthHeight(mux, flags, &width, &height);
   if (err != WEBP_MUX_OK) return err;
+
+  if (HasLosslessImages(images)) {
+    flags |= ALPHA_FLAG;  // Force ALPHA_FLAG in case of lossless.
+  }
 
   PutLE32(data + 0, flags);   // VP8X chunk flags.
   PutLE32(data + 4, width);   // canvas width.

@@ -257,6 +257,9 @@ size_t MuxImageListDiskSize(const WebPMuxImage* wpi_list);
 // Write out the given list of images into 'dst'.
 uint8_t* MuxImageListEmit(const WebPMuxImage* wpi_list, uint8_t* dst);
 
+// Checks if the given image list contains at least one lossless image.
+int HasLosslessImages(const WebPMuxImage* images);
+
 //------------------------------------------------------------------------------
 // Helper methods for mux.
 
