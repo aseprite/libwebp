@@ -193,7 +193,7 @@ while (ReadBits(1)) {  // Transform present.
   ...
 }
 
-// Decode actual image data (section 4).
+// Decode actual image data (Section 4).
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If a transform is present then the next two bits specify the transform
@@ -225,7 +225,7 @@ prediction to use. We divide the image into squares and all the pixels
 in a square use same prediction mode.
 
 The first 4 bits of prediction data define the block width and height in
-number of bits. The number of block columns, _block_xsize_, is used in
+number of bits. The number of block columns, `block_xsize`, is used in
 indexing two-dimensionally.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -239,7 +239,8 @@ int block_xsize = DIV_ROUND_UP(image_width, 1 << size_bits);
 The transform data contains the prediction mode for each block of the
 image. All the `block_width * block_height` pixels of a block use same
 prediction mode. The prediction modes are treated as pixels of an image
-and encoded using the same techniques described in Chapter 4.
+and encoded using the same techniques described in
+[Chapter 4](#image-data).
 
 For a pixel _x, y_, one can compute the respective filter block address
 by:
@@ -446,7 +447,8 @@ int block_height = 1 << size_bits;
 The remaining part of the color transform data contains
 `ColorTransformElement` instances corresponding to each block of the
 image. `ColorTransformElement` instances are treated as pixels of an
-image and encoded using the methods described in Chapter 4.
+image and encoded using the methods described in
+[Chapter 4](#image-data).
 
 During decoding, `ColorTransformElement` instances of the blocks are
 decoded and the inverse color transform is applied on the ARGB values of
@@ -534,7 +536,7 @@ subtraction-coded to reduce image entropy. The deltas of palette colors
 contain typically much less entropy than the colors themselves, leading
 to significant savings for smaller images. In decoding, every final
 color in the color table can be obtained by adding the previous color
-component values by each ARGB-component separately, and storing the
+component values by each ARGB component separately, and storing the
 least significant 8 bits of the result.
 
 The inverse transform for the image is simply replacing the pixel values
@@ -619,9 +621,10 @@ an entropy code, and in order to minimize this cost, statistically
 similar blocks can share an entropy code. The blocks sharing an entropy
 code can be found by clustering their statistical properties, or by
 repeatedly joining two randomly selected clusters when it reduces the
-overall amount of bits needed to encode the image. [See the section
-_Decoding of Meta Huffman Codes" in Chapter 5 for an explanation of
-how this entropy image is stored.]
+overall amount of bits needed to encode the image. See the section
+[Decoding of Meta Huffman Codes](#decoding-of-meta-huffman-codes) in 
+[Chapter 5](#entropy-code) for an explanation of how this entropy image
+is stored.
 
 Each pixel is encoded using one of three possible methods:
 
@@ -635,7 +638,7 @@ Each pixel is encoded using one of three possible methods:
 In the following sections we introduce the main concepts in LZ77 prefix
 coding, LZ77 entropy coding, LZ77 distance mapping, and color cache
 codes. The actual details of the entropy code are described in more
-detail in Chapter 5.
+detail in [Chapter 5](#entropy-code).
 
 
 ### LZ77 Prefix Coding
@@ -883,7 +886,7 @@ Huffman codes there are. There are always 5 times the number of Huffman
 codes to the number of meta Huffman codes.
 
 
-### Decoding of meta Huffman codes
+### Decoding of Meta Huffman Codes
 
 There are two ways to code the meta Huffman codes, indicated by one bit
 for the ARGB image and is an implicit zero, i.e., not present in the
@@ -929,12 +932,12 @@ meta_codes[(entropy_image[(y >> huffman_bits) * huffman_xsize +
                           (x >> huffman_bits)] >> 8) & 0xffff]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `_huffman_code[5 * meta_code + k]_, codes with _k_ == 0 are for the
+The _huffman_code[5 * meta_code + k]_, codes with _k_ == 0 are for the
 green & length code, _k_ == 4 for the distance code, and the codes at
 _k_ == 1, 2, and 3, are for codes of length 256 for red, blue and alpha,
 respectively.
 
-The value of k for the reference position in `meta_code` determines the
+The value of _k_ for the reference position in `meta_code` determines the
 length of the Huffman code:
 
   * k = 0; length = 256 + 24 + cache_size
