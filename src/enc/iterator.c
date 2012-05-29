@@ -72,7 +72,7 @@ void VP8IteratorInit(VP8Encoder* const enc, VP8EncIterator* const it) {
 int VP8IteratorProgress(const VP8EncIterator* const it, int delta) {
   if (delta && it->enc_->pic_->progress_hook) {
     const int percent = it->percent0_ + delta * it->y_ / (it->enc_->mb_h_ - 1);
-    return WebPReportProgress(it->enc_, percent);
+    return WebPReportProgress(it->enc_->pic_, percent, &it->enc_->percent_);
   }
   return 1;
 }
