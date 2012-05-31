@@ -92,7 +92,7 @@ typedef enum {
 
 // Internal, version-checked, entry point
 WEBP_EXTERN(int) WebPConfigInitInternal(
-    WebPConfig* const, WebPPreset, float, int);
+    WebPConfig* const config, WebPPreset preset, float quality, int version);
 
 // Should always be called, to initialize a fresh WebPConfig structure before
 // modification. Returns 0 in case of version mismatch. WebPConfigInit() must
@@ -224,7 +224,8 @@ struct WebPPicture {
 };
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(int) WebPPictureInitInternal(WebPPicture* const, int);
+WEBP_EXTERN(int) WebPPictureInitInternal(WebPPicture* const picture,
+                                         int version);
 
 // Should always be called, to initialize the structure. Returns 0 in case of
 // version mismatch. WebPPictureInit() must have succeeded before using the

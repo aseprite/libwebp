@@ -93,7 +93,7 @@ typedef struct {
 // Life of a Mux object
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(WebPMux*) WebPNewInternal(int);
+WEBP_EXTERN(WebPMux*) WebPNewInternal(int version);
 
 // Creates an empty mux object.
 // Returns:
@@ -111,8 +111,9 @@ WEBP_EXTERN(void) WebPMuxDelete(WebPMux* const mux);
 // Mux creation.
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(WebPMux*) WebPMuxCreateInternal(const uint8_t*, size_t,
-                                            int, WebPMuxState* const, int);
+WEBP_EXTERN(WebPMux*) WebPMuxCreateInternal(
+    const uint8_t* data, size_t size,
+    int copy_data, WebPMuxState* const state, int version);
 
 // Creates a mux object from raw data given in WebP RIFF format.
 // Parameters:

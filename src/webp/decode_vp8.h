@@ -104,7 +104,7 @@ struct VP8Io {
 };
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(int) VP8InitIoInternal(VP8Io* const, int);
+WEBP_EXTERN(int) VP8InitIoInternal(VP8Io* const io, int version);
 
 // Set the custom IO function pointers and user-data. The setter for IO hooks
 // should be called before initiating incremental decoding. Returns true if

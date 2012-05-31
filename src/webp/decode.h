@@ -150,7 +150,8 @@ typedef struct {
 } WebPDecBuffer;
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(int) WebPInitDecBufferInternal(WebPDecBuffer* const, int);
+WEBP_EXTERN(int) WebPInitDecBufferInternal(WebPDecBuffer* const buffer,
+                                           int version);
 
 // Initialize the structure as empty. Must be called before any other use.
 // Returns false in case of version mismatch
@@ -326,7 +327,8 @@ typedef struct {
 
 // Internal, version-checked, entry point
 WEBP_EXTERN(VP8StatusCode) WebPGetFeaturesInternal(
-    const uint8_t*, size_t, WebPBitstreamFeatures* const, int);
+    const uint8_t* data, size_t data_size,
+    WebPBitstreamFeatures* const features, int version);
 
 // Retrieve features from the bitstream. The *features structure is filled
 // with information gathered from the bitstream.
@@ -362,7 +364,8 @@ typedef struct {
 } WebPDecoderConfig;
 
 // Internal, version-checked, entry point
-WEBP_EXTERN(int) WebPInitDecoderConfigInternal(WebPDecoderConfig* const, int);
+WEBP_EXTERN(int) WebPInitDecoderConfigInternal(WebPDecoderConfig* const config,
+                                               int version);
 
 // Initialize the configuration as empty. This function must always be
 // called first, unless WebPGetFeatures() is to be called.
