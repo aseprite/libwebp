@@ -302,7 +302,7 @@ static void DeleteHtreeGroups(HTreeGroup* htree_groups, int num_htree_groups) {
 }
 
 static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
-                            int color_cache_bits) {
+                            int color_cache_bits, int allow_recursion) {
   int i, j;
   VP8LBitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
@@ -311,23 +311,28 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
   int num_htree_groups = 1;
 
   if (VP8LReadBits(br, 1)) {      // use meta Huffman codes
-    const int huffman_precision = VP8LReadBits(br, 3) + 2;
-    const int huffman_xsize = VP8LSubSampleSize(xsize, huffman_precision);
-    const int huffman_ysize = VP8LSubSampleSize(ysize, huffman_precision);
-    const int huffman_pixs = huffman_xsize * huffman_ysize;
-
-    if (!DecodeImageStream(huffman_xsize, huffman_ysize, 0, dec,
-                           &huffman_image)) {
+    if (!allow_recursion) {
       dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
       goto Error;
-    }
-    hdr->huffman_subsample_bits_ = huffman_precision;
-    for (i = 0; i < huffman_pixs; ++i) {
-      // The huffman data is stored in red and green bytes.
-      const int index = (huffman_image[i] >> 8) & 0xffff;
-      huffman_image[i] = index;
-      if (index >= num_htree_groups) {
-        num_htree_groups = index + 1;
+    } else {
+      const int huffman_precision = VP8LReadBits(br, 3) + 2;
+      const int huffman_xsize = VP8LSubSampleSize(xsize, huffman_precision);
+      const int huffman_ysize = VP8LSubSampleSize(ysize, huffman_precision);
+      const int huffman_pixs = huffman_xsize * huffman_ysize;
+
+      if (!DecodeImageStream(huffman_xsize, huffman_ysize, 0, dec,
+                             &huffman_image)) {
+        dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+        goto Error;
+      }
+      hdr->huffman_subsample_bits_ = huffman_precision;
+      for (i = 0; i < huffman_pixs; ++i) {
+        // The huffman data is stored in red and green bytes.
+        const int index = (huffman_image[i] >> 8) & 0xffff;
+        huffman_image[i] = index;
+        if (index >= num_htree_groups) {
+          num_htree_groups = index + 1;
+        }
       }
     }
   }
@@ -862,7 +867,7 @@ static int DecodeImageStream(int xsize, int ysize,
 
   // Read the Huffman codes (may recurse).
   ok = ok && ReadHuffmanCodes(dec, transform_xsize, transform_ysize,
-                              color_cache_bits);
+                              color_cache_bits, is_level0);
   if (!ok) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     goto End;
