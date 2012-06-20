@@ -45,6 +45,7 @@ int WebPConfigInitInternal(WebPConfig* const config,
   config->alpha_filtering = 1;
   config->alpha_quality = 100;
   config->lossless = 0;
+  config->preset = preset;
 
   // TODO(skal): tune.
   switch (preset) {

@@ -46,6 +46,17 @@ WEBP_EXTERN(size_t) WebPEncodeBGRA(const uint8_t* bgra,
 //------------------------------------------------------------------------------
 // Coding parameters
 
+// Enumerate some predefined settings for WebPConfig, depending on the type
+// of source picture. These presets are used when calling WebPConfigPreset().
+typedef enum {
+  WEBP_PRESET_DEFAULT = 0,  // default preset.
+  WEBP_PRESET_PICTURE,      // digital picture, like portrait, inner shot
+  WEBP_PRESET_PHOTO,        // outdoor photograph, with natural lighting
+  WEBP_PRESET_DRAWING,      // hand or line drawing, with high-contrast details
+  WEBP_PRESET_ICON,         // small-sized colorful images
+  WEBP_PRESET_TEXT          // text-like
+} WebPPreset;
+
 typedef struct {
   float quality;         // between 0 (smallest file) and 100 (biggest)
   int target_size;       // if non-zero, set the desired target size in bytes.
@@ -76,19 +87,9 @@ typedef struct {
                           //  0: none, 1: fast, 2: best. Default if 1.
   int alpha_quality;      // Between 0 (smallest size) and 100 (lossless).
                           // Default is 100.
+  WebPPreset preset;      // Hint for image type.
   int lossless;           // Lossless encoding (0=lossy(default), 1=lossless).
 } WebPConfig;
-
-// Enumerate some predefined settings for WebPConfig, depending on the type
-// of source picture. These presets are used when calling WebPConfigPreset().
-typedef enum {
-  WEBP_PRESET_DEFAULT = 0,  // default preset.
-  WEBP_PRESET_PICTURE,      // digital picture, like portrait, inner shot
-  WEBP_PRESET_PHOTO,        // outdoor photograph, with natural lighting
-  WEBP_PRESET_DRAWING,      // hand or line drawing, with high-contrast details
-  WEBP_PRESET_ICON,         // small-sized colorful images
-  WEBP_PRESET_TEXT          // text-like
-} WebPPreset;
 
 // Internal, version-checked, entry point
 WEBP_EXTERN(int) WebPConfigInitInternal(

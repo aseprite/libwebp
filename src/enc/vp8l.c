@@ -126,7 +126,7 @@ static int AnalyzeEntropy(const uint32_t* const argb, int xsize, int ysize,
   return 1;
 }
 
-static int VP8LEncAnalyze(VP8LEncoder* const enc) {
+static int VP8LEncAnalyze(VP8LEncoder* const enc, WebPPreset preset) {
   const WebPPicture* const pic = enc->pic_;
   assert(pic != NULL && pic->argb != NULL);
 
@@ -134,13 +134,18 @@ static int VP8LEncAnalyze(VP8LEncoder* const enc) {
         AnalyzeAndCreatePalette(pic->argb, pic->width * pic->height,
                                 enc->palette_, &enc->palette_size_);
   if (!enc->use_palette_) {
-    double non_pred_entropy, pred_entropy;
-    if (!AnalyzeEntropy(pic->argb, pic->width, pic->height,
-                        &non_pred_entropy, &pred_entropy)) {
-      return 0;
-    }
+    if (preset == WEBP_PRESET_DEFAULT) {
+      double non_pred_entropy, pred_entropy;
+      if (!AnalyzeEntropy(pic->argb, pic->width, pic->height,
+                          &non_pred_entropy, &pred_entropy)) {
+        return 0;
+      }
 
-    if (pred_entropy < 0.95 * non_pred_entropy) {
+      if (pred_entropy < 0.95 * non_pred_entropy) {
+        enc->use_predict_ = 1;
+        enc->use_cross_color_ = 1;
+      }
+    } else if (preset == WEBP_PRESET_PHOTO) {
       enc->use_predict_ = 1;
       enc->use_cross_color_ = 1;
     }
@@ -926,7 +931,7 @@ WebPEncodingError VP8LEncodeStream(const WebPConfig* const config,
   // ---------------------------------------------------------------------------
   // Analyze image (entropy, num_palettes etc)
 
-  if (!VP8LEncAnalyze(enc)) {
+  if (!VP8LEncAnalyze(enc, config->preset)) {
     err = VP8_ENC_ERROR_OUT_OF_MEMORY;
     goto Error;
   }
