@@ -853,10 +853,18 @@ int WebPDemuxGetChunk(const WebPDemuxer* const dmux,
   return SetChunk(fourcc, chunk_num, iter);
 }
 
-int WebPDemuxSetChunk(WebPChunkIterator* const iter, int chunk) {
+int WebPDemuxNextChunk(WebPChunkIterator* const iter) {
   if (iter != NULL) {
     const uint8_t* const header = iter->chunk_.bytes_ - CHUNK_HEADER_SIZE;
-    return SetChunk((const char*)header, chunk, iter);
+    return SetChunk((const char*)header, iter->chunk_num_ + 1, iter);
+  }
+  return 0;
+}
+
+int WebPDemuxPrevChunk(WebPChunkIterator* const iter) {
+  if (iter != NULL && iter->chunk_num_ > 1) {
+    const uint8_t* const header = iter->chunk_.bytes_ - CHUNK_HEADER_SIZE;
+    return SetChunk((const char*)header, iter->chunk_num_ - 1, iter);
   }
   return 0;
 }
