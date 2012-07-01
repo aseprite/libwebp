@@ -251,7 +251,8 @@ void VP8LWriteBits(VP8LBitWriter* const bw, int n_bits, uint32_t bits) {
         *p++ = bits >> (16 - bits_reserved_in_first_byte);
       }
     }
-    *p = 0;
+    assert(n_bits <= 25);
+    *p = bits >> (24 - bits_reserved_in_first_byte);
     bw->bit_pos_ += n_bits;
   }
 #endif  // BIG_ENDIAN
