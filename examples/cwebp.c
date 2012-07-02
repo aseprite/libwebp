@@ -64,11 +64,13 @@ extern void* VP8GetCPUInfo;   // opaque forward declaration.
 static int verbose = 0;
 
 static int ReadYUV(FILE* in_file, WebPPicture* const pic) {
+  const int use_argb_input = pic->use_argb_input;
   const int uv_width = (pic->width + 1) / 2;
   const int uv_height = (pic->height + 1) / 2;
   int y;
   int ok = 0;
 
+  pic->use_argb_input = 0;
   if (!WebPPictureAlloc(pic)) return ok;
 
   for (y = 0; y < pic->height; ++y) {
@@ -84,7 +86,7 @@ static int ReadYUV(FILE* in_file, WebPPicture* const pic) {
     if (fread(pic->v + y * pic->uv_stride, uv_width, 1, in_file) != 1)
       goto End;
   }
-  ok = 1;
+  ok = use_argb_input ? WebPPictureYUVAToARGB(pic) : 1;
 
  End:
   return ok;
