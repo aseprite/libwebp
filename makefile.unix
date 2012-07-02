@@ -12,8 +12,8 @@
 
 # These flag assume you have libpng and libjpeg installed. If not, either
 # follow below install instructions or just comment out the next lines.
-EXTRA_FLAGS= -DWEBP_HAVE_PNG -DWEBP_HAVE_JPEG
-EXTRA_LIBS= -lpng -ljpeg -lz
+EXTRA_FLAGS= -DWEBP_HAVE_PNG -DWEBP_HAVE_JPEG -DWEBP_HAVE_TIFF
+EXTRA_LIBS= -lpng -ltiff -ljpeg -lz
 ifeq ($(strip $(shell uname)), Darwin)
   # Work around a problem linking tables marked as common symbols,
   # cf., src/enc/yuv.[hc]
