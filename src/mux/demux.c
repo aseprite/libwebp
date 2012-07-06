@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-#define MKFOURCC(a, b, c, d) ((uint32_t)(a) | (b) << 8 | (c) << 16 | (d) << 24)
-
 typedef struct {
   size_t start_;        // start location of the data
   size_t end_;          // end location
