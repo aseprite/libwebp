@@ -15,12 +15,11 @@
 
 #include "../webp/decode.h"  // WebPGetInfo
 #include "../webp/format_constants.h"
+#include "./muxi.h"  // GetLE16,24,32 and MKFOURCC.
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
-
-#define MKFOURCC(a, b, c, d) ((uint32_t)(a) | (b) << 8 | (c) << 16 | (d) << 24)
 
 typedef struct {
   size_t start_;        // start location of the data
@@ -133,30 +132,26 @@ static WEBP_INLINE uint8_t GetByte(MemBuffer* const mem) {
   return byte;
 }
 
-static WEBP_INLINE int ReadLE24s(const uint8_t* const data) {
-  return (int)(data[0] << 0) | (data[1] << 8) | (data[2] << 16);
-}
-
-static WEBP_INLINE uint32_t ReadLE32(const uint8_t* const data) {
-  return (uint32_t)ReadLE24s(data) | (data[3] << 24);
+// In addition to reading, skip the read bytes.
+static WEBP_INLINE int GetLE16s(MemBuffer* const mem) {
+  const uint8_t* const data = mem->buf_ + mem->start_;
+  const int val = GetLE16(data);
+  Skip(mem, 2);
+  return val;
 }
 
 static WEBP_INLINE int GetLE24s(MemBuffer* const mem) {
   const uint8_t* const data = mem->buf_ + mem->start_;
-  const uint32_t val = ReadLE24s(data);
+  const int val = GetLE24(data);
   Skip(mem, 3);
   return val;
 }
 
-static WEBP_INLINE uint32_t GetLE32(MemBuffer* const mem) {
+static WEBP_INLINE uint32_t GetLE32s(MemBuffer* const mem) {
   const uint8_t* const data = mem->buf_ + mem->start_;
-  const uint32_t val = ReadLE32(data);
+  const uint32_t val = GetLE32(data);
   Skip(mem, 4);
   return val;
-}
-
-static WEBP_INLINE int GetLE32s(MemBuffer* const mem) {
-  return (int)GetLE32(mem);
 }
 
 // -----------------------------------------------------------------------------
@@ -196,8 +191,8 @@ static ParseStatus StoreFrame(int frame_num, MemBuffer* const mem,
 
   do {
     const size_t chunk_start_offset = mem->start_;
-    const uint32_t fourcc = GetLE32(mem);
-    const uint32_t payload_size = GetLE32(mem);
+    const uint32_t fourcc = GetLE32s(mem);
+    const uint32_t payload_size = GetLE32s(mem);
     const uint32_t payload_size_padded = payload_size + (payload_size & 1);
     const size_t payload_available = (payload_size_padded > MemDataSize(mem))
                                    ? MemDataSize(mem) : payload_size_padded;
@@ -289,12 +284,15 @@ static ParseStatus ParseFrame(
       NewFrame(mem, min_size, FRAME_CHUNK_SIZE, frame_chunk_size, &frame);
   if (status != PARSE_OK) return status;
 
-  frame->x_offset_ = GetLE32s(mem);
-  frame->y_offset_ = GetLE32s(mem);
-  frame->width_    = GetLE32s(mem);
-  frame->height_   = GetLE32s(mem);
-  frame->duration_ = GetLE32s(mem);
+  frame->x_offset_ = 2 * GetLE24s(mem);
+  frame->y_offset_ = 2 * GetLE24s(mem);
+  frame->width_    = 1 + GetLE24s(mem);
+  frame->height_   = 1 + GetLE24s(mem);
+  frame->duration_ = 1 + GetLE24s(mem);
   Skip(mem, frame_chunk_size - FRAME_CHUNK_SIZE);  // skip any trailing data.
+  if (frame->width_ * (uint64_t)frame->height_ >= MAX_IMAGE_AREA) {
+    return PARSE_ERROR;
+  }
 
   // Store a (potentially partial) frame only if the animation flag is set
   // and there is some data in 'frame'.
@@ -326,8 +324,8 @@ static ParseStatus ParseTile(WebPDemuxer* const dmux,
   if (status != PARSE_OK) return status;
 
   frame->is_tile_  = 1;
-  frame->x_offset_ = GetLE32s(mem);
-  frame->y_offset_ = GetLE32s(mem);
+  frame->x_offset_ = 2 * GetLE24s(mem);
+  frame->y_offset_ = 2 * GetLE24s(mem);
   Skip(mem, tile_chunk_size - TILE_CHUNK_SIZE);  // skip any trailing data.
 
   // Store a (potentially partial) tile only if the tile flag is set
@@ -372,7 +370,7 @@ static int ReadHeader(MemBuffer* const mem) {
     return 0;
   }
 
-  riff_size = ReadLE32(GetBuffer(mem) + TAG_SIZE);
+  riff_size = GetLE32(GetBuffer(mem) + TAG_SIZE);
   if (riff_size < CHUNK_HEADER_SIZE) return 0;
   if (riff_size > MAX_CHUNK_PAYLOAD) return 0;
 
@@ -433,7 +431,7 @@ static ParseStatus ParseVP8X(WebPDemuxer* const dmux) {
 
   dmux->is_ext_format_ = 1;
   Skip(mem, TAG_SIZE);  // VP8X
-  vp8x_size = GetLE32(mem);
+  vp8x_size = GetLE32s(mem);
   if (vp8x_size > MAX_CHUNK_PAYLOAD) return PARSE_ERROR;
   if (vp8x_size < VP8X_CHUNK_SIZE) return PARSE_ERROR;
   vp8x_size += vp8x_size & 1;
@@ -456,8 +454,8 @@ static ParseStatus ParseVP8X(WebPDemuxer* const dmux) {
   do {
     int store_chunk = 1;
     const size_t chunk_start_offset = mem->start_;
-    const uint32_t fourcc = GetLE32(mem);
-    const uint32_t chunk_size = GetLE32(mem);
+    const uint32_t fourcc = GetLE32s(mem);
+    const uint32_t chunk_size = GetLE32s(mem);
     const uint32_t chunk_size_padded = chunk_size + (chunk_size & 1);
 
     if (chunk_size > MAX_CHUNK_PAYLOAD) return PARSE_ERROR;
@@ -481,7 +479,7 @@ static ParseStatus ParseVP8X(WebPDemuxer* const dmux) {
           status = PARSE_NEED_MORE_DATA;
         } else if (loop_chunks == 0) {
           ++loop_chunks;
-          dmux->loop_count_ = GetLE32s(mem);
+          dmux->loop_count_ = GetLE16s(mem);
           Skip(mem, chunk_size_padded - LOOP_CHUNK_SIZE);
         } else {
           store_chunk = 0;
