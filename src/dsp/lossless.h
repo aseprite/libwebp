@@ -71,6 +71,21 @@ static WEBP_INLINE uint32_t VP8LSubPixels(uint32_t a, uint32_t b) {
   return (alpha_and_green & 0xff00ff00u) | (red_and_blue & 0x00ff00ffu);
 }
 
+static WEBP_INLINE uint32_t VP8LSSubPixels(uint32_t a, uint32_t b) {
+  const uint32_t alpha_and_green =
+      0x00ff00ffu + (a & 0xff00ff00u) - (b & 0xff00ff00u);
+  const uint32_t red_and_blue =
+      0xff00ff00u + (a & 0x00ff00ffu) - (b & 0x00ff00ffu);
+  uint32_t v = (alpha_and_green & 0xff00ff00u) | (red_and_blue & 0x00ff00ffu);
+  uint8_t* const vv = (uint8_t*)&v;
+  int i;
+  for (i = 0; i < 4; ++i) {
+    const int tmp = (vv[i] < 0x80) ? (vv[i] * 2) : (255 - vv[i]) * 2 + 1;
+    vv[i] = tmp;
+  }
+  return v;
+}
+
 //------------------------------------------------------------------------------
 
 #if defined(__cplusplus) || defined(c_plusplus)

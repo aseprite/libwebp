@@ -142,6 +142,16 @@ static WEBP_INLINE void AddPixelsEq(uint32_t* a, uint32_t b) {
   *a = (alpha_and_green & 0xff00ff00u) | (red_and_blue & 0x00ff00ffu);
 }
 
+static WEBP_INLINE void SAddPixelsEq(uint32_t* a, uint32_t b) {
+  uint8_t* const pa = (uint8_t*)a;
+  const uint8_t* const pb = (uint8_t*)&b;
+  int i;
+  for (i = 0; i < 4; ++i) {
+    const int v = (pa[i] & 1) ? 255 - (pa[i] >> 1) : pa[i] >> 1;
+    pa[i] = pb[i] + v;
+  }
+}
+
 static WEBP_INLINE uint32_t Average2(uint32_t a0, uint32_t a1) {
   return (((a0 ^ a1) & 0xfefefefeL) >> 1) + (a0 & a1);
 }
@@ -370,11 +380,11 @@ static int GetBestPredictorForTile(int width, int height,
         } else {
           predict = pred_func(current_row[col - 1], upper_row + col);
         }
-        predict_diff = VP8LSubPixels(current_row[col], predict);
-        ++histo[0][predict_diff >> 24];
-        ++histo[1][((predict_diff >> 16) & 0xff)];
-        ++histo[2][((predict_diff >> 8) & 0xff)];
-        ++histo[3][(predict_diff & 0xff)];
+        predict_diff = VP8LSSubPixels(current_row[col], predict);
+        ++histo[0][(predict_diff >> 24) & 0xff];
+        ++histo[1][(predict_diff >> 16) & 0xff];
+        ++histo[2][(predict_diff >>  8) & 0xff];
+        ++histo[3][(predict_diff >>  0) & 0xff];
       }
     }
     cur_diff = PredictionCostSpatialHistogram(accumulated, histo);
@@ -418,7 +428,7 @@ static void CopyTileWithPrediction(int width, int height,
       } else {
         predict = pred_func(current_row[col - 1], upper_row + col);
       }
-      argb[pix] = VP8LSubPixels(current_row[col], predict);
+      argb[pix] = VP8LSSubPixels(current_row[col], predict);
     }
   }
 }
@@ -485,10 +495,10 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
   if (y_start == 0) {  // First Row follows the L (mode=1) mode.
     int x;
     const uint32_t pred0 = Predictor0(data[-1], NULL);
-    AddPixelsEq(data, pred0);
+    SAddPixelsEq(data, pred0);
     for (x = 1; x < width; ++x) {
       const uint32_t pred1 = Predictor1(data[x - 1], NULL);
-      AddPixelsEq(data + x, pred1);
+      SAddPixelsEq(data + x, pred1);
     }
     data += width;
     ++y_start;
@@ -508,7 +518,7 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
       PredictorFunc pred_func;
 
       // First pixel follows the T (mode=2) mode.
-      AddPixelsEq(data, pred2);
+      SAddPixelsEq(data, pred2);
 
       // .. the rest:
       pred_func = kPredictors[((*pred_mode_src++) >> 8) & 0xf];
@@ -518,7 +528,7 @@ static void PredictorInverseTransform(const VP8LTransform* const transform,
           pred_func = kPredictors[((*pred_mode_src++) >> 8) & 0xf];
         }
         pred = pred_func(data[x - 1], data + x - width);
-        AddPixelsEq(data + x, pred);
+        SAddPixelsEq(data + x, pred);
       }
       data += width;
       ++y;

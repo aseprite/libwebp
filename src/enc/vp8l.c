@@ -117,7 +117,7 @@ static int AnalyzeEntropy(const WebPPicture* const pic,
   for (y = 0; y < pic->height; ++y) {
     for (x = 0; x < pic->width; ++x) {
       const uint32_t pix = argb[x];
-      const uint32_t pix_diff = VP8LSubPixels(pix, last_pix);
+      const uint32_t pix_diff = VP8LSSubPixels(pix, last_pix);
       if (pix_diff == 0) continue;
       if (last_line != NULL && pix == last_line[x]) {
         continue;
