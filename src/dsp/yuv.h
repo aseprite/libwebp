@@ -12,7 +12,7 @@
 #ifndef WEBP_DSP_YUV_H_
 #define WEBP_DSP_YUV_H_
 
-#include "../webp/decode_vp8.h"
+#include "../webp/types.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

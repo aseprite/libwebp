@@ -19,7 +19,6 @@ libwebpdecode_la_SOURCES += webpi.h
 
 libwebpdecodeinclude_HEADERS =
 libwebpdecodeinclude_HEADERS += ../webp/decode.h
-libwebpdecodeinclude_HEADERS += ../webp/decode_vp8.h
 libwebpdecodeinclude_HEADERS += ../webp/types.h
 noinst_HEADERS = ../webp/format_constants.h
 

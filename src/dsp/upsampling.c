@@ -9,6 +9,7 @@
 //
 // Author: somnath@google.com (Somnath Banerjee)
 
+#include "../webp/decode.h"
 #include "./dsp.h"
 #include "./yuv.h"
 
