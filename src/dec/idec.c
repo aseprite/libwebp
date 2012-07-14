@@ -13,8 +13,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "./vp8li.h"
 #include "./webpi.h"
-#include "./vp8i.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "./vp8li.h"
+#include "./webpi.h"
 #include "../dsp/lossless.h"
 #include "../utils/huffman.h"
 

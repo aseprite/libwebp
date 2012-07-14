@@ -14,11 +14,13 @@
 #define WEBP_DEC_VP8LI_H_
 
 #include <string.h>     // for memcpy()
-#include "./webpi.h"
 #include "../utils/bit_reader.h"
 #include "../utils/color_cache.h"
 #include "../utils/huffman.h"
+#include "../utils/rescaler.h"
+#include "../webp/decode.h"
 #include "../webp/format_constants.h"
+#include "./vp8i.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

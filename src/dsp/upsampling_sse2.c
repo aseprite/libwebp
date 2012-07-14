@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <emmintrin.h>
 #include <string.h>
+#include "../webp/decode.h"
 #include "./yuv.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
