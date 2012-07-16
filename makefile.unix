@@ -200,7 +200,11 @@ dist: all
 	$(INSTALL) -m755 -d $(DESTDIR)/include/webp \
 	           $(DESTDIR)/doc $(DESTDIR)/lib
 	$(INSTALL) -m755 -s $(OUT_EXAMPLES) $(DESTDIR)
-	$(INSTALL) -m644 src/webp/*.h $(DESTDIR)/include/webp
+	$(INSTALL) -m644 \
+	  src/webp/decode.h \
+	  src/webp/encode.h \
+	  src/webp/types.h \
+	  $(DESTDIR)/include/webp
 	$(INSTALL) -m644 src/libwebp.a $(DESTDIR)/lib
 	umask 022; \
 	for m in man/[cd]webp.1; do \
