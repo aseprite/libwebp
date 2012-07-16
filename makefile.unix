@@ -134,6 +134,11 @@ UTILS_OBJS = \
 LIBWEBP_OBJS = $(DEC_OBJS) $(DSP_OBJS) $(ENC_OBJS) $(UTILS_OBJS)
 LIBWEBPMUX_OBJS = $(MUX_OBJS)
 
+HDRS_INSTALLED = \
+    src/webp/decode.h \
+    src/webp/encode.h \
+    src/webp/types.h \
+
 HDRS = \
     src/dec/vp8i.h \
     src/dec/vp8li.h \
@@ -200,7 +205,7 @@ dist: all
 	$(INSTALL) -m755 -d $(DESTDIR)/include/webp \
 	           $(DESTDIR)/doc $(DESTDIR)/lib
 	$(INSTALL) -m755 -s $(OUT_EXAMPLES) $(DESTDIR)
-	$(INSTALL) -m644 src/webp/*.h $(DESTDIR)/include/webp
+	$(INSTALL) -m644 $(HDRS_INSTALLED) $(DESTDIR)/include/webp
 	$(INSTALL) -m644 src/libwebp.a $(DESTDIR)/lib
 	umask 022; \
 	for m in man/[cd]webp.1; do \
