@@ -394,9 +394,10 @@ Alpha bitstream: _Chunk Size_ - `1` bytes
 : Encoded alpha bitstream.
 
 This optional chunk contains encoded alpha data for the image. An image
-containing a 'VP8L' chunk SHOULD NOT contain this chunk. **Rationale**:
-the transparency information of the image is already part of the 'VP8L'
-chunk.
+containing a 'VP8L' chunk SHOULD NOT contain this chunk.
+
+**Rationale**: The transparency information of the image is already part
+of the 'VP8L' chunk.
 
 The alpha channel data is stored as uncompressed raw data (when
 compression method is '0') or compressed using the lossless format
