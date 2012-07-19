@@ -872,6 +872,7 @@ int main(int argc, const char *argv[]) {
   int short_output = 0;
   int quiet = 0;
   int keep_alpha = 1;
+  int using_default_quality = 1;
   int crop = 0, crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
   int resize_w = 0, resize_h = 0;
   int show_progress = 0;
@@ -921,6 +922,7 @@ int main(int argc, const char *argv[]) {
       config.method = strtol(argv[++c], NULL, 0);
     } else if (!strcmp(argv[c], "-q") && c < argc - 1) {
       config.quality = (float)strtod(argv[++c], NULL);
+      using_default_quality = 0;
     } else if (!strcmp(argv[c], "-alpha_q") && c < argc - 1) {
       config.alpha_quality = strtol(argv[++c], NULL, 0);
     } else if (!strcmp(argv[c], "-alpha_method") && c < argc - 1) {
@@ -1078,6 +1080,13 @@ int main(int argc, const char *argv[]) {
   if (verbose) {
     const double time = StopwatchReadAndReset(&stop_watch);
     fprintf(stderr, "Time to read input: %.3fs\n", time);
+  }
+
+  if (using_default_quality && !config.lossless &&
+      WebPPictureHasTransparency(&picture)) {
+    fprintf(stderr,
+            "Setting default quality 90 for lossy compression with alpha");
+    config.quality = 90;
   }
 
   // Open the output
