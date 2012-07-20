@@ -61,7 +61,7 @@ typedef enum {
   PNG = 0,
   PPM,
   PGM,
-  ALPHA_PLANE_ONLY  // this is for experimenting only
+  PAM
 } OutputFileFormat;
 
 #ifdef HAVE_WINCODEC_H
@@ -201,31 +201,22 @@ static int WritePNG(FILE* out_file, const WebPDecBuffer* const buffer) {
 }
 #endif
 
-static int WritePPM(FILE* fout, const WebPDecBuffer* const buffer) {
+static int WritePPM(FILE* fout, const WebPDecBuffer* const buffer, int alpha) {
   const uint32_t width = buffer->width;
   const uint32_t height = buffer->height;
   const unsigned char* const rgb = buffer->u.RGBA.rgba;
   const int stride = buffer->u.RGBA.stride;
+  const size_t bytes_per_px = alpha ? 4 : 3;
   uint32_t y;
-  fprintf(fout, "P6\n%d %d\n255\n", width, height);
-  for (y = 0; y < height; ++y) {
-    if (fwrite(rgb + y * stride, width, 3, fout) != 3) {
-      return 0;
-    }
-  }
-  return 1;
-}
 
-static int WriteAlphaPlane(FILE* fout, const WebPDecBuffer* const buffer) {
-  const uint32_t width = buffer->width;
-  const uint32_t height = buffer->height;
-  const unsigned char* const a = buffer->u.YUVA.a;
-  const int a_stride = buffer->u.YUVA.a_stride;
-  uint32_t y;
-  assert(a != NULL);
-  fprintf(fout, "P5\n%d %d\n255\n", width, height);
+  if (alpha) {
+    fprintf(fout, "P7\nWIDTH %d\nHEIGHT %d\nDEPTH 4\nMAXVAL 255\n"
+                  "TUPLTYPE RGB_ALPHA\nENDHDR\n", width, height);
+  } else {
+    fprintf(fout, "P6\n%d %d\n255\n", width, height);
+  }
   for (y = 0; y < height; ++y) {
-    if (fwrite(a + y * a_stride, width, 1, fout) != 1) {
+    if (fwrite(rgb + y * stride, width, bytes_per_px, fout) != bytes_per_px) {
       return 0;
     }
   }
@@ -290,11 +281,11 @@ static void SaveOutput(const WebPDecBuffer* const buffer,
     ok &= WritePNG(fout, buffer);
 #endif
   } else if (format == PPM) {
-    ok &= WritePPM(fout, buffer);
+    ok &= WritePPM(fout, buffer, 0);
   } else if (format == PGM) {
     ok &= WritePGM(fout, buffer);
-  } else if (format == ALPHA_PLANE_ONLY) {
-    ok &= WriteAlphaPlane(fout, buffer);
+  } else if (format == PAM) {
+    ok &= WritePPM(fout, buffer, 1);
   }
   if (fout) {
     fclose(fout);
@@ -314,7 +305,8 @@ static void Help(void) {
   printf("Usage: dwebp in_file [options] [-o out_file]\n\n"
          "Decodes the WebP image file to PNG format [Default]\n"
          "Use following options to convert into alternate image formats:\n"
-         "  -ppm ......... save the raw RGB samples as color PPM\n"
+         "  -pam ......... save the raw RGBA samples as a color PAM\n"
+         "  -ppm ......... save the raw RGB samples as a color PPM\n"
          "  -pgm ......... save the raw YUV samples as a grayscale PGM\n"
          "                 file with IMC4 layout.\n"
          " Other options are:\n"
@@ -324,9 +316,6 @@ static void Help(void) {
          "  -mt .......... use multi-threading\n"
          "  -crop <x> <y> <w> <h> ... crop output with the given rectangle\n"
          "  -scale <w> <h> .......... scale the output (*after* any cropping)\n"
-#ifdef WEBP_EXPERIMENTAL_FEATURES
-         "  -alpha ....... only save the alpha plane.\n"
-#endif
          "  -h     ....... this help message.\n"
          "  -v     ....... verbose (e.g. print encoding/decoding times)\n"
 #ifndef WEBP_DLL
@@ -361,8 +350,8 @@ int main(int argc, const char *argv[]) {
       return 0;
     } else if (!strcmp(argv[c], "-o") && c < argc - 1) {
       out_file = argv[++c];
-    } else if (!strcmp(argv[c], "-alpha")) {
-      format = ALPHA_PLANE_ONLY;
+    } else if (!strcmp(argv[c], "-pam")) {
+      format = PAM;
     } else if (!strcmp(argv[c], "-nofancy")) {
       config.options.no_fancy_upsampling = 1;
     } else if (!strcmp(argv[c], "-nofilter")) {
@@ -440,8 +429,8 @@ int main(int argc, const char *argv[]) {
       case PGM:
         output_buffer->colorspace = bitstream->has_alpha ? MODE_YUVA : MODE_YUV;
         break;
-      case ALPHA_PLANE_ONLY:
-        output_buffer->colorspace = MODE_YUVA;
+      case PAM:
+        output_buffer->colorspace = MODE_RGBA;
         break;
       default:
         free((void*)data);
