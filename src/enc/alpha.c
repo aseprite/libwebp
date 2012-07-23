@@ -22,14 +22,10 @@ extern "C" {
 #endif
 
 // -----------------------------------------------------------------------------
-// int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
-//                 int quality, int method, int filter, int effort_level,
-//                 uint8_t** output, size_t* output_size)
-//
-// Encodes the given alpha data 'data' of size 'stride'x'height' via specified
-// compression method 'method'. The pre-processing (Quantization) is
-// performed if 'quality' is less than 100. For such cases, the encoding is
-// lossy. Valid ranges for 'quality' is [0, 100] and 'method' is [0, 1]:
+// Encodes the given alpha data via specified compression method 'method'.
+// The pre-processing (Quantization) is performed if 'quality' is less than 100.
+// For such cases, the encoding is lossy. Valid ranges for 'quality' is [0, 100]
+// and 'method' is [0, 1]:
 //   'method = 0' - No compression;
 //   'method = 1' - Use lossless coder on the alpha plane only
 // 'filter' values [0, 4] correspond to prediction modes none, horizontal,
@@ -50,10 +46,10 @@ extern "C" {
 
 #include "../enc/vp8li.h"
 
-static int EncodeLossless(const uint8_t* data, int width, int height,
+static int EncodeLossless(const uint8_t* const data, int width, int height,
                           int effort_level,  // in [0..6] range
-                          VP8BitWriter* const bw) {
-
+                          VP8BitWriter* const bw,
+                          WebPAuxStats* const stats) {
   int ok = 0;
   WebPConfig config;
   WebPPicture picture;
@@ -63,6 +59,7 @@ static int EncodeLossless(const uint8_t* data, int width, int height,
   picture.width = width;
   picture.height = height;
   picture.use_argb = 1;
+  picture.stats = stats;
   if (!WebPPictureAlloc(&picture)) return 0;
 
   // Transfer the alpha values to the green channel.
@@ -101,10 +98,12 @@ static int EncodeLossless(const uint8_t* data, int width, int height,
 
 // -----------------------------------------------------------------------------
 
-static int EncodeAlphaInternal(const uint8_t* data, int width, int height,
+static int EncodeAlphaInternal(const uint8_t* const data, int width, int height,
                                int method, int filter, int reduce_levels,
                                int effort_level,  // in [0..6] range
-                               uint8_t* tmp_alpha, VP8BitWriter* const bw) {
+                               uint8_t* const tmp_alpha,
+                               VP8BitWriter* const bw,
+                               WebPAuxStats* const stats) {
   int ok = 0;
   const uint8_t* alpha_src;
   WebPFilterFunc filter_func;
@@ -139,7 +138,7 @@ static int EncodeAlphaInternal(const uint8_t* data, int width, int height,
     ok = VP8BitWriterAppend(bw, alpha_src, width * height);
     ok = ok && !bw->error_;
   } else {
-    ok = EncodeLossless(alpha_src, width, height, effort_level, bw);
+    ok = EncodeLossless(alpha_src, width, height, effort_level, bw, stats);
     VP8BitWriterFinish(bw);
   }
   return ok;
@@ -157,10 +156,29 @@ static void CopyPlane(const uint8_t* src, int src_stride,
   }
 }
 
-static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
+static uint64_t GetPlaneSSE(const uint8_t* src, int src_stride,
+                            uint8_t* dst, int dst_stride, int width, int height) {
+  uint64_t sse = 0;
+  while (height-- > 0) {
+    int i;
+    for (i = 0; i < width; ++i) {
+      const uint64_t diff = src[i] - dst[i];
+      sse += diff * diff;
+    }
+    src += src_stride;
+    dst += dst_stride;
+  }
+  return sse;
+}
+
+static int EncodeAlpha(VP8Encoder* const enc,
                        int quality, int method, int filter,
                        int effort_level,
-                       uint8_t** output, size_t* output_size) {
+                       uint8_t** const output, size_t* const output_size) {
+  const WebPPicture* const pic = enc->pic_;
+  const int width = pic->width;
+  const int height = pic->height;
+
   uint8_t* quant_alpha = NULL;
   const size_t data_size = width * height;
   int ok = 1;
@@ -186,7 +204,7 @@ static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
   }
 
   // Extract alpha data (width x height) from raw_data (stride x height).
-  CopyPlane(data, stride, quant_alpha, width, width, height);
+  CopyPlane(pic->a, pic->a_stride, quant_alpha, width, width, height);
 
   if (reduce_levels) {  // No Quantization required for 'quality = 100'.
     // 16 alpha levels gives quite a low MSE w.r.t original alpha plane hence
@@ -206,7 +224,7 @@ static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
     // We always test WEBP_FILTER_NONE first.
     ok = EncodeAlphaInternal(quant_alpha, width, height,
                              method, WEBP_FILTER_NONE, reduce_levels,
-                             effort_level, NULL, &bw);
+                             effort_level, NULL, &bw, pic->stats);
     if (!ok) {
       VP8BitWriterWipeOut(&bw);
       goto End;
@@ -238,7 +256,8 @@ static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
 
       ok = EncodeAlphaInternal(quant_alpha, width, height,
                                method, test_filter, reduce_levels,
-                               effort_level, filtered_alpha, &tmp_bw);
+                               effort_level, filtered_alpha, &tmp_bw,
+                               pic->stats);
       if (ok) {
         const size_t score = VP8BitWriterSize(&tmp_bw);
         if (score < best_score) {
@@ -257,6 +276,13 @@ static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
     if (ok) {
       *output_size = VP8BitWriterSize(&bw);
       *output = VP8BitWriterBuf(&bw);
+      if (pic->stats != NULL) {		// need stats?
+        pic->stats->coded_size += *output_size;
+        if (reduce_levels) {
+          enc->sse_[3] = GetPlaneSSE(pic->a, pic->a_stride,
+                                     quant_alpha, width, width, height);
+        }
+      }
     }
     free(filtered_alpha);
   }
@@ -269,16 +295,15 @@ static int EncodeAlpha(const uint8_t* data, int width, int height, int stride,
 //------------------------------------------------------------------------------
 // Main calls
 
-void VP8EncInitAlpha(VP8Encoder* enc) {
+void VP8EncInitAlpha(VP8Encoder* const enc) {
   enc->has_alpha_ = WebPPictureHasTransparency(enc->pic_);
   enc->alpha_data_ = NULL;
   enc->alpha_data_size_ = 0;
 }
 
-int VP8EncFinishAlpha(VP8Encoder* enc) {
+int VP8EncFinishAlpha(VP8Encoder* const enc) {
   if (enc->has_alpha_) {
     const WebPConfig* config = enc->config_;
-    const WebPPicture* pic = enc->pic_;
     uint8_t* tmp_data = NULL;
     size_t tmp_size = 0;
     const int effort_level = config->method;  // maps to [0..6]
@@ -287,23 +312,22 @@ int VP8EncFinishAlpha(VP8Encoder* enc) {
         (config->alpha_filtering == 1) ? WEBP_FILTER_FAST :
                                          WEBP_FILTER_BEST;
 
-    assert(pic->a);
-    if (!EncodeAlpha(pic->a, pic->width, pic->height, pic->a_stride,
-                     config->alpha_quality, config->alpha_compression,
+    assert(pic->a != NULL);
+    if (!EncodeAlpha(enc, config->alpha_quality, config->alpha_compression,
                      filter, effort_level, &tmp_data, &tmp_size)) {
       return 0;
     }
-    if (tmp_size != (uint32_t)tmp_size) {  // Sanity check.
+    if (tmp_size != (int)tmp_size) {  // Sanity check.
       free(tmp_data);
       return 0;
     }
-    enc->alpha_data_size_ = (uint32_t)tmp_size;
+    enc->alpha_data_size_ = (int)tmp_size;
     enc->alpha_data_ = tmp_data;
   }
   return WebPReportProgress(enc->pic_, enc->percent_ + 20, &enc->percent_);
 }
 
-void VP8EncDeleteAlpha(VP8Encoder* enc) {
+void VP8EncDeleteAlpha(VP8Encoder* const enc) {
   free(enc->alpha_data_);
   enc->alpha_data_ = NULL;
   enc->alpha_data_size_ = 0;
