@@ -66,7 +66,7 @@ static int AnalyzeAndCreatePalette(const WebPPicture* const pic,
           colors[key] = last_pix;
           in_use[key] = 1;
           ++num_colors;
-          if (num_colors > MAX_PALETTE_SIZE) {
+          if (num_colors >= MAX_PALETTE_SIZE) {
             return 0;
           }
           break;
