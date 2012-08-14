@@ -38,9 +38,9 @@ extern "C" {
 
 // Input / Output
 typedef struct VP8Io VP8Io;
-typedef int (*VP8IoPutHook)(const VP8Io* io);
+typedef int (*VP8IoPutHook)(const VP8Io* const io);
 typedef int (*VP8IoSetupHook)(VP8Io* io);
-typedef void (*VP8IoTeardownHook)(const VP8Io* io);
+typedef void (*VP8IoTeardownHook)(const VP8Io* const io);
 
 struct VP8Io {
   // set by VP8GetHeaders()
