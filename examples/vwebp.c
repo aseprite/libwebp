@@ -179,26 +179,21 @@ static void StartDisplay(const WebPDecBuffer* const pic) {
 
 static int Decode(const int frame_number, int* const duration) {
   WebPDecoderConfig* const config = kParams.config;
-  WebPData *data, image_data;
-  int x_off = 0, y_off = 0;
+  WebPMuxFrameInfo frame;
+  const WebPData* data;
   WebPDecBuffer* const output_buffer = &config->output;
   int ok = 0;
 
   ClearPreviousPic();
-  if (kParams.has_animation) {
-    if (WebPMuxGetFrame(kParams.mux, frame_number, &image_data,
-                        &x_off, &y_off, duration) != WEBP_MUX_OK) {
-      goto end;
-    }
-    if (x_off != 0 || y_off != 0) {
-      fprintf(stderr,
-              "Frame offsets not yet supported! Forcing offset to 0,0\n");
-      x_off = y_off = 0;
-    }
-    data = &image_data;
-  } else {
-    data = &kParams.data;
+  if (WebPMuxGetFrame(kParams.mux, frame_number, &frame) != WEBP_MUX_OK) {
+    goto end;
   }
+  if (frame.x_offset_ != 0 || frame.y_offset_ != 0) {
+    fprintf(stderr,
+            "Frame offsets not yet supported! Forcing offset to 0,0\n");
+  }
+  data = &frame.bitstream_;
+  *duration = frame.duration_;
 
   output_buffer->colorspace = MODE_RGBA;
   ok = (WebPDecode(data->bytes_, data->size_, config) == VP8_STATUS_OK);
