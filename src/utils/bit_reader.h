@@ -24,7 +24,20 @@
 extern "C" {
 #endif
 
-#define BITS 32     // can be 32, 16 or 8
+//------------------------------------------------------------------------------
+// SBITS can be either 32, 16 or 8. Pick values that fit natural register size.
+
+#if defined(__i386__)      // x86 32bit
+#define SBITS 16
+#elif defined(__arm__)     // ARM
+#define SBITS 8
+#else                      // reasonable default
+#define BITS 32
+#endif
+
+//------------------------------------------------------------------------------
+// Derivated types and constants
+
 #define MASK ((((bit_t)1) << (BITS)) - 1)
 #if (BITS == 32)
 typedef uint64_t bit_t;   // natural register type
@@ -38,7 +51,7 @@ typedef uint8_t lbit_t;
 #endif
 
 //------------------------------------------------------------------------------
-// Bitreader and code-tree reader
+// Bitreader
 
 typedef struct VP8BitReader VP8BitReader;
 struct VP8BitReader {
@@ -151,7 +164,7 @@ static WEBP_INLINE int VP8GetSigned(VP8BitReader* const br, int v) {
 
 
 // -----------------------------------------------------------------------------
-// Bitreader
+// Bitreader for lossless format
 
 typedef struct {
   uint64_t       val_;
