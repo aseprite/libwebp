@@ -78,7 +78,7 @@ static int GetProba(int a, int b) {
   return proba;
 }
 
-static void SetSegmentProbas(VP8Encoder* const enc) {
+void VP8SetSegmentProbas(VP8Encoder* const enc) {
   int p[NUM_MB_SEGMENTS] = { 0 };
   int n;
 
@@ -86,7 +86,7 @@ static void SetSegmentProbas(VP8Encoder* const enc) {
     const VP8MBInfo* const mb = &enc->mb_info_[n];
     p[mb->segment_]++;
   }
-  if (enc->pic_->stats) {
+  if (enc->pic_->stats != NULL) {
     for (n = 0; n < NUM_MB_SEGMENTS; ++n) {
       enc->pic_->stats->segment_size[n] = p[n];
     }
@@ -255,7 +255,6 @@ static void AssignSegments(VP8Encoder* const enc,
     if (smooth) SmoothSegmentMap(enc);
   }
 
-  SetSegmentProbas(enc);                             // Assign final proba
   SetSegmentAlphas(enc, centers, weighted_average);  // pick some alphas.
 }
 

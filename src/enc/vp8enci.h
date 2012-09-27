@@ -486,6 +486,9 @@ int WebPReportProgress(const WebPPicture* const pic,
 // Assigns a first guess for Intra16 and uvmode_ prediction modes.
 int VP8EncAnalyze(VP8Encoder* const enc);
 
+// finalize segment probabilities.
+void VP8SetSegmentProbas(VP8Encoder* const enc);
+
   // in quant.c
 // Sets up segment's quantization values, base_quant_ and filter strengths.
 void VP8SetSegmentParams(VP8Encoder* const enc, float quality);

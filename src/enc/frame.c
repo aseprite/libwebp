@@ -849,6 +849,7 @@ static int OneStatPass(VP8Encoder* const enc, float q, int rd_opt, int nb_mbs,
   }
 
   VP8SetSegmentParams(enc, q);      // setup segment quantizations and filters
+  VP8SetSegmentProbas(enc);         // compute segment probabilities
 
   ResetStats(enc);
   ResetTokenStats(enc);
