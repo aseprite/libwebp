@@ -14,6 +14,12 @@
 
 #include "../dec/decode_vp8.h"
 
+#if defined(WEBP_EXPERIMENTAL_FEATURES)
+// Do NOT activate this feature for real compression. This is only
+// for experimenting and comparison!
+// #define USE_YUVj
+#endif
+
 //------------------------------------------------------------------------------
 // YUV -> RGB conversion
 
@@ -107,6 +113,8 @@ static WEBP_INLINE int VP8ClipUV(int v) {
    return ((v & ~0xff) == 0) ? v : (v < 0) ? 0 : 255;
 }
 
+#ifndef USE_YUVj
+
 static WEBP_INLINE int VP8RGBToY(int r, int g, int b) {
   const int kRound = (1 << (YUV_FIX - 1)) + (16 << YUV_FIX);
   const int luma = 16839 * r + 33059 * g + 6420 * b;
@@ -114,12 +122,35 @@ static WEBP_INLINE int VP8RGBToY(int r, int g, int b) {
 }
 
 static WEBP_INLINE int VP8RGBToU(int r, int g, int b) {
-  return VP8ClipUV(-9719 * r - 19081 * g + 28800 * b);
+  const int v = -9719 * r - 19081 * g + 28800 * b;
+  return VP8ClipUV(v);
 }
 
 static WEBP_INLINE int VP8RGBToV(int r, int g, int b) {
-  return VP8ClipUV(+28800 * r - 24116 * g - 4684 * b);
+  const int v = +28800 * r - 24116 * g - 4684 * b;
+  return VP8ClipUV(v);
 }
+
+#else
+
+// This JPEG-YUV colorspace, only for comparison!
+static WEBP_INLINE int VP8RGBToY(int r, int g, int b) {
+  const int kRound = (1 << (YUV_FIX - 1));
+  const int luma = 19595 * r + 38470 * g + 7471 * b;
+  return (luma + kRound) >> YUV_FIX;  // no need to clip
+}
+
+static WEBP_INLINE int VP8RGBToU(int r, int g, int b) {
+  const int v = -11058 * r - 21710 * g + 32768 * b;
+  return VP8ClipUV(v);
+}
+
+static WEBP_INLINE int VP8RGBToV(int r, int g, int b) {
+  const int v = 32768 * r - 27439 * g - 5329 * b;
+  return VP8ClipUV(v);
+}
+
+#endif    // USE_YUVj
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
