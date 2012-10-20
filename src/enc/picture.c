@@ -915,9 +915,9 @@ void WebPCleanupTransparentArea(WebPPicture* pic) {
 // search radius. Shouldn't be too large.
 #define RADIUS 2
 
-static double AccumulateLSIM(const uint8_t* src, int src_stride,
-                             const uint8_t* ref, int ref_stride,
-                             int w, int h) {
+static float AccumulateLSIM(const uint8_t* src, int src_stride,
+                            const uint8_t* ref, int ref_stride,
+                            int w, int h) {
   int x, y;
   double total_sse = 0.;
   for (y = 0; y < h; ++y) {
@@ -939,7 +939,7 @@ static double AccumulateLSIM(const uint8_t* src, int src_stride,
       total_sse += best_sse;
     }
   }
-  return total_sse;
+  return (float)total_sse;
 }
 #undef RADIUS
 
