@@ -38,6 +38,15 @@ Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Code-Review+2: vikasa <vikasa@google.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Fri, 30 Sep 2011 03:19:44 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/8547
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Code-Review+2: vikasa <vikasa@google.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Fri, 30 Sep 2011 02:19:44 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/8547
 Project: webm/libwebp

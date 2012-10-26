@@ -33,6 +33,14 @@ Branch: refs/heads/master
 Code-Review+2: James Zern <jzern@google.com>
 Verified+1: James Zern <jzern@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Mon, 23 Jan 2012 19:00:21 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/14600
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Mon, 23 Jan 2012 18:00:21 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/14600
 Project: webm/libwebp

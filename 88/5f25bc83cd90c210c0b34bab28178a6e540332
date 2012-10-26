@@ -33,6 +33,14 @@ Branch: refs/heads/master
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Thu, 01 Dec 2011 05:20:46 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/12310
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Thu, 01 Dec 2011 04:20:46 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/12310
 Project: webm/libwebp
