@@ -33,6 +33,16 @@ Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Code-Review+1: Urvang Joshi <urvang@google.com>
 Verified+1: Urvang Joshi <urvang@google.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Fri, 30 Sep 2011 03:55:11 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/8551
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Code-Review+1: Urvang Joshi <urvang@google.com>
+Verified+1: Urvang Joshi <urvang@google.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Fri, 30 Sep 2011 02:55:11 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/8551
 Project: webm/libwebp

@@ -25,6 +25,14 @@ Branch: refs/heads/master
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Mon, 30 Jan 2012 23:04:11 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/15000
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Mon, 30 Jan 2012 22:04:11 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/15000
 Project: webm/libwebp

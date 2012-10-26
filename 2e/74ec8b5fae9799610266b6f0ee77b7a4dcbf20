@@ -33,6 +33,16 @@ Verified+1: James Zern <jzern@google.com>
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Code-Review+2: Mikołaj Zalewski <mikolajz@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Thu, 12 Jan 2012 13:16:51 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/14057
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Code-Review+2: Mikołaj Zalewski <mikolajz@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Thu, 12 Jan 2012 12:16:51 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/14057
 Project: webm/libwebp
