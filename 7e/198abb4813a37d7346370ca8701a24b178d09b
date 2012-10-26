@@ -17,6 +17,14 @@ Branch: refs/heads/master
 Code-Review+2: James Zern <jzern@google.com>
 Verified+1: James Zern <jzern@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Thu, 22 Sep 2011 14:59:01 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/7888
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Thu, 22 Sep 2011 13:59:01 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/7888
 Project: webm/libwebp

@@ -23,6 +23,16 @@ Verified+1: James Zern <jzern@google.com>
 Code-Review+1: Urvang Joshi <urvang@google.com>
 Verified+1: Urvang Joshi <urvang@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Wed, 18 Jan 2012 14:16:12 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/14348
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Code-Review+1: Urvang Joshi <urvang@google.com>
+Verified+1: Urvang Joshi <urvang@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Wed, 18 Jan 2012 13:16:12 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/14348
 Project: webm/libwebp
