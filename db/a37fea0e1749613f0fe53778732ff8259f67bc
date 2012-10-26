@@ -11,6 +11,15 @@ Code-Review+2: James Zern <jzern@google.com>
 Code-Review+1: Urvang Joshi <urvang@google.com>
 Verified+1: Urvang Joshi <urvang@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Fri, 13 Jan 2012 15:25:39 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/14125
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: James Zern <jzern@google.com>
+Code-Review+1: Urvang Joshi <urvang@google.com>
+Verified+1: Urvang Joshi <urvang@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Fri, 13 Jan 2012 14:25:39 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/14125
 Project: webm/libwebp

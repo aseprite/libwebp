@@ -9,6 +9,14 @@ Branch: refs/heads/master
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Tue, 20 Sep 2011 09:05:28 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/7981
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Tue, 20 Sep 2011 08:05:28 -0800
 Reviewed-on: https://gerrit.chromium.org/gerrit/7981
 Project: webm/libwebp
