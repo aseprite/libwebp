@@ -285,10 +285,14 @@ Extended WebP file header:
     |                      ChunkHeader('VP8X')                      |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 <<<<<<< HEAD
+<<<<<<< HEAD
     |RSV|I|L|E|X| R |                   Reserved                    |
 =======
     | R |I|L|  Rsv  |                   Reserved                    |
 >>>>>>> Color profile specification in container spec
+=======
+    | R |I|L|E|X| R |                   Reserved                    |
+>>>>>>> Metadata specification in container spec
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     |          Canvas Width Minus One               |             ...
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -490,6 +494,9 @@ See the [ICC Specification][iccspec] for details.
 If this chunk is not present, sRGB SHOULD be assumed.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Metadata specification in container spec
 #### Metadata
 
 Metadata can be stored in 'EXIF' or 'XMP ' chunks.
@@ -532,8 +539,11 @@ XMP Metadata: _Chunk Size_ bytes
 Additional guidance about handling metadata can be found in the
 Metadata Working Group's [Guidelines for Handling Metadata][metadata].
 
+<<<<<<< HEAD
 =======
 >>>>>>> Color profile specification in container spec
+=======
+>>>>>>> Metadata specification in container spec
 #### Unknown Chunks
 
 A file MAY contain other unknown chunks. Readers SHOULD ignore these chunks.
@@ -561,11 +571,16 @@ RIFF/WEBP
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 A lossless image with ICC profile and XMP metadata may
 look as follows:
 =======
 A lossless image with ICC profile may look as follows:
 >>>>>>> Color profile specification in container spec
+=======
+A lossless image with ICC profile and XMP metadata may
+look as follows:
+>>>>>>> Metadata specification in container spec
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 RIFF/WEBP
@@ -573,16 +588,24 @@ RIFF/WEBP
 +- ICCP (color profile)
 +- VP8L (lossless bitstream)
 <<<<<<< HEAD
+<<<<<<< HEAD
 +- XMP  (metadata)
 =======
 >>>>>>> Color profile specification in container spec
+=======
++- XMP  (metadata)
+>>>>>>> Metadata specification in container spec
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 [vp8spec]:  http://tools.ietf.org/html/rfc6386
 [webpllspec]: https://gerrit.chromium.org/gerrit/gitweb?p=webm/libwebp.git;a=blob;f=doc/webp-lossless-bitstream-spec.txt;hb=master
 [iccspec]: http://www.color.org/icc_specs2.xalter
 <<<<<<< HEAD
+<<<<<<< HEAD
 [metadata]: http://www.metadataworkinggroup.org/pdf/mwg_guidance.pdf
 =======
 >>>>>>> Color profile specification in container spec
+=======
+[metadata]: http://www.metadataworkinggroup.org/pdf/mwg_guidance.pdf
+>>>>>>> Metadata specification in container spec
 [rfc 2119]: http://tools.ietf.org/html/rfc2119
