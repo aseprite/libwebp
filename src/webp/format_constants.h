@@ -71,8 +71,8 @@ typedef enum {
 #define VP8X_CHUNK_SIZE    10    // Size of a VP8X chunk.
 
 // VP8X Feature Flags. These should be the same as the corresponding values in
-// 'WebPFeatureFlags' enum defined in mux.h.
-#define TILING_FLAG_BIT    0x01
+// the 'WebPFeatureFlags' enum defined in mux.h.
+#define FRAGMENTS_FLAG_BIT 0x01
 #define ANIMATION_FLAG_BIT 0x02
 #define XMP_FLAG_BIT       0x04
 #define EXIF_FLAG_BIT      0x08
@@ -83,7 +83,7 @@ typedef enum {
 #define MAX_IMAGE_AREA      (1ULL << 32) // 32-bit max for width x height.
 #define MAX_LOOP_COUNT      (1 << 16)    // maximum value for loop-count
 #define MAX_DURATION        (1 << 24)    // maximum duration
-#define MAX_POSITION_OFFSET (1 << 24)    // maximum frame/tile x/y offset
+#define MAX_POSITION_OFFSET (1 << 24)    // maximum frame/fragment x/y offset
 
 // Maximum chunk payload is such that adding the header and padding won't
 // overflow a uint32_t.
