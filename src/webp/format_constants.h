@@ -72,7 +72,7 @@ typedef enum {
 
 // VP8X Feature Flags. These should be the same as the corresponding values in
 // 'WebPFeatureFlags' enum defined in mux.h.
-#define FRAGMENTS_FLAG_BIT 0x01
+#define TILING_FLAG_BIT    0x01
 #define ANIMATION_FLAG_BIT 0x02
 #define XMP_FLAG_BIT       0x04
 #define EXIF_FLAG_BIT      0x08
