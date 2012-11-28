@@ -1,6 +1,14 @@
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Mon, 29 Oct 2012 13:47:57 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/36806
+Project: webm/libwebp
+Branch: refs/heads/0.2.0
+
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Mon, 29 Oct 2012 14:47:57 -0700
 Reviewed-on: https://gerrit.chromium.org/gerrit/36806
 Project: webm/libwebp

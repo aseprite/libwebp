@@ -1,6 +1,14 @@
 Code-Review+2: James Zern <jzern@google.com>
 Verified+1: James Zern <jzern@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Wed, 15 Aug 2012 17:02:16 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/30306
+Project: webm/libwebp
+Branch: refs/heads/0.2.0
+
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: James Zern <jzern@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Wed, 15 Aug 2012 18:02:16 -0700
 Reviewed-on: https://gerrit.chromium.org/gerrit/30306
 Project: webm/libwebp

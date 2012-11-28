@@ -2,6 +2,15 @@ Code-Review+2: James Zern <jzern@google.com>
 Code-Review+1: Pascal Massimino <skal@google.com>
 Verified+1: Pascal Massimino <skal@google.com>
 Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Thu, 16 Aug 2012 15:01:42 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/30602
+Project: webm/libwebp
+Branch: refs/heads/0.2.0
+
+Code-Review+2: James Zern <jzern@google.com>
+Code-Review+1: Pascal Massimino <skal@google.com>
+Verified+1: Pascal Massimino <skal@google.com>
+Submitted-by: James Zern <jzern@google.com>
 Submitted-at: Thu, 16 Aug 2012 16:01:42 -0700
 Reviewed-on: https://gerrit.chromium.org/gerrit/30602
 Project: webm/libwebp

@@ -3,6 +3,16 @@ Verified+1: Johann <johannkoenig@google.com>
 Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
 Verified+1: pascal massimino <pascal.massimino@gmail.com>
 Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Wed, 31 Oct 2012 13:45:47 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/37052
+Project: webm/libwebp
+Branch: refs/heads/master
+
+Code-Review+2: Johann <johannkoenig@google.com>
+Verified+1: Johann <johannkoenig@google.com>
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
 Submitted-at: Wed, 31 Oct 2012 14:45:47 -0700
 Reviewed-on: https://gerrit.chromium.org/gerrit/37052
 Project: webm/libwebp
