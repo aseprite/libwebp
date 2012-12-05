@@ -46,6 +46,16 @@ static void MetadataFree(Metadata* const m) {
   MetadataPayloadDelete(&m->xmp);
 }
 
+// Stores 'metadata' to 'payload->bytes', returns false on allocation error.
+static int MetadataCopy(const char* metadata, size_t metadata_len,
+                        MetadataPayload* const payload) {
+  payload->bytes = (uint8_t*)malloc(metadata_len);
+  if (payload->bytes == NULL) return 0;
+  payload->size = metadata_len;
+  memcpy(payload->bytes, metadata, metadata_len);
+  return 1;
+}
+
 #if defined(__cplusplus) || defined(c_plusplus)
 }    // extern "C"
 #endif
