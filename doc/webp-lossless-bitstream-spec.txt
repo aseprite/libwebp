@@ -143,15 +143,15 @@ The beginning of the header has the RIFF container. This consists of the
 following 21 bytes:
 
    1. String "RIFF"
-   2. A little-endian 32 bit value of the block length, the whole size
+   1. A little-endian 32 bit value of the block length, the whole size
       of the block controlled by the RIFF header. Normally this equals
       the payload size (file size minus 8 bytes: 4 bytes for the 'RIFF'
       identifier and 4 bytes for storing the value itself).
-   3. String "WEBP" (RIFF container name).
-   4. String "VP8L" (chunk tag for lossless encoded image data).
-   5. A little-endian 32-bit value of the number of bytes in the
+   1. String "WEBP" (RIFF container name).
+   1. String "VP8L" (chunk tag for lossless encoded image data).
+   1. A little-endian 32-bit value of the number of bytes in the
       lossless stream.
-   6. One byte signature 0x2f.
+   1. One byte signature 0x2f.
 
 The first 28 bits of the bitstream specify the width and height of the
 image. Width and height are decoded as 14-bit integers as follows:
@@ -361,14 +361,14 @@ int ClampAddSubtractHalf(int a, int b) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 There are special handling rules for some border pixels. If there is a
-prediction transform, regardless of the mode [0..13] for these pixels,
+prediction transform, regardless of the mode \[0..13\] for these pixels,
 the predicted value for the left-topmost pixel of the image is
 0xff000000, L-pixel for all pixels on the top row, and T-pixel for all
 pixels on the leftmost column.
 
 Addressing the TR-pixel for pixels on the rightmost column is
 exceptional. The pixels on the rightmost column are predicted by using
-the modes [0..13] just like pixels not on border, but by using the
+the modes \[0..13\] just like pixels not on border, but by using the
 leftmost pixel on the same row as the current TR-pixel. The TR-pixel
 offset in memory is the same for border and non-border pixels.
 
@@ -420,7 +420,7 @@ void ColorTransform(uint8 red, uint8 blue, uint8 green,
 
 `ColorTransformDelta` is computed using a signed 8-bit integer
 representing a 3.5-fixed-point number, and a signed 8-bit RGB color
-channel (c) [-128..127] and is defined as follows:
+channel (c) \[-128..127\] and is defined as follows:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int8 ColorTransformDelta(int8 t, int8 c) {
@@ -567,10 +567,10 @@ if (color_table_size <= 2) {
 
 `width_bits` has a value of 0, 1, 2 or 3. A value of 0 indicates no
 pixel bundling to be done for the image. A value of 1 indicates that two
-pixels are combined together, and each pixel has a range of [0..15]. A
+pixels are combined together, and each pixel has a range of \[0..15\]. A
 value of 2 indicates that four pixels are combined together, and each
-pixel has a range of [0..3]. A value of 3 indicates that eight pixels
-are combined together and each pixel has a range of [0..1], i.e., a
+pixel has a range of \[0..3\]. A value of 3 indicates that eight pixels
+are combined together and each pixel has a range of \[0..1\], i.e., a
 binary value.
 
 The values are packed into the green component as follows:
@@ -636,9 +636,9 @@ Each pixel is encoded using one of the three possible methods:
 
   1. Huffman coded literal: each channel (green, red, blue and alpha) is
      entropy-coded independently;
-  2. LZ77 backward reference: a sequence of pixels are copied from elsewhere
+  1. LZ77 backward reference: a sequence of pixels are copied from elsewhere
      in the image; or
-  3. Color cache code: using a short multiplicative hash code (color cache
+  1. Color cache code: using a short multiplicative hash code (color cache
      index) of a recently seen color.
 
 The following sub-sections describe each of these in detail.
@@ -714,7 +714,7 @@ pixel.
 The distance codes larger than 120 denote the pixel-distance in scan-line
 order, offset by 120.
 
-The smallest distance codes [1..120] are special, and are reserved for a close
+The smallest distance codes \[1..120\] are special, and are reserved for a close
 neighborhood of the current pixel. This neighborhood consists of 120 pixels:
 
   * Pixels that are 1 to 7 rows above the current pixel, and are up to 8 columns
@@ -785,7 +785,7 @@ int color_cache_size = 1 << color_cache_code_bits;
 
 `color_cache_code_bits` defines the size of the color_cache by (1 <<
 `color_cache_code_bits`). The range of allowed values for
-`color_cache_code_bits` is [1..11]. Compliant decoders must indicate a
+`color_cache_code_bits` is \[1..11\]. Compliant decoders must indicate a
 corrupted bitstream for other values.
 
 A color cache is an array of size `color_cache_size`. Each entry
@@ -933,7 +933,7 @@ by a 1-bit value.
 **(i) Simple Code Length Code:**
 
 This variant is used in the special case when only 1 or 2 Huffman code lengths
-are non-zero, and are in the range of [0, 255]. All other Huffman code lengths
+are non-zero, and are in the range of \[0, 255\]. All other Huffman code lengths
 are implicitly zeros.
 
 The first bit indicates the number of non-zero code lengths:
@@ -943,7 +943,7 @@ int num_code_lengths = ReadBits(1) + 1;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first code length is stored either using a 1-bit code for values of 0 and 1,
-or using an 8-bit code for values in range [0, 255]. The second code length,
+or using an 8-bit code for values in range \[0, 255\]. The second code length,
 when present, is coded as an 8-bit code.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -980,15 +980,15 @@ for (i = 0; i < num_code_lengths; ++i) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  * Code length code [0..15] indicates literal code lengths.
+  * Code length code \[0..15\] indicates literal code lengths.
     * Value 0 means no symbols have been coded.
-    * Values [1..15] indicate the bit length of the respective code.
-  * Code 16 repeats the previous non-zero value [3..6] times, i.e.,
+    * Values \[1..15\] indicate the bit length of the respective code.
+  * Code 16 repeats the previous non-zero value \[3..6\] times, i.e.,
     3 + `ReadBits(2)` times.  If code 16 is used before a non-zero
     value has been emitted, a value of 8 is repeated.
-  * Code 17 emits a streak of zeros [3..10], i.e., 3 + `ReadBits(3)`
+  * Code 17 emits a streak of zeros \[3..10\], i.e., 3 + `ReadBits(3)`
     times.
-  * Code 18 emits a streak of zeros of length [11..138], i.e.,
+  * Code 18 emits a streak of zeros of length \[11..138\], i.e.,
     11 + `ReadBits(7)` times.
 
 
