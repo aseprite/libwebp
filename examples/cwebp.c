@@ -545,6 +545,16 @@ static int DumpPicture(const WebPPicture* const picture, const char* PGM_name) {
   return 1;
 }
 
+// -----------------------------------------------------------------------------
+// Metadata writing.
+
+enum {
+  METADATA_EXIF = (1 << 0),
+  METADATA_ICCP = (1 << 1),
+  METADATA_XMP = (1 << 2),
+  METADATA_ALL = METADATA_EXIF | METADATA_ICCP | METADATA_XMP
+};
+
 //------------------------------------------------------------------------------
 
 static int ProgressReport(int percent, const WebPPicture* const picture) {
@@ -618,6 +628,12 @@ static void HelpLong(void) {
   printf("                           One of: photo, picture or graph\n");
 
   printf("\n");
+  printf("  -metadata <string> ..... comma separated list of metadata to\n");
+  printf("                           copy from the input to the output.\n");
+  printf("                           "
+         "valid values: all, none (default), exif, iccp, xmp\n");
+
+  printf("\n");
   printf("  -short ................. condense printed message\n");
   printf("  -quiet ................. don't print anything.\n");
   printf("  -version ............... print version number and exit.\n");
@@ -669,6 +685,7 @@ int main(int argc, const char *argv[]) {
   int crop = 0, crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
   int resize_w = 0, resize_h = 0;
   int show_progress = 0;
+  int keep_metadata = 0;
   WebPPicture picture;
   int print_distortion = -1;        // -1=off, 0=PSNR, 1=SSIM, 2=LSIM
   WebPPicture original_picture;    // when PSNR or SSIM is requested
@@ -832,6 +849,34 @@ int main(int argc, const char *argv[]) {
         fprintf(stderr, "Error! Could initialize configuration with preset.\n");
         goto Error;
       }
+    } else if (!strcmp(argv[c], "-metadata") && c < argc - 1) {
+      const char* start = argv[++c];
+      const char* const end = start + strlen(start);
+      while (start < end) {
+        const char* token = strchr(start, ',');
+        if (token == NULL) token = end;
+        if (!strncmp(start, "all", 3)) {
+          keep_metadata = METADATA_ALL;
+        } else if (!strncmp(start, "none", 4)) {
+          keep_metadata = 0;
+        } else if (!strncmp(start, "exif", 4)) {
+          keep_metadata |= METADATA_EXIF;
+        } else if (!strncmp(start, "iccp", 4)) {
+          keep_metadata |= METADATA_ICCP;
+        } else if (!strncmp(start, "xmp", 3)) {
+          keep_metadata |= METADATA_XMP;
+        } else {
+          fprintf(stderr, "Error! Unknown metadata type '%.*s'\n",
+                  (int)(token - start), start);
+          HelpLong();
+          return -1;
+        }
+        start = token + 1;
+      }
+      if (keep_metadata != 0) {
+        fprintf(stderr, "Warning: -metadata is currently unsupported on this"
+                        " platform. Ignoring this option!\n");
+      }
     } else if (!strcmp(argv[c], "-v")) {
       verbose = 1;
     } else if (argv[c][0] == '-') {
@@ -870,7 +915,8 @@ int main(int argc, const char *argv[]) {
   if (verbose) {
     StopwatchReadAndReset(&stop_watch);
   }
-  if (!ReadPicture(in_file, &picture, keep_alpha, &metadata)) {
+  if (!ReadPicture(in_file, &picture, keep_alpha,
+                   (keep_metadata == 0) ? NULL : &metadata)) {
     fprintf(stderr, "Error! Cannot read input picture file '%s'\n", in_file);
     goto Error;
   }
