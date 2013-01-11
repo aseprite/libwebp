@@ -143,9 +143,15 @@ static int AnalyzeEntropy(const uint32_t* argb,
 
 static int VP8LEncAnalyze(VP8LEncoder* const enc, WebPImageHint image_hint) {
   const WebPPicture* const pic = enc->pic_;
+  double non_pred_entropy, pred_entropy;
+
   assert(pic != NULL && pic->argb != NULL);
 
-  enc->use_palette_ =
+  if (!AnalyzeEntropy(pic->argb, pic->width, pic->height, pic->argb_stride,
+                      &non_pred_entropy, &pred_entropy)) {
+    return 0;
+  }
+  enc->use_palette_ = (1.20 * non_pred_entropy <= pred_entropy) &&
       AnalyzeAndCreatePalette(pic, enc->palette_, &enc->palette_size_);
 
   if (image_hint == WEBP_HINT_GRAPH) {
@@ -159,11 +165,6 @@ static int VP8LEncAnalyze(VP8LEncoder* const enc, WebPImageHint image_hint) {
       enc->use_predict_ = 1;
       enc->use_cross_color_ = 1;
     } else {
-      double non_pred_entropy, pred_entropy;
-      if (!AnalyzeEntropy(pic->argb, pic->width, pic->height, pic->argb_stride,
-                          &non_pred_entropy, &pred_entropy)) {
-        return 0;
-      }
       if (pred_entropy < 0.95 * non_pred_entropy) {
         enc->use_predict_ = 1;
         // TODO(vikasa): Observed some correlation of cross_color transform with
