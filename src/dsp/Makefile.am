@@ -13,6 +13,7 @@ libwebpdsp_la_SOURCES += enc_sse2.c
 libwebpdsp_la_SOURCES += lossless.c
 libwebpdsp_la_SOURCES += lossless.h
 libwebpdsp_la_SOURCES += upsampling.c
+libwebpdsp_la_SOURCES += upsampling_neon.c
 libwebpdsp_la_SOURCES += upsampling_sse2.c
 libwebpdsp_la_SOURCES += yuv.c
 libwebpdsp_la_SOURCES += yuv.h
