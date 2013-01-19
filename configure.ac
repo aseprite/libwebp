@@ -226,6 +226,18 @@ if test "$target_os" = "mingw32"; then
   fi
 fi
 
+USE_SWAP_16BIT_CSP=""
+dnl === If --enable-swap_16bit_csp is defined, add -DWEBP_SWAP_16BIT_CSP
+AC_MSG_CHECKING(if --enable-swap_16bit_csp option is specified)
+AC_ARG_ENABLE([swap_16bit_csp],
+              AS_HELP_STRING([--enable-swap_16bit_csp],
+                             [Enable byte swap for 16 bit colorspaces]))
+if test "$enable_swap_16bit_csp" = "yes"; then
+  USE_SWAP_16BIT_CSP="-DWEBP_SWAP_16BIT_CSP"
+fi
+AC_MSG_RESULT(${enable_swap_16bit_csp-no})
+AC_SUBST(USE_SWAP_16BIT_CSP)
+
 dnl === If --enable-experimental is defined, add -DWEBP_EXPERIMENTAL_FEATURES
 
 USE_EXPERIMENTAL_CODE=""
