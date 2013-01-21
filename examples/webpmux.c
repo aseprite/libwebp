@@ -801,7 +801,6 @@ static int Process(const WebPMuxConfig* config) {
   WebPMux* mux = NULL;
   WebPData chunk;
   WebPMuxError err = WEBP_MUX_OK;
-  int index = 0;
   int ok = 1;
   const Feature* const feature = &config->feature_;
 
@@ -836,17 +835,18 @@ static int Process(const WebPMuxConfig* config) {
     case ACTION_SET:
       switch (feature->type_) {
         case FEATURE_ANMF: {
+          int i;
           WebPMuxAnimParams params = { 0xFFFFFFFF, 0 };
           mux = WebPMuxNew();
           if (mux == NULL) {
             ERROR_GOTO2("ERROR (%s): Could not allocate a mux object.\n",
                         ErrorString(WEBP_MUX_MEMORY_ERROR), Err2);
           }
-          for (index = 0; index < feature->arg_count_; ++index) {
-            switch (feature->args_[index].subtype_) {
+          for (i = 0; i < feature->arg_count_; ++i) {
+            switch (feature->args_[i].subtype_) {
               case SUBTYPE_BGCOLOR: {
                 uint32_t bgcolor;
-                ok = ParseBgcolorArgs(feature->args_[index].params_, &bgcolor);
+                ok = ParseBgcolorArgs(feature->args_[i].params_, &bgcolor);
                 if (!ok) {
                   ERROR_GOTO1("ERROR: Could not parse the background color \n",
                               Err2);
@@ -856,7 +856,7 @@ static int Process(const WebPMuxConfig* config) {
               }
               case SUBTYPE_LOOP: {
                 const long loop_count =
-                    strtol(feature->args_[index].params_, NULL, 10);
+                    strtol(feature->args_[i].params_, NULL, 10);
                 if (loop_count != (int)loop_count) {
                   // Note: This is only a 'necessary' condition for loop_count
                   // to be valid. The 'sufficient' conditioned in checked in
@@ -870,10 +870,10 @@ static int Process(const WebPMuxConfig* config) {
               case SUBTYPE_ANMF: {
                 WebPMuxFrameInfo frame;
                 frame.id = WEBP_CHUNK_ANMF;
-                ok = ReadFileToWebPData(feature->args_[index].filename_,
+                ok = ReadFileToWebPData(feature->args_[i].filename_,
                                         &frame.bitstream);
                 if (!ok) goto Err2;
-                ok = ParseFrameArgs(feature->args_[index].params_, &frame);
+                ok = ParseFrameArgs(feature->args_[i].params_, &frame);
                 if (!ok) {
                   WebPDataClear(&frame.bitstream);
                   ERROR_GOTO1("ERROR: Could not parse frame properties.\n",
@@ -883,7 +883,7 @@ static int Process(const WebPMuxConfig* config) {
                 WebPDataClear(&frame.bitstream);
                 if (err != WEBP_MUX_OK) {
                   ERROR_GOTO3("ERROR (%s): Could not add a frame at index %d."
-                              "\n", ErrorString(err), index, Err2);
+                              "\n", ErrorString(err), i, Err2);
                 }
                 break;
               }
@@ -901,19 +901,20 @@ static int Process(const WebPMuxConfig* config) {
           break;
         }
 
-        case FEATURE_FRGM:
+        case FEATURE_FRGM: {
+          int i;
           mux = WebPMuxNew();
           if (mux == NULL) {
             ERROR_GOTO2("ERROR (%s): Could not allocate a mux object.\n",
                         ErrorString(WEBP_MUX_MEMORY_ERROR), Err2);
           }
-          for (index = 0; index < feature->arg_count_; ++index) {
+          for (i = 0; i < feature->arg_count_; ++i) {
             WebPMuxFrameInfo frgm;
             frgm.id = WEBP_CHUNK_FRGM;
-            ok = ReadFileToWebPData(feature->args_[index].filename_,
+            ok = ReadFileToWebPData(feature->args_[i].filename_,
                                     &frgm.bitstream);
             if (!ok) goto Err2;
-            ok = ParseFragmentArgs(feature->args_[index].params_, &frgm);
+            ok = ParseFragmentArgs(feature->args_[i].params_, &frgm);
             if (!ok) {
               WebPDataClear(&frgm.bitstream);
               ERROR_GOTO1("ERROR: Could not parse fragment properties.\n",
@@ -923,10 +924,11 @@ static int Process(const WebPMuxConfig* config) {
             WebPDataClear(&frgm.bitstream);
             if (err != WEBP_MUX_OK) {
               ERROR_GOTO3("ERROR (%s): Could not add a fragment at index %d.\n",
-                          ErrorString(err), index, Err2);
+                          ErrorString(err), i, Err2);
             }
           }
           break;
+        }
 
         case FEATURE_ICCP:
         case FEATURE_EXIF:
