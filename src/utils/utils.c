@@ -29,12 +29,12 @@ static int CheckSizeArguments(uint64_t nmemb, size_t size) {
 
 void* WebPSafeMalloc(uint64_t nmemb, size_t size) {
   if (!CheckSizeArguments(nmemb, size)) return NULL;
-  return malloc((size_t)(nmemb * size));
+  return (nmemb > 0 && size > 0) ? malloc((size_t)(nmemb * size)) : NULL;
 }
 
 void* WebPSafeCalloc(uint64_t nmemb, size_t size) {
   if (!CheckSizeArguments(nmemb, size)) return NULL;
-  return calloc((size_t)nmemb, size);
+  return (nmemb > 0 && size > 0) ? calloc((size_t)nmemb, size) : NULL;
 }
 
 //------------------------------------------------------------------------------
