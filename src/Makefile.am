@@ -46,7 +46,7 @@ if BUILD_LIBWEBPDECODER
   libwebpdecoder_la_LIBADD += dsp/libwebpdspdecode.la
   libwebpdecoder_la_LIBADD += utils/libwebputilsdecode.la
 
-  libwebpdecoder_la_LDFLAGS = -no-undefined -version-info 4:1:0
+  libwebpdecoder_la_LDFLAGS = -no-undefined -version-info 0:0:0
   libwebpdecoderincludedir = $(includedir)/webp
 endif
 
