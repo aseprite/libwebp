@@ -1,23 +1,31 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 noinst_LTLIBRARIES = libwebpdsp.la
 
-libwebpdsp_la_SOURCES =
-libwebpdsp_la_SOURCES += cpu.c
-libwebpdsp_la_SOURCES += dec.c
-libwebpdsp_la_SOURCES += dec_neon.c
-libwebpdsp_la_SOURCES += dec_sse2.c
-libwebpdsp_la_SOURCES += dsp.h
-libwebpdsp_la_SOURCES += enc.c
-libwebpdsp_la_SOURCES += enc_neon.c
-libwebpdsp_la_SOURCES += enc_sse2.c
-libwebpdsp_la_SOURCES += lossless.c
-libwebpdsp_la_SOURCES += lossless.h
-libwebpdsp_la_SOURCES += upsampling.c
-libwebpdsp_la_SOURCES += upsampling_sse2.c
-libwebpdsp_la_SOURCES += yuv.c
-libwebpdsp_la_SOURCES += yuv.h
+if WANT_DECODER
+  noinst_LTLIBRARIES += libwebpdspdecode.la
+endif
 
+COMMON_SOURCES  =
+COMMON_SOURCES += cpu.c
+COMMON_SOURCES += dec.c
+COMMON_SOURCES += dec_neon.c
+COMMON_SOURCES += dec_sse2.c
+COMMON_SOURCES += dsp.h
+COMMON_SOURCES += lossless.c
+COMMON_SOURCES += lossless.h
+COMMON_SOURCES += upsampling.c
+COMMON_SOURCES += upsampling_sse2.c
+COMMON_SOURCES += yuv.c
+COMMON_SOURCES += yuv.h
+
+ENC_SOURCES  =
+ENC_SOURCES += enc.c
+ENC_SOURCES += enc_neon.c
+ENC_SOURCES += enc_sse2.c
+
+libwebpdsp_la_SOURCES = $(COMMON_SOURCES) $(ENC_SOURCES)
 libwebpdspinclude_HEADERS = ../webp/types.h
+
 noinst_HEADERS =
 noinst_HEADERS += ../dec/decode_vp8.h
 noinst_HEADERS += ../webp/decode.h
@@ -25,3 +33,12 @@ noinst_HEADERS += ../webp/decode.h
 libwebpdsp_la_LDFLAGS = -lm
 libwebpdsp_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE) $(USE_SWAP_16BIT_CSP)
 libwebpdspincludedir = $(includedir)/webp
+
+if WANT_DECODER
+  libwebpdspdecode_la_SOURCES = $(COMMON_SOURCES)
+  libwebpdspdecodeinclude_HEADERS = ../webp/types.h
+
+  libwebpdspdecode_la_LDFLAGS = -lm
+  libwebpdspdecode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE) $(USE_SWAP_16BIT_CSP)
+  libwebpdspdecodeincludedir = $(includedir)/webp
+endif
