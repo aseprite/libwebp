@@ -1,6 +1,11 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
-bin_PROGRAMS = dwebp cwebp
+bin_PROGRAMS = dwebp
+
+if !DECODE_ONLY
+  bin_PROGRAMS += cwebp
+endif
+
 if WANT_MUX
   bin_PROGRAMS += webpmux
 endif

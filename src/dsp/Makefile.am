@@ -7,9 +7,11 @@ libwebpdsp_la_SOURCES += dec.c
 libwebpdsp_la_SOURCES += dec_neon.c
 libwebpdsp_la_SOURCES += dec_sse2.c
 libwebpdsp_la_SOURCES += dsp.h
+if !DECODE_ONLY
 libwebpdsp_la_SOURCES += enc.c
 libwebpdsp_la_SOURCES += enc_neon.c
 libwebpdsp_la_SOURCES += enc_sse2.c
+endif
 libwebpdsp_la_SOURCES += lossless.c
 libwebpdsp_la_SOURCES += lossless.h
 libwebpdsp_la_SOURCES += upsampling.c

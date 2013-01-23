@@ -268,6 +268,14 @@ AC_ARG_ENABLE([experimental-libwebpdemux],
 AC_MSG_RESULT(${enable_experimental_libwebpdemux-no})
 AM_CONDITIONAL([WANT_DEMUX], [test "$enable_experimental_libwebpdemux" = "yes"])
 
+dnl === Check whether encoder code (library/binary) should be omitted.
+AC_MSG_CHECKING(whether encoder code is to be omitted)
+AC_ARG_ENABLE([decode-only],
+              AS_HELP_STRING([--enable-decode-only],
+                             [Omit building encoder code]))
+AC_MSG_RESULT(${enable_decode_only-no})
+AM_CONDITIONAL([DECODE_ONLY], [test "$enable_decode_only" = "yes"])
+
 dnl =========================
 
 AC_CONFIG_MACRO_DIR([m4])
