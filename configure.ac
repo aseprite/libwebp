@@ -252,21 +252,29 @@ fi
 AC_MSG_RESULT(${enable_experimental-no})
 AC_SUBST(USE_EXPERIMENTAL_CODE)
 
-dnl === Check whether libwebpmux should be built
-AC_MSG_CHECKING(whether libwebpmux is to be built)
+dnl === Check whether libwebpmux should be build
+AC_MSG_CHECKING(whether libwebpmux is to be build)
 AC_ARG_ENABLE([experimental-libwebpmux],
               AS_HELP_STRING([--enable-experimental-libwebpmux],
                              [Build libwebpmux @<:@default=no@:>@]))
 AC_MSG_RESULT(${enable_experimental_libwebpmux-no})
 AM_CONDITIONAL([WANT_MUX], [test "$enable_experimental_libwebpmux" = "yes"])
 
-dnl === Check whether libwebpdemux should be built
-AC_MSG_CHECKING(whether libwebpdemux is to be built)
+dnl === Check whether libwebpdemux should be build
+AC_MSG_CHECKING(whether libwebpdemux is to be build)
 AC_ARG_ENABLE([experimental-libwebpdemux],
               AS_HELP_STRING([--enable-experimental-libwebpdemux],
                              [Build libwebpdemux @<:@default=no@:>@]))
 AC_MSG_RESULT(${enable_experimental_libwebpdemux-no})
 AM_CONDITIONAL([WANT_DEMUX], [test "$enable_experimental_libwebpdemux" = "yes"])
+
+dnl === Check whether decoder library should be build.
+AC_MSG_CHECKING(whether decoder library is to be build)
+AC_ARG_ENABLE([libwebpdecoder],
+              AS_HELP_STRING([--enable-libwebpdecoder],
+                             [Building libwebpdecoder @<:@default=no@:>@]))
+AC_MSG_RESULT(${enable_libwebpdecoder-no})
+AM_CONDITIONAL([BUILD_LIBWEBPDECODER], [test "$enable_libwebpdecoder" = "yes"])
 
 dnl =========================
 
@@ -290,6 +298,7 @@ Shared libraries: ${enable_shared}
 Static libraries: ${enable_static}
 Threaded decode: ${enable_threading-no}
 libwebp: yes
+libwebpdecoder: ${enable_libwebpdecoder-no}
 libwebpdemux: ${enable_experimental_libwebpdemux-no}
 libwebpmux: ${enable_experimental_libwebpmux-no}
 
