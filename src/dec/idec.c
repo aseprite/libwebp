@@ -597,6 +597,9 @@ WebPIDecoder* WebPINewRGB(WEBP_CSP_MODE mode, uint8_t* output_buffer,
                           size_t output_buffer_size, int output_stride) {
   WebPIDecoder* idec;
   if (mode >= MODE_YUV) return NULL;
+  if (output_buffer == NULL || output_stride < 0 || output_buffer_size == 0) {
+    return NULL;   // invalid parameter.
+  }
   idec = WebPINewDecoder(NULL);
   if (idec == NULL) return NULL;
   idec->output_.colorspace = mode;
@@ -611,8 +614,16 @@ WebPIDecoder* WebPINewYUVA(uint8_t* luma, size_t luma_size, int luma_stride,
                            uint8_t* u, size_t u_size, int u_stride,
                            uint8_t* v, size_t v_size, int v_stride,
                            uint8_t* a, size_t a_size, int a_stride) {
-  WebPIDecoder* const idec = WebPINewDecoder(NULL);
+  WebPIDecoder* idec;
+  if (luma == NULL || luma_stride < 0 || luma_size == 0 ||
+       u == NULL || u_stride < 0 || u_size == 0 ||
+       v == NULL || v_stride < 0 || v_size == 0) {
+    return NULL;   // invalid parameter.
+  }
+
+  idec = WebPINewDecoder(NULL);
   if (idec == NULL) return NULL;
+  
   idec->output_.colorspace = (a == NULL) ? MODE_YUV : MODE_YUVA;
   idec->output_.is_external_memory = 1;
   idec->output_.u.YUVA.y = luma;

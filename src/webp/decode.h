@@ -269,7 +269,8 @@ WEBP_EXTERN(WebPIDecoder*) WebPINewDecoder(WebPDecBuffer* output_buffer);
 // will output the RGB/A samples specified by 'csp' into a preallocated
 // buffer 'output_buffer'. The size of this buffer is at least
 // 'output_buffer_size' and the stride (distance in bytes between two scanlines)
-// is specified by 'output_stride'. Returns NULL if the allocation failed.
+// is specified by 'output_stride'. Returns NULL if the allocation failed,
+// or if a parameter is invalid (NULL output_buffer for instance).
 WEBP_EXTERN(WebPIDecoder*) WebPINewRGB(
     WEBP_CSP_MODE csp,
     uint8_t* output_buffer, size_t output_buffer_size, int output_stride);
@@ -281,7 +282,8 @@ WEBP_EXTERN(WebPIDecoder*) WebPINewRGB(
 // 'u_size' and 'u_stride' parameters, and the chroma-v plane by 'v'
 // and 'v_size'. And same for the alpha-plane. The 'a' pointer can be pass
 // NULL in case one is not interested in the transparency plane.
-// Returns NULL if the allocation failed.
+// Returns NULL if the allocation failed or if a parameter is invalid
+// (NULL luma/u/v buffer for instance).
 WEBP_EXTERN(WebPIDecoder*) WebPINewYUVA(
     uint8_t* luma, size_t luma_size, int luma_stride,
     uint8_t* u, size_t u_size, int u_stride,
