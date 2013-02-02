@@ -91,6 +91,9 @@ static int ReadPicture(const char* const filename, WebPPicture* const pic,
   } else {
     // If no size specified, try to decode it using WIC.
     ok = ReadPictureWithWIC(filename, pic, keep_alpha, metadata);
+    if (ok && keep_alpha == 2) {
+      WebPCleanupTransparentArea(pic);
+    }
   }
   if (!ok) {
     fprintf(stderr, "Error! Could not process file %s\n", filename);
@@ -146,6 +149,9 @@ static int ReadPicture(const char* const filename, WebPPicture* const pic,
       ok = ReadJPEG(in_file, pic, metadata);
     } else if (format == TIFF_) {
       ok = ReadTIFF(filename, pic, keep_alpha, metadata);
+    }
+    if (ok && keep_alpha == 2) {
+      WebPCleanupTransparentArea(pic);
     }
   } else {
     // If image size is specified, infer it as YUV format.
