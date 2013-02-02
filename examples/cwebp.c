@@ -875,6 +875,9 @@ int main(int argc, const char *argv[]) {
     goto Error;
   }
   picture.progress_hook = (show_progress && !quiet) ? ProgressReport : NULL;
+  if (keep_alpha == 2) {
+    WebPCleanupTransparentArea(&picture);
+  }
 
   if (verbose) {
     const double time = StopwatchReadAndReset(&stop_watch);
