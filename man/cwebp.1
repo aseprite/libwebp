@@ -76,6 +76,13 @@ additional encoding possibilities and decide on the quality gain.
 Lower value can result is faster processing time at the expense of
 larger file size and lower compression quality.
 .TP
+.B
+  \-jpeg_like
+Change the internal parameter mapping to better match the expected size
+of JPEG compression. This flag will generally produce output file of similar
+size than its JPEG equivalent (for the same -q setting), but with less
+visual distortion.
+.TP
 .B \-af
 Turns auto-filter on. This algorithm will spend additional time optimizing
 the filtering strength to reach a well-balanced quality.
