@@ -28,7 +28,9 @@ extern "C" {
 // BITS can be either 32, 24, 16 or 8.
 // Pick values that fit natural register size.
 
-#if defined(__i386__) || defined(_M_IX86)      // x86 32bit
+#if defined(REFERENCE_IMPLEMENTATION)
+#define BITS 8
+#elif defined(__i386__) || defined(_M_IX86)   // x86 32bit
 #define BITS 16
 #elif defined(__arm__) || defined(_M_ARM)     // ARM
 #define BITS 8
