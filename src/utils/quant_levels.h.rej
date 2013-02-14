@@ -1,0 +1,16 @@
+--- src/utils/quant_levels.h	2012-07-23 23:40:37.000000000 +0200
++++ src/utils/quant_levels_dec.h	2013-02-13 17:08:18.872194702 +0100
+@@ -20,13 +20,6 @@
+ extern "C" {
+ #endif
+ 
+-// Replace the input 'data' of size 'width'x'height' with 'num-levels'
+-// quantized values. If not NULL, 'sse' will contain the sum of squared error.
+-// Valid range for 'num_levels' is [2, 256].
+-// Returns false in case of error (data is NULL, or parameters are invalid).
+-int QuantizeLevels(uint8_t* const data, int width, int height, int num_levels,
+-                   uint64_t* const sse);
+-
+ // Apply post-processing to input 'data' of size 'width'x'height' assuming
+ // that the source was quantized to a reduced number of levels.
+ // Returns false in case of error (data is NULL, invalid parameters, ...).
