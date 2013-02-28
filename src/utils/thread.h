@@ -63,13 +63,13 @@ typedef struct {
 
 // Must be called first, before any other method.
 void WebPWorkerInit(WebPWorker* const worker);
-// Must be called initialize the object and spawn the thread. Re-entrant.
+// Must be called too initialize the object and spawn the thread. Re-entrant.
 // Will potentially launch the thread. Returns false in case of error.
 int WebPWorkerReset(WebPWorker* const worker);
-// Make sure the previous work is finished. Returns true if worker->had_error
-// was not set and not error condition was triggered by the working thread.
+// Makes sure the previous work is finished. Returns true if worker->had_error
+// was not set and no error condition was triggered by the working thread.
 int WebPWorkerSync(WebPWorker* const worker);
-// Trigger the thread to call hook() with data1 and data2 argument. These
+// Triggers the thread to call hook() with data1 and data2 argument. These
 // hook/data1/data2 can be changed at any time before calling this function,
 // but not be changed afterward until the next call to WebPWorkerSync().
 void WebPWorkerLaunch(WebPWorker* const worker);
