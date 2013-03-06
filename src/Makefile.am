@@ -1,4 +1,5 @@
-SUBDIRS = dec enc dsp utils
+SUBDIRS = dec enc dsp utils .
+# These two libraries depend on libwebp, thus the '.' to force the build order.
 if WANT_MUX
   SUBDIRS += mux
 endif
