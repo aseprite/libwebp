@@ -330,16 +330,17 @@ void VP8SetSegment(const VP8EncIterator* const it, int segment);
 // WIP:#define USE_TOKEN_BUFFER
 
 typedef struct VP8Tokens VP8Tokens;  // struct details in token.c
+typedef struct VP8TBuffer VP8TBuffer;
 
-typedef struct {
 #ifdef USE_TOKEN_BUFFER
+struct VP8TBuffer {
   VP8Tokens* pages_;        // first page
   VP8Tokens** last_page_;   // last page
   uint16_t* tokens_;        // set to (*last_page_)->tokens_
   int left_;          // how many free tokens left before the page is full.
   int error_;         // true in case of malloc error
-#endif
 } VP8TBuffer;
+#endif
 
 void VP8TBufferInit(VP8TBuffer* const b);    // initialize an empty buffer
 void VP8TBufferClear(VP8TBuffer* const b);   // de-allocate pages memory
@@ -381,7 +382,9 @@ struct VP8Encoder {
   int percent_;                             // for progress
 
   int use_tokens_;                          // if true, use Token buffer
+#ifdef USE_TOKEN_BUFFER
   VP8TBuffer tokens_;                       // token buffer
+#endif
 
   // transparency blob
   int has_alpha_;
