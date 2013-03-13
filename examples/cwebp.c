@@ -575,7 +575,7 @@ static void HelpLong(void) {
   printf("                           ");
   printf("copy from the input to the output if present.\n");
   printf("                           "
-         "Valid values: all, none (default), exif, iccp, xmp\n");
+         "Valid values: all, none (default), exif, icc, xmp\n");
 
   printf("\n");
   printf("  -short ................. condense printed message\n");
@@ -812,7 +812,7 @@ int main(int argc, const char *argv[]) {
         { "all",  METADATA_ALL },
         { "none", 0 },
         { "exif", METADATA_EXIF },
-        { "iccp", METADATA_ICCP },
+        { "icc",  METADATA_ICCP },
         { "xmp",  METADATA_XMP },
       };
       const size_t kNumTokens = sizeof(kTokens) / sizeof(kTokens[0]);
