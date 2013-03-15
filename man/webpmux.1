@@ -21,11 +21,6 @@ webpmux \- command line tool to create WebP Mux/container file.
 .B \-o
 .I OUTPUT
 .br
-.B webpmux \-frgm
-.I FRAGMENT_OPTIONS
-.B [ \-frgm ... ] \-o
-.I OUTPUT
-.br
 .B webpmux \-frame
 .I FRAME_OPTIONS
 .B [ \-frame ... ] [ \-loop
@@ -64,9 +59,6 @@ Get EXIF metadata.
 .B xmp
 Get XMP metadata.
 .TP
-.BI frgm " n
-Get nth fragment.
-.TP
 .BI frame " n
 Get nth frame.
 
@@ -97,12 +89,6 @@ Strip EXIF metadata.
 .TP
 .B xmp
 Strip XMP metadata.
-
-.SS FRAGMENT_OPTIONS (\-frgm)
-.TP
-.I file_i +xi+yi
-Where: 'file_i' is the i'th fragment (WebP format) and 'xi','yi' specify the
-image offset for this fragment.
 
 .SS FRAME_OPTIONS (\-frame)
 .TP
