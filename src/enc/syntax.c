@@ -13,6 +13,7 @@
 
 #include "../utils/utils.h"
 #include "../webp/format_constants.h"
+#include "../webp/mux_types.h"
 #include "./vp8enci.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)

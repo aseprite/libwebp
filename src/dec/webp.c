@@ -14,7 +14,7 @@
 #include "./vp8i.h"
 #include "./vp8li.h"
 #include "./webpi.h"
-#include "../webp/format_constants.h"
+#include "../webp/mux_types.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
