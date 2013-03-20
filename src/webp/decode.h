@@ -402,7 +402,8 @@ struct WebPBitstreamFeatures {
                                 // recommended.
   int rotate;                   // TODO(later)
   int uv_sampling;              // should be 0 for now. TODO(later)
-  uint32_t pad[3];              // padding for later use
+  int has_animation;            // True if the bitstream is an animation.
+  uint32_t pad[2];              // padding for later use
 };
 
 // Internal, version-checked, entry point
