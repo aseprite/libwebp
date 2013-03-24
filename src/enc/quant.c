@@ -972,6 +972,7 @@ static void DistoRefine(VP8EncIterator* const it, int try_both_i4_i16) {
         best_score = score;
       }
     }
+    best_mode = 0;
     VP8SetIntra16Mode(it, best_mode);
   }
   if (try_both_i4_i16 || !is_i16) {
