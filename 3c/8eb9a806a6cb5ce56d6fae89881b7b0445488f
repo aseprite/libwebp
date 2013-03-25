@@ -1,0 +1,9 @@
+Code-Review+1: James Zern <jzern@google.com>
+Commit-Queue+1: pascal massimino <pascal.massimino@gmail.com>
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Mon, 25 Mar 2013 14:58:00 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/46374
+Project: webm/libwebp
+Branch: refs/heads/0.3.0
