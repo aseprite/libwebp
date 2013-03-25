@@ -51,6 +51,24 @@ static void ClearPicture(WebPPicture* const picture, uint32_t color) {
   }
 }
 
+static void ClearTopLeft(WebPPicture* const picture,
+                         int clear_top, int clear_left) {
+  if (clear_top) {
+    uint32_t* const dst = picture->argb;
+    int x;
+    for (x = 0; x < picture->width; ++x) {
+      dst[x] = TRANSPARENT_COLOR;
+    }
+  }
+  if (clear_left) {
+    uint32_t* const dst = picture->argb;
+    int y;
+    for (y = 0; y < picture->height; ++y) {
+      dst[y * picture->argb_stride] = TRANSPARENT_COLOR;
+    }
+  }
+}
+
 static void Remap(const uint8_t* const src, const GifFileType* const gif,
                   uint32_t* dst, int len) {
   int i;
@@ -110,6 +128,8 @@ static int ReadSubImage(GifFileType* gif, WebPPicture* pic, WebPPicture* view) {
   // re-align the view with even offset (and adjust dimensions if needed).
   WebPPictureView(pic, offset_x & ~1, offset_y & ~1,
                   sub_w + (offset_x & 1), sub_h + (offset_y & 1), view);
+  // if the view was adjusted make the added row / column transparent.
+  ClearTopLeft(view, offset_y & 1, offset_x & 1);
   ok = 1;
 
  End:
