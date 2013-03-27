@@ -450,15 +450,25 @@ Reserved: 7 bits
 
 Disposal method (D): 1 bit
 
-: Indicates how the area used by this frame is to be treated before rendering
-the next frame on canvas:
+: Indicates how a frame is to be treated before rendering the next frame on the
+  canvas:
 
-  * `0`: Do not dispose. Keep the area used by this frame as it is and render
-    the next frame on top of it.
+  * `0`: Do not dispose. Keep the this frame as it is and render the next frame
+    on top of it using [Alpha-blending](#alpha-blending).
 
-  * `1`: Dispose to background color. Restore the area used by this frame to
-    background color before rendering the next frame. The background color is
-    part of the [ANIM chunk](#anim_chunk).
+  * `1`: Dispose to background color. Restore this frame to background color
+    before rendering the next frame. The background color is part of the
+    [ANIM chunk](#anim_chunk).
+
+**Notes**:
+  * The frame disposal only applies to a _frame_, that is, the rectangle
+    defined by _Frame X_, _Frame Y_, _frame width_ and _frame height_. It may
+    or may not cover the whole canvas.
+
+  * Alpha-blending only applies to the _common area_ of the two frames.
+
+  * If a file contains a [color profile](#color-profile), it should be applied
+    to the two frames _before_ alpha-blending them.
 
 Frame Data: _Chunk Size_ - `16` bytes
 
@@ -863,3 +873,4 @@ RIFF/WEBP
 [iccspec]: http://www.color.org/icc_specs2.xalter
 [metadata]: http://www.metadataworkinggroup.org/pdf/mwg_guidance.pdf
 [rfc 2119]: http://tools.ietf.org/html/rfc2119
+[alpha-blending]: http://en.wikipedia.org/wiki/Alpha_compositing#Alpha_blending
