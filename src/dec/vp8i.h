@@ -154,12 +154,14 @@ typedef struct {  // filter specs
   unsigned int f_level_:6;      // filter strength: 0..63
   unsigned int f_ilevel_:6;     // inner limit: 1..63
   unsigned int f_inner_:1;      // do inner filtering?
+  unsigned int unused:19;
 } VP8FInfo;
 
 typedef struct {  // used for syntax-parsing
   unsigned int nz_:24;       // non-zero AC/DC coeffs (24bit)
   unsigned int dc_nz_:1;     // non-zero DC coeffs
   unsigned int skip_:1;      // block type
+  unsigned int unused:6;
 } VP8MB;
 
 // Dequantization matrices
