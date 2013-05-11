@@ -23,7 +23,7 @@
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
-
+#define __BIG_ENDIAN__
 // The Boolean decoder needs to maintain infinite precision on the value_ field.
 // However, since range_ is only 8bit, we only need an active window of 8 bits
 // for value_. Left bits (MSB) gets zeroed and shifted away when value_ falls
@@ -194,6 +194,7 @@ static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
 #endif
 #else    // BIG_ENDIAN
     bits = (bit_t)in_bits;
+    if (BITS != 8 * sizeof(bit_t)) bits >>= (8 * sizeof(bit_t) - BITS);
 #endif
 #ifndef USE_RIGHT_JUSTIFY
     br->value_ |= bits << (-br->bits_);
