@@ -40,7 +40,11 @@ AC_DEFUN([TEST_AND_ADD_CFLAGS],
           dnl Note AC_LANG_PROGRAM([]) uses an old-style main definition.
           AC_COMPILE_IFELSE([AC_LANG_SOURCE([int main(void) { return 0; }])],
                             [AC_MSG_RESULT([yes])]
-                            [AS_VAR_APPEND([AM_CFLAGS], [" $1"])],
+                            dnl Use AS_VAR_APPEND if available, otherwise use a
+                            dnl simple fallback assignment.
+                            m4_ifdef([AS_VAR_APPEND],
+                                     [AS_VAR_APPEND([AM_CFLAGS], [" $1"])],
+                                     [AM_CFLAGS="$AM_CFLAGS $1"]),
                             [AC_MSG_RESULT([no])])
           CFLAGS="$SAVED_CFLAGS"])
 TEST_AND_ADD_CFLAGS([-Wall])
