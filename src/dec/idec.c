@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "./alphai.h"
 #include "./webpi.h"
 #include "./vp8i.h"
 #include "../utils/utils.h"
@@ -143,7 +144,21 @@ static void DoRemap(WebPIDecoder* const idec, ptrdiff_t offset) {
       }
       assert(last_part >= 0);
       dec->parts_[last_part].buf_end_ = mem->buf_ + mem->end_;
-      if (NeedCompressedAlpha(idec)) dec->alpha_data_ += offset;
+      if (NeedCompressedAlpha(idec)) {
+        ALPHDecoder* const alph_dec = dec->alph_dec_;
+        dec->alpha_data_ += offset;
+        if (alph_dec != NULL) {
+          VP8LDecoder* const alph_vp8l_dec = alph_dec->vp8l_dec_;
+          // As NeedCompressedAlpha() returned true and alph_dec != NULL,
+          // alph_dec->method_ must be ALPHA_LOSSLESS_COMPRESSION and decoding
+          // must not have finished. So, alph_vp8l_dec must exist.
+          assert(alph_vp8l_dec != NULL);
+          assert(dec->alpha_data_size_ >= ALPHA_HEADER_LEN);
+          VP8LBitReaderSetBuffer(&alph_vp8l_dec->br_,
+                                 dec->alpha_data_ + ALPHA_HEADER_LEN,
+                                 dec->alpha_data_size_ - ALPHA_HEADER_LEN);
+        }
+      }
     } else {    // Resize lossless bitreader
       VP8LDecoder* const dec = (VP8LDecoder*)idec->dec_;
       VP8LBitReaderSetBuffer(&dec->br_, new_base, MemDataSize(mem));
