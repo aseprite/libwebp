@@ -1,0 +1,8 @@
+Commit-Queue+1: Christian Duvivier <cduvivier@google.com>
+Code-Review+2: Christian Duvivier <cduvivier@google.com>
+Verified+1: Christian Duvivier <cduvivier@google.com>
+Submitted-by: Christian Duvivier <cduvivier@google.com>
+Submitted-at: Wed, 12 Jun 2013 12:36:20 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/58292
+Project: webm/libwebp
+Branch: refs/heads/0.3.0
