@@ -34,6 +34,20 @@ typedef struct WebPBitstreamFeatures WebPBitstreamFeatures;
 typedef struct WebPDecoderOptions WebPDecoderOptions;
 typedef struct WebPDecoderConfig WebPDecoderConfig;
 
+//------------------------------------------------------------------------------
+// Enumeration of the status codes
+
+typedef enum VP8StatusCode {
+  VP8_STATUS_OK = 0,
+  VP8_STATUS_OUT_OF_MEMORY,
+  VP8_STATUS_INVALID_PARAM,
+  VP8_STATUS_BITSTREAM_ERROR,
+  VP8_STATUS_UNSUPPORTED_FEATURE,
+  VP8_STATUS_SUSPENDED,
+  VP8_STATUS_USER_ABORT,
+  VP8_STATUS_NOT_ENOUGH_DATA
+} VP8StatusCode;
+
 // Return the decoder's version number, packed in hexadecimal using 8bits for
 // each of major/minor/revision. E.g: v2.5.7 is 0x020507.
 WEBP_EXTERN(int) WebPGetDecoderVersion(void);
@@ -44,6 +58,10 @@ WEBP_EXTERN(int) WebPGetDecoderVersion(void);
 // Pointers 'width' and 'height' can be passed NULL if deemed irrelevant.
 WEBP_EXTERN(int) WebPGetInfo(const uint8_t* data, size_t data_size,
                              int* width, int* height);
+
+WEBP_EXTERN(VP8StatusCode) GetFeatures(
+    const uint8_t* const data, size_t data_size,
+    WebPBitstreamFeatures* const features);
 
 // Decodes WebP images pointed to by 'data' and returns RGBA samples, along
 // with the dimensions in *width and *height. The ordering of samples in
@@ -218,20 +236,6 @@ static WEBP_INLINE int WebPInitDecBuffer(WebPDecBuffer* buffer) {
 // Free any memory associated with the buffer. Must always be called last.
 // Note: doesn't free the 'buffer' structure itself.
 WEBP_EXTERN(void) WebPFreeDecBuffer(WebPDecBuffer* buffer);
-
-//------------------------------------------------------------------------------
-// Enumeration of the status codes
-
-typedef enum VP8StatusCode {
-  VP8_STATUS_OK = 0,
-  VP8_STATUS_OUT_OF_MEMORY,
-  VP8_STATUS_INVALID_PARAM,
-  VP8_STATUS_BITSTREAM_ERROR,
-  VP8_STATUS_UNSUPPORTED_FEATURE,
-  VP8_STATUS_SUSPENDED,
-  VP8_STATUS_USER_ABORT,
-  VP8_STATUS_NOT_ENOUGH_DATA
-} VP8StatusCode;
 
 //------------------------------------------------------------------------------
 // Incremental decoding

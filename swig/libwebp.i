@@ -89,12 +89,48 @@ DECODE_AUTODOC(WebPDecodeARGB);
 DECODE_AUTODOC(WebPDecodeBGR);
 DECODE_AUTODOC(WebPDecodeBGRA);
 %feature("autodoc", "WebPGetInfo(uint8_t data) -> (width, height)") WebPGetInfo;
+%feature("autodoc", "GetFeatures(uint8_t data) -> {features}") GetFeatures;
 #endif  /* SWIGPYTHON */
 
 //------------------------------------------------------------------------------
 // Decoder specific
+%{
+#include "webp/decode.h"
+%}
 
 %apply int* OUTPUT { int* width, int* height }
+
+#ifdef SWIGPYTHON
+%typedef unsigned int VP8StatusCode;
+%typemap(argout) WebPBitstreamFeatures* features {
+  PyObject* features = PyDict_New();
+  PyDict_SetItemString(features, "error_code", $result);
+  if (PyInt_Check($result) && !PyInt_AsLong($result)) {
+    PyDict_SetItemString(features, "width", PyInt_FromLong($1->width));
+    PyDict_SetItemString(features, "height", PyInt_FromLong($1->height));
+    PyDict_SetItemString(features, "has_alpha", PyInt_FromLong($1->has_alpha));
+    PyDict_SetItemString(features, "has_animation", 
+                         PyInt_FromLong($1->has_animation));
+    PyDict_SetItemString(features, "bitstream_version", 
+                         PyInt_FromLong($1->bitstream_version));
+    PyDict_SetItemString(features, "no_incremental_decoding", 
+                         PyInt_FromLong($1->no_incremental_decoding));   
+    PyDict_SetItemString(features, "rotate", PyInt_FromLong($1->rotate));
+    PyDict_SetItemString(features, "uv_sampling", 
+                         PyInt_FromLong($1->uv_sampling));
+    PyObject* pad = PyTuple_New(2);
+    PyTuple_SetItem(pad, 0, PyInt_FromLong($1->pad[0]));
+    PyTuple_SetItem(pad, 1, PyInt_FromLong($1->pad[1]));
+    PyDict_SetItemString(features, "pad", pad);
+  }
+  $result = features;
+}
+#endif  /* SWIGPYTHON */
+
+%typemap(in,numinputs=0) WebPBitstreamFeatures* features(
+    WebPBitstreamFeatures temp) {
+  $1 = &temp;
+}
 
 // free the buffer returned by these functions after copying into
 // the native type
@@ -108,6 +144,8 @@ DECODE_AUTODOC(WebPDecodeBGRA);
 int WebPGetDecoderVersion(void);
 int WebPGetInfo(const uint8_t* data, size_t data_size,
                 int* width, int* height);
+VP8StatusCode GetFeatures(const uint8_t* data, size_t data_size,
+                          WebPBitstreamFeatures* features);
 
 uint8_t* WebPDecodeRGB(const uint8_t* data, size_t data_size,
                        int* width, int* height);
@@ -129,7 +167,6 @@ int WebPGetEncoderVersion(void);
 // Wrapper code additions
 
 %{
-#include "webp/decode.h"
 #include "webp/encode.h"
 %}
 

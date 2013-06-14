@@ -76,6 +76,10 @@ def WebPGetInfo(*args):
   """WebPGetInfo(uint8_t data) -> (width, height)"""
   return _libwebp.WebPGetInfo(*args)
 
+def GetFeatures(*args):
+  """GetFeatures(uint8_t data) -> {features}"""
+  return _libwebp.GetFeatures(*args)
+
 def WebPDecodeRGB(*args):
   """WebPDecodeRGB(uint8_t data) -> (rgb, width, height)"""
   return _libwebp.WebPDecodeRGB(*args)

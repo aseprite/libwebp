@@ -637,8 +637,8 @@ static void DefaultFeatures(WebPBitstreamFeatures* const features) {
   features->bitstream_version = 0;
 }
 
-static VP8StatusCode GetFeatures(const uint8_t* const data, size_t data_size,
-                                 WebPBitstreamFeatures* const features) {
+VP8StatusCode GetFeatures(const uint8_t* const data, size_t data_size,
+                          WebPBitstreamFeatures* const features) {
   if (features == NULL || data == NULL) {
     return VP8_STATUS_INVALID_PARAM;
   }
