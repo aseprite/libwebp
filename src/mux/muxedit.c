@@ -487,11 +487,12 @@ static WebPMuxError GetImageCanvasWidthHeight(
     int64_t image_area = 0;
     // Aggregate the bounding box for animation frames & fragmented images.
     for (; wpi != NULL; wpi = wpi->next_) {
-      int x_offset, y_offset, duration, w, h;
+      int x_offset = 0, y_offset = 0, duration, w = 0, h = 0;
       const WebPMuxError err = GetImageInfo(wpi, &x_offset, &y_offset,
                                             &duration, &w, &h);
       const int max_x_pos = x_offset + w;
       const int max_y_pos = y_offset + h;
+      (void)duration;
       if (err != WEBP_MUX_OK) return err;
       assert(x_offset < MAX_POSITION_OFFSET);
       assert(y_offset < MAX_POSITION_OFFSET);
