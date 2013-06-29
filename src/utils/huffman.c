@@ -183,7 +183,9 @@ static int TreeAddSymbol(HuffmanTree* const tree,
     }
     node += node->children_ + ((code >> code_length) & 1);
     if (--step == 0) {
-      tree->lut_jump_[base_code] = node - tree->root_;
+      tree->lut_jump_[base_code] = (int16_t)(node - tree->root_);
+      assert(node - tree->root_ >= 0);
+      assert(node - tree->root_ < 0x8000);
     }
   }
   if (NodeIsEmpty(node)) {
