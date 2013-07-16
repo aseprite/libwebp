@@ -399,6 +399,42 @@ static void RescalePlane(const uint8_t* src,
   }
 }
 
+
+#define MFIX 20    // 24bit fixed point arithmetic
+#define HALF ((1 << MFIX) >> 1)
+static uint32_t Mult(uint8_t x, uint32_t mult) {   // performs x * 255 / alpha
+  const uint32_t v = (x * mult + HALF) >> MFIX;
+  return (v > 255) ? 255 : v;
+}
+
+static void AlphaMultiply(WebPPicture* pic, int inverse) {
+  int y;
+  uint32_t* ptr = pic->argb;
+  for (y = 0; y < pic->height; ++y) {
+    int x;
+    for (x = 0; x < pic->width; ++x) {
+      const uint32_t argb = ptr[x];
+      const uint32_t alpha = (argb >> 24) & 0xff;
+      if (alpha == 255) {
+        ptr[x] = argb;
+      } else if (alpha > 0) {
+        const uint32_t mult = inverse ? (255 << MFIX) / alpha
+                                      : (alpha << MFIX) / 255;
+        uint32_t out = alpha << 24;
+        out |= Mult(argb >>  0, mult) <<  0;
+        out |= Mult(argb >>  8, mult) <<  8;
+        out |= Mult(argb >> 16, mult) << 16;
+        ptr[x] = out;
+      } else {
+        ptr[x] = 0;
+      }
+    }
+    ptr += pic->argb_stride;
+  }
+}
+#undef HALF
+#undef MFIX
+
 int WebPPictureRescale(WebPPicture* pic, int width, int height) {
   WebPPicture tmp;
   int prev_width, prev_height;
@@ -462,12 +498,13 @@ int WebPPictureRescale(WebPPicture* pic, int width, int height) {
       WebPPictureFree(&tmp);
       return 0;
     }
-
+    AlphaMultiply(pic, 0);
     RescalePlane((const uint8_t*)pic->argb, prev_width, prev_height,
                  pic->argb_stride * 4,
                  (uint8_t*)tmp.argb, width, height,
                  tmp.argb_stride * 4,
                  work, 4);
+    AlphaMultiply(&tmp, 1);
   }
   WebPPictureFree(pic);
   free(work);
