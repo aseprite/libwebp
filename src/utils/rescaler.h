@@ -46,6 +46,10 @@ void WebPRescalerInit(WebPRescaler* const wrk, int src_width, int src_height,
                       int y_add, int y_sub,
                       int32_t* const work);
 
+// Returns the number of input line needed next to produce one output line,
+// considering that the maximum available input lines are 'max_num_lines'.
+int WebPRescaleNeededLines(const WebPRescaler* const wrk, int max_num_lines);
+
 // Import a row of data and save its contribution in the rescaler.
 // 'channel' denotes the channel number to be imported.
 void WebPRescalerImportRow(WebPRescaler* const rescaler,

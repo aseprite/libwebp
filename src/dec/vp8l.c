@@ -20,6 +20,7 @@
 #include "../dsp/yuv.h"
 #include "../utils/huffman.h"
 #include "../utils/utils.h"
+#include "../utils/alpha_multiply.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -417,12 +418,13 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
 // We have special "export" function since we need to convert from BGRA
 static int Export(WebPRescaler* const rescaler, WEBP_CSP_MODE colorspace,
                   int rgba_stride, uint8_t* const rgba) {
-  const uint32_t* const src = (const uint32_t*)rescaler->dst;
+  uint32_t* const src = (uint32_t*)rescaler->dst;
   const int dst_width = rescaler->dst_width;
   int num_lines_out = 0;
   while (WebPRescalerHasPendingOutput(rescaler)) {
     uint8_t* const dst = rgba + num_lines_out * rgba_stride;
     WebPRescalerExportRow(rescaler);
+    WebPMultARGBRow((uint32_t*)src, dst_width, 1);
     VP8LConvertFromBGRA(src, dst_width, colorspace, dst);
     ++num_lines_out;
   }
@@ -430,18 +432,23 @@ static int Export(WebPRescaler* const rescaler, WEBP_CSP_MODE colorspace,
 }
 
 // Emit scaled rows.
-static int EmitRescaledRows(const VP8LDecoder* const dec,
-                            const uint32_t* const data, int in_stride, int mb_h,
-                            uint8_t* const out, int out_stride) {
+static int EmitRescaledRowsRGBA(const VP8LDecoder* const dec,
+                                uint32_t* const data,
+                                int in_stride, int mb_h,
+                                uint8_t* const out, int out_stride) {
   const WEBP_CSP_MODE colorspace = dec->output_->colorspace;
-  const uint8_t* const in = (const uint8_t*)data;
+  uint8_t* const in = (uint8_t*)data;
   int num_lines_in = 0;
   int num_lines_out = 0;
   while (num_lines_in < mb_h) {
-    const uint8_t* const row_in = in + num_lines_in * in_stride;
+    uint8_t* const row_in = in + num_lines_in * in_stride;
     uint8_t* const row_out = out + num_lines_out * out_stride;
-    num_lines_in += WebPRescalerImport(dec->rescaler, mb_h - num_lines_in,
-                                       row_in, in_stride);
+    const int lines_left = mb_h - num_lines_in;
+    const int needed_lines = WebPRescaleNeededLines(dec->rescaler, lines_left);
+    WebPMultARGBRows(row_in, in_stride,
+                     dec->rescaler->src_width, needed_lines, 0);
+    WebPRescalerImport(dec->rescaler, lines_left, row_in, in_stride);
+    num_lines_in += needed_lines;
     num_lines_out += Export(dec->rescaler, colorspace, out_stride, row_out);
   }
   return num_lines_out;
@@ -535,6 +542,7 @@ static int ExportYUVA(const VP8LDecoder* const dec, int y_pos) {
   int num_lines_out = 0;
   while (WebPRescalerHasPendingOutput(rescaler)) {
     WebPRescalerExportRow(rescaler);
+    WebPMultARGBRow((uint32_t*)src, dst_width, 1);
     ConvertToYUVA(src, dst_width, y_pos, dec->output_);
     ++y_pos;
     ++num_lines_out;
@@ -549,9 +557,13 @@ static int EmitRescaledRowsYUVA(const VP8LDecoder* const dec,
   int num_lines_in = 0;
   int y_pos = dec->last_out_row_;
   while (num_lines_in < mb_h) {
-    const uint8_t* const row_in = in + num_lines_in * in_stride;
-    num_lines_in += WebPRescalerImport(dec->rescaler, mb_h - num_lines_in,
-                                       row_in, in_stride);
+    uint8_t* const row_in = in + num_lines_in * in_stride;
+    const int lines_left = mb_h - num_lines_in;
+    const int needed_lines = WebPRescaleNeededLines(dec->rescaler, lines_left);
+    WebPMultARGBRows(row_in, in_stride,
+                     dec->rescaler->src_width, needed_lines, 0);
+    WebPRescalerImport(dec->rescaler, lines_left, row_in, in_stride);
+    num_lines_in += needed_lines;
     y_pos += ExportYUVA(dec, y_pos);
   }
   return y_pos;
@@ -579,7 +591,7 @@ static int EmitRowsYUVA(const VP8LDecoder* const dec,
 // Note that 'pixel_stride' is in units of 'uint32_t' (and not 'bytes).
 // Returns true if the crop window is not empty.
 static int SetCropWindow(VP8Io* const io, int y_start, int y_end,
-                         const uint32_t** const in_data, int pixel_stride) {
+                         uint32_t** const in_data, int pixel_stride) {
   assert(y_start < y_end);
   assert(io->crop_left < io->crop_right);
   if (y_end > io->crop_bottom) {
@@ -666,7 +678,7 @@ static void ProcessRows(VP8LDecoder* const dec, int row) {
   // Emit output.
   {
     VP8Io* const io = dec->io_;
-    const uint32_t* rows_data = dec->argb_cache_;
+    uint32_t* rows_data = dec->argb_cache_;
     if (!SetCropWindow(io, dec->last_row_, row, &rows_data, io->width)) {
       // Nothing to output (this time).
     } else {
@@ -676,8 +688,8 @@ static void ProcessRows(VP8LDecoder* const dec, int row) {
         const WebPRGBABuffer* const buf = &output->u.RGBA;
         uint8_t* const rgba = buf->rgba + dec->last_out_row_ * buf->stride;
         const int num_rows_out = io->use_scaling ?
-            EmitRescaledRows(dec, rows_data, in_stride, io->mb_h,
-                             rgba, buf->stride) :
+            EmitRescaledRowsRGBA(dec, rows_data, in_stride, io->mb_h,
+                                 rgba, buf->stride) :
             EmitRows(output->colorspace, rows_data, in_stride,
                      io->mb_w, io->mb_h, rgba, buf->stride);
         // Update 'last_out_row_'.

@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "./rescaler.h"
+#include "./alpha_multiply.h"
 
 //------------------------------------------------------------------------------
 
@@ -122,6 +123,11 @@ uint8_t* WebPRescalerExportRow(WebPRescaler* const wrk) {
 
 //------------------------------------------------------------------------------
 // all-in-one calls
+
+int WebPRescaleNeededLines(const WebPRescaler* const wrk, int max_num_lines) {
+  const int num_lines = (wrk->y_accum + wrk->y_sub - 1) / wrk->y_sub;
+  return (num_lines > max_num_lines) ? max_num_lines : num_lines;
+}
 
 int WebPRescalerImport(WebPRescaler* const wrk, int num_lines,
                        const uint8_t* src, int src_stride) {
