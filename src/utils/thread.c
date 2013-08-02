@@ -133,6 +133,12 @@ static int pthread_cond_wait(pthread_cond_t* const condition,
 
 //------------------------------------------------------------------------------
 
+void WebPWorkerExecute(WebPWorker* const worker) {
+  if (worker->hook != NULL) {
+    worker->had_error |= !worker->hook(worker->data1, worker->data2);
+  }
+}
+
 static THREADFN ThreadLoop(void* ptr) {
   WebPWorker* const worker = (WebPWorker*)ptr;
   int done = 0;
@@ -142,9 +148,7 @@ static THREADFN ThreadLoop(void* ptr) {
       pthread_cond_wait(&worker->condition_, &worker->mutex_);
     }
     if (worker->status_ == WORK) {
-      if (worker->hook) {
-        worker->had_error |= !worker->hook(worker->data1, worker->data2);
-      }
+      WebPWorkerExecute(worker);
       worker->status_ = OK;
     } else if (worker->status_ == NOT_OK) {   // finish the worker
       done = 1;
@@ -219,8 +223,7 @@ void WebPWorkerLaunch(WebPWorker* const worker) {
 #ifdef WEBP_USE_THREAD
   ChangeState(worker, WORK);
 #else
-  if (worker->hook)
-    worker->had_error |= !worker->hook(worker->data1, worker->data2);
+  WebPWorkerExecute(worker);
 #endif
 }
 
