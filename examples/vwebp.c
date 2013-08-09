@@ -61,11 +61,7 @@ static struct {
   const WebPDecBuffer* pic;
   WebPDemuxer* dmux;
   WebPIterator frameiter;
-  struct {
-    int width, height;
-    int x_offset, y_offset;
-    enum WebPMuxAnimDispose dispose_method;
-  } prev_frame;
+  WebPIterator prev_frame;
   WebPChunkIterator iccp;
 } kParams;
 
@@ -281,40 +277,45 @@ static void DrawCheckerBoard(void) {
 
 static void HandleDisplay(void) {
   const WebPDecBuffer* const pic = kParams.pic;
-  const WebPIterator* const iter = &kParams.frameiter;
+  const WebPIterator* const curr = &kParams.frameiter;
+  WebPIterator* const prev = &kParams.prev_frame;
   GLfloat xoff, yoff;
   if (pic == NULL) return;
   glPushMatrix();
   glPixelZoom(1, -1);
-  xoff = (GLfloat)(2. * iter->x_offset / kParams.canvas_width);
-  yoff = (GLfloat)(2. * iter->y_offset / kParams.canvas_height);
+  xoff = (GLfloat)(2. * curr->x_offset / kParams.canvas_width);
+  yoff = (GLfloat)(2. * curr->y_offset / kParams.canvas_height);
   glRasterPos2f(-1.f + xoff, 1.f - yoff);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, pic->u.RGBA.stride / 4);
 
-  if (kParams.prev_frame.dispose_method == WEBP_MUX_DISPOSE_BACKGROUND) {
+  if (prev->dispose_method == WEBP_MUX_DISPOSE_BACKGROUND ||
+      curr->blend_method == WEBP_MUX_NO_BLEND) {
     // TODO(later): these offsets and those above should factor in window size.
     //              they will be incorrect if the window is resized.
     // glScissor() takes window coordinates (0,0 at bottom left).
-    const int window_x = kParams.prev_frame.x_offset;
-    const int window_y = kParams.canvas_height -
-                         kParams.prev_frame.y_offset -
-                         kParams.prev_frame.height;
+    int window_x, window_y;
+    if (prev->dispose_method == WEBP_MUX_DISPOSE_BACKGROUND) {
+      // Clear the previous frame rectangle.
+      window_x = prev->x_offset;
+      window_y = kParams.canvas_height - prev->y_offset - prev->height;
+    } else {  // curr->blend_method == WEBP_MUX_NO_BLEND.
+      // We simulate no-blending behavior by first clearing the current frame
+      // rectangle (to a checker-board) and then alpha-blending against it.
+      window_x = curr->x_offset;
+      window_y = kParams.canvas_height - curr->y_offset - curr->height;
+    }
     glEnable(GL_SCISSOR_TEST);
-    // Only updated the requested area, not the whole canvas.
-    glScissor(window_x, window_y,
-              kParams.prev_frame.width, kParams.prev_frame.height);
+    // Only update the requested area, not the whole canvas.
+    glScissor(window_x, window_y, prev->width, prev->height);
 
     glClear(GL_COLOR_BUFFER_BIT);  // use clear color
     DrawCheckerBoard();
 
     glDisable(GL_SCISSOR_TEST);
   }
-  kParams.prev_frame.width = iter->width;
-  kParams.prev_frame.height = iter->height;
-  kParams.prev_frame.x_offset = iter->x_offset;
-  kParams.prev_frame.y_offset = iter->y_offset;
-  kParams.prev_frame.dispose_method = iter->dispose_method;
+
+  *prev = *curr;
 
   glDrawPixels(pic->width, pic->height,
                GL_RGBA, GL_UNSIGNED_BYTE,
@@ -330,9 +331,9 @@ static void HandleDisplay(void) {
     glColor4f(0.90f, 0.0f, 0.90f, 1.0f);
     glRasterPos2f(-0.95f, 0.80f);
     PrintString(tmp);
-    if (iter->x_offset != 0 || iter->y_offset != 0) {
+    if (curr->x_offset != 0 || curr->y_offset != 0) {
       snprintf(tmp, sizeof(tmp), " (offset:%d,%d)",
-               iter->x_offset, iter->y_offset);
+               curr->x_offset, curr->y_offset);
       glRasterPos2f(-0.95f, 0.70f);
       PrintString(tmp);
     }
