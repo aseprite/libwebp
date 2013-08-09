@@ -31,16 +31,59 @@
 #define GIF_DISPOSE_SHIFT    2
 #define TRANSPARENT_COLOR    0x00ffffff
 #define WHITE_COLOR          0xffffffff
+#define MAX_IFRAME_INTERVAL  20
 
 //------------------------------------------------------------------------------
 
 static int transparent_index = -1;  // No transparency by default.
 
-static void ClearPicture(WebPPicture* const picture) {
-  int x, y;
-  for (y = 0; y < picture->height; ++y) {
+typedef struct WebPFrameRect {
+  int width, height, x_offset, y_offset;
+} WebPFrameRect;
+
+// Clear pixels in 'picture' within given 'rect' to transparent.
+static void ClearPicture(WebPPicture* const picture,
+                         const WebPFrameRect* const rect) {
+  int y;
+  int y_start = (rect != NULL) ? rect->y_offset : 0;
+  int y_end = (rect != NULL) ? rect->y_offset + rect->height : picture->height;
+  int x_start = (rect != NULL) ? rect->x_offset : 0;
+  int x_end = (rect != NULL) ? rect->x_offset + rect->width : picture->width;
+  for (y = y_start; y < y_end; ++y) {
     uint32_t* const dst = picture->argb + y * picture->argb_stride;
-    for (x = 0; x < picture->width; ++x) dst[x] = TRANSPARENT_COLOR;
+    int x;
+    for (x = x_start; x < x_end; ++x) {
+      dst[x] = TRANSPARENT_COLOR;
+    }
+  }
+}
+
+// TODO: Also used in picture.c. Move to a common location.
+static void CopyPlane(const uint8_t* src, int src_stride,
+                      uint8_t* dst, int dst_stride, int width, int height) {
+  while (height-- > 0) {
+    memcpy(dst, src, width);
+    src += src_stride;
+    dst += dst_stride;
+  }
+}
+
+// Given 'curr_frame' and its 'rect', blend it with 'canvas'.
+static void BlendCanvasWithCurrentFrame(WebPPicture* const canvas,
+                                        const WebPPicture* const curr_frame,
+                                        const WebPFrameRect* const rect) {
+  int i;
+  assert(canvas->width == curr_frame->width &&
+         canvas->height == curr_frame->height);
+  for (i = rect->x_offset; i < rect->x_offset + rect->width; ++i) {
+    int j;
+    for (j = rect->y_offset; j < rect->y_offset + rect->height; ++j) {
+      uint32_t* const canvas_pixel = canvas->argb + j * canvas->argb_stride + i;
+      uint32_t* const new_pixel =
+          curr_frame->argb + j * curr_frame->argb_stride + i;
+      const int new_alpha = *new_pixel >> 24;
+      if (new_alpha != 0) *canvas_pixel = *new_pixel;
+    }
   }
 }
 
@@ -60,25 +103,105 @@ static void Remap(const uint8_t* const src, const GifFileType* const gif,
   }
 }
 
-static int ReadSubImage(GifFileType* gif, WebPPicture* pic, WebPPicture* view) {
+// Returns true if 'curr' frame can be decoded independent of 'prev' canvas.
+static int IsIndependentFrame(const WebPPicture* const curr,
+                              const WebPFrameRect* const curr_rect,
+                              const WebPPicture* const prev,
+                              int is_first_frame) {
+  int i, j;
+  int is_independent = 1;
+
+  // First frame is always independent.
+  if (is_first_frame) return 1;
+
+  // If previous canvas (with previous frame disposed) is blank, current frame
+  // is independent.
+  for (i = 0; i < prev->width; ++i) {
+    for (j = 0; j < prev->height; ++j) {
+      const uint32_t prev_alpha = (prev->argb[j * prev->argb_stride + i]) >> 24;
+      if (prev_alpha != 0) {
+        is_independent = 0;
+        break;
+      }
+    }
+    if (!is_independent) break;
+  }
+  if (is_independent) return 1;
+
+  // If current frame covers the whole canvas and does not contain any
+  // transparent pixels that depend on previous canvas, then current frame is
+  // independent.
+  is_independent = 1;
+  if (curr_rect->width == curr->width && curr_rect->height == curr->height) {
+    assert(curr_rect->x_offset == 0 && curr_rect->y_offset == 0);
+    for (i = 0; i < prev->width; ++i) {
+      for (j = 0; j < prev->height; ++j) {
+        const uint32_t prev_alpha =
+            (prev->argb[j * prev->argb_stride + i]) >> 24;
+        const uint32_t curr_alpha =
+            (curr->argb[j * curr->argb_stride + i]) >> 24;
+        if (curr_alpha != 0xff && prev_alpha != 0) {
+          is_independent = 0;
+          break;
+        }
+      }
+      if (!is_independent) break;
+    }
+    if (is_independent) return 1;
+  }
+
+  return 0;
+}
+
+// Make 'curr' frame independently decodable.
+static void MakeIndependentFrame(WebPPicture* const curr,
+                                 const WebPPicture* const prev,
+                                 WebPFrameRect* const rect) {
+  int i;
+  assert(curr->width == prev->width && curr->height == prev->height);
+
+  // Replace transparent pixels of current canvas with those from previous
+  // canvas (with previous frame disposed).
+  for (i = 0; i < curr->width; ++i) {
+    int j;
+    for (j = 0; j < curr->height; ++j) {
+      uint32_t* const prev_pixel = prev->argb + j * prev->argb_stride + i;
+      uint32_t* const curr_pixel = curr->argb + j * curr->argb_stride + i;
+      const int curr_alpha = *curr_pixel >> 24;
+      if (curr_alpha == 0) *curr_pixel = *prev_pixel;
+    }
+  }
+
+  // Frame rectangle now covers the whole canvas.
+  rect->width = curr->width;
+  rect->height = curr->height;
+  rect->x_offset = 0;
+  rect->y_offset = 0;
+}
+
+static int ReadSubImage(GifFileType* gif, WebPPicture* const prev,
+                        int is_first_frame, int* const count_since_iframe,
+                        WebPFrameRect* const gif_rect, WebPPicture* sub_image,
+                        WebPMuxFrameInfo* const info, WebPPicture* const curr) {
   const GifImageDesc image_desc = gif->Image;
-  const int offset_x = image_desc.Left;
-  const int offset_y = image_desc.Top;
-  const int sub_w = image_desc.Width;
-  const int sub_h = image_desc.Height;
   uint32_t* dst = NULL;
   uint8_t* tmp = NULL;
   int ok = 0;
+  WebPFrameRect rect = {
+      image_desc.Width, image_desc.Height, image_desc.Left, image_desc.Top
+  };
+  *gif_rect = rect;
 
   // Use a view for the sub-picture:
-  if (!WebPPictureView(pic, offset_x, offset_y, sub_w, sub_h, view)) {
+  if (!WebPPictureView(curr, rect.x_offset, rect.y_offset,
+                       rect.width, rect.height, sub_image)) {
     fprintf(stderr, "Sub-image %dx%d at position %d,%d is invalid!\n",
-            sub_w, sub_h, offset_x, offset_y);
+            rect.width, rect.height, rect.x_offset, rect.y_offset);
     goto End;
   }
-  dst = view->argb;
+  dst = sub_image->argb;
 
-  tmp = (uint8_t*)malloc(sub_w * sizeof(*tmp));
+  tmp = (uint8_t*)malloc(rect.width * sizeof(*tmp));
   if (tmp == NULL) goto End;
 
   if (image_desc.Interlace) {  // Interlaced image.
@@ -88,21 +211,54 @@ static int ReadSubImage(GifFileType* gif, WebPPicture* pic, WebPPicture* view) {
     int pass;
     for (pass = 0; pass < 4; ++pass) {
       int y;
-      for (y = interlace_offsets[pass]; y < sub_h; y += interlace_jumps[pass]) {
-        if (DGifGetLine(gif, tmp, sub_w) == GIF_ERROR) goto End;
-        Remap(tmp, gif, dst + y * view->argb_stride, sub_w);
+      for (y = interlace_offsets[pass]; y < rect.height;
+           y += interlace_jumps[pass]) {
+        if (DGifGetLine(gif, tmp, rect.width) == GIF_ERROR) goto End;
+        Remap(tmp, gif, dst + y * sub_image->argb_stride, rect.width);
       }
     }
   } else {  // Non-interlaced image.
     int y;
-    for (y = 0; y < sub_h; ++y) {
-      if (DGifGetLine(gif, tmp, sub_w) == GIF_ERROR) goto End;
-      Remap(tmp, gif, dst + y * view->argb_stride, sub_w);
+    for (y = 0; y < rect.height; ++y) {
+      if (DGifGetLine(gif, tmp, rect.width) == GIF_ERROR) goto End;
+      Remap(tmp, gif, dst + y * sub_image->argb_stride, rect.width);
     }
   }
-  // re-align the view with even offset (and adjust dimensions if needed).
-  WebPPictureView(pic, offset_x & ~1, offset_y & ~1,
-                  sub_w + (offset_x & 1), sub_h + (offset_y & 1), view);
+
+  // Snap to even offsets (and adjust dimensions if needed).
+  rect.width += (rect.x_offset & 1);
+  rect.height += (rect.y_offset & 1);
+  rect.x_offset &= ~1;
+  rect.y_offset &= ~1;
+
+  info->blend_method = WEBP_MUX_BLEND;  // Default: the blending method in GIF.
+
+  // Make this an I-frame (independent frame) if needed.
+  if (IsIndependentFrame(curr, &rect, prev, is_first_frame)) {
+    info->blend_method = WEBP_MUX_NO_BLEND;  // I-frame, so no need to blend.
+    *count_since_iframe = 0;
+  } else {
+    ++*count_since_iframe;
+    if (*count_since_iframe > MAX_IFRAME_INTERVAL) {
+      MakeIndependentFrame(curr, prev, &rect);
+      info->blend_method = WEBP_MUX_NO_BLEND;  // I-frame, so no need to blend.
+      *count_since_iframe = 0;
+    }
+  }
+
+  // Update the canvas so that it can be used to check for and/or create an
+  // I-frame in the next iterations.
+  if (info->blend_method == WEBP_MUX_NO_BLEND) {
+    CopyPlane((uint8_t*)curr->argb, 4 * curr->argb_stride, (uint8_t*)prev->argb,
+              4 * prev->argb_stride, 4 * curr->width, curr->height);
+  } else {
+    BlendCanvasWithCurrentFrame(prev, curr, gif_rect);
+  }
+
+  WebPPictureView(curr, rect.x_offset, rect.y_offset, rect.width, rect.height,
+                  sub_image);
+  info->x_offset = rect.x_offset;
+  info->y_offset = rect.y_offset;
   ok = 1;
 
  End:
@@ -189,11 +345,14 @@ int main(int argc, const char *argv[]) {
   const char *in_file = NULL, *out_file = NULL;
   FILE* out = NULL;
   GifFileType* gif = NULL;
-  WebPPicture picture;
+  WebPPicture current;
+  WebPPicture previous;
   WebPMuxFrameInfo frame;
   WebPMuxAnimParams anim = { WHITE_COLOR, 0 };
 
   int is_first_frame = 1;
+  // Number of frames since the last independently decodable frame.
+  int count_since_iframe = 0;
   int done;
   int c;
   int quiet = 0;
@@ -206,8 +365,10 @@ int main(int argc, const char *argv[]) {
   memset(&frame, 0, sizeof(frame));
   frame.id = WEBP_CHUNK_ANMF;
   frame.dispose_method = WEBP_MUX_DISPOSE_BACKGROUND;
+  frame.blend_method = WEBP_MUX_BLEND;
 
-  if (!WebPConfigInit(&config) || !WebPPictureInit(&picture)) {
+  if (!WebPConfigInit(&config) || !WebPPictureInit(&current) ||
+      !WebPPictureInit(&previous)) {
     fprintf(stderr, "Error! Version mismatch!\n");
     return -1;
   }
@@ -272,11 +433,12 @@ int main(int argc, const char *argv[]) {
 #endif
   if (gif == NULL) goto End;
 
-  // Allocate picture buffer
-  picture.width = gif->SWidth;
-  picture.height = gif->SHeight;
-  picture.use_argb = 1;
-  if (!WebPPictureAlloc(&picture)) goto End;
+  // Allocate current buffer
+  current.width = gif->SWidth;
+  current.height = gif->SHeight;
+  current.use_argb = 1;
+  if (!WebPPictureAlloc(&current)) goto End;
+  if (!WebPPictureCopy(&current, &previous)) goto End;
 
   mux = WebPMuxNew();
   if (mux == NULL) {
@@ -293,14 +455,13 @@ int main(int argc, const char *argv[]) {
     switch (type) {
       case IMAGE_DESC_RECORD_TYPE: {
         WebPPicture sub_image;
+        WebPFrameRect gif_rect;
         WebPMemoryWriter memory;
 
-        if (frame.dispose_method == WEBP_MUX_DISPOSE_BACKGROUND) {
-          ClearPicture(&picture);
-        }
-
         if (!DGifGetImageDesc(gif)) goto End;
-        if (!ReadSubImage(gif, &picture, &sub_image)) goto End;
+        if (!ReadSubImage(gif, &previous, is_first_frame, &count_since_iframe,
+                          &gif_rect, &sub_image, &frame, &current))
+          goto End;
 
         if (!config.lossless) {
           // We need to call BGRA variant because of the way we do Remap(). Note
@@ -317,7 +478,7 @@ int main(int argc, const char *argv[]) {
         sub_image.custom_ptr = &memory;
         WebPMemoryWriterInit(&memory);
         if (!WebPEncode(&config, &sub_image)) {
-          fprintf(stderr, "Error! Cannot encode picture as WebP\n");
+          fprintf(stderr, "Error! Cannot encode current as WebP\n");
           fprintf(stderr, "Error code: %d\n", sub_image.error_code);
           goto End;
         }
@@ -325,8 +486,6 @@ int main(int argc, const char *argv[]) {
         // Now we have all the info about the frame, as a Graphic Control
         // Extension Block always appears before the Image Descriptor Block.
         // So add the frame to mux.
-        frame.x_offset = gif->Image.Left & ~1;
-        frame.y_offset = gif->Image.Top & ~1;
         frame.bitstream.bytes = memory.mem;
         frame.bitstream.size = memory.size;
         err = WebPMuxPushFrame(mux, &frame, 1);
@@ -340,11 +499,17 @@ int main(int argc, const char *argv[]) {
                  sub_image.width, sub_image.height,
                  frame.x_offset, frame.y_offset,
                  frame.duration);
-          printf("dispose:%d transparent index:%d\n",
-                 frame.dispose_method, transparent_index);
+          printf("dispose:%d blend:%d transparent index:%d\n",
+                 frame.dispose_method, frame.blend_method, transparent_index);
         }
         WebPDataClear(&frame.bitstream);
         WebPPictureFree(&sub_image);
+        is_first_frame = 0;
+
+        if (frame.dispose_method == WEBP_MUX_DISPOSE_BACKGROUND) {
+          ClearPicture(&current, NULL);
+          ClearPicture(&previous, &gif_rect);
+        }
         break;
       }
       case EXTENSION_RECORD_TYPE: {
@@ -380,8 +545,8 @@ int main(int argc, const char *argv[]) {
                 fprintf(stderr, "GIF decode warning: invalid background color "
                         "index. Assuming white background.\n");
               }
-              ClearPicture(&picture);
-              is_first_frame = 0;
+              ClearPicture(&current, NULL);
+              ClearPicture(&previous, NULL);
             }
             break;
           }
@@ -520,7 +685,8 @@ int main(int argc, const char *argv[]) {
  End:
   WebPDataClear(&webp_data);
   WebPMuxDelete(mux);
-  WebPPictureFree(&picture);
+  WebPPictureFree(&current);
+  WebPPictureFree(&previous);
   if (out != NULL && out_file != NULL) fclose(out);
 
   if (gif_error != GIF_OK) {
