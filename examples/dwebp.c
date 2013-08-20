@@ -32,6 +32,7 @@
 #define COBJMACROS
 #define _WIN32_IE 0x500  // Workaround bug in shlwapi.h when compiling C++
                          // code with COBJMACROS.
+#include <ole2.h>  // CreateStreamOnHGlobal()
 #include <shlwapi.h>
 #include <windows.h>
 #include <wincodec.h>
@@ -89,9 +90,15 @@ typedef enum {
 #define MAKE_REFGUID(x) &(x)
 #endif
 
-static HRESULT CreateOutputStream(const char* out_file_name, IStream** stream) {
+static HRESULT CreateOutputStream(const char* out_file_name,
+                                  int write_to_mem, IStream** stream) {
   HRESULT hr = S_OK;
-  IFS(SHCreateStreamOnFileA(out_file_name, STGM_WRITE | STGM_CREATE, stream));
+  if (write_to_mem) {
+    // Output to a memory buffer. This is freed when 'stream' is released.
+    IFS(CreateStreamOnHGlobal(NULL, TRUE, stream));
+  } else {
+    IFS(SHCreateStreamOnFileA(out_file_name, STGM_WRITE | STGM_CREATE, stream));
+  }
   if (FAILED(hr)) {
     fprintf(stderr, "Error opening output file %s (%08lx)\n",
             out_file_name, hr);
@@ -102,6 +109,7 @@ static HRESULT CreateOutputStream(const char* out_file_name, IStream** stream) {
 static HRESULT WriteUsingWIC(const char* out_file_name, REFGUID container_guid,
                              unsigned char* rgb, int stride,
                              uint32_t width, uint32_t height, int has_alpha) {
+  const int write_to_mem = !strcmp(out_file_name, "-");
   HRESULT hr = S_OK;
   IWICImagingFactory* factory = NULL;
   IWICBitmapFrameEncode* frame = NULL;
@@ -121,7 +129,7 @@ static HRESULT WriteUsingWIC(const char* out_file_name, REFGUID container_guid,
             "Windows XP SP3 or newer?). PNG support not available. "
             "Use -ppm or -pgm for available PPM and PGM formats.\n");
   }
-  IFS(CreateOutputStream(out_file_name, &stream));
+  IFS(CreateOutputStream(out_file_name, write_to_mem, &stream));
   IFS(IWICImagingFactory_CreateEncoder(factory, container_guid, NULL,
                                        &encoder));
   IFS(IWICBitmapEncoder_Initialize(encoder, stream,
@@ -134,6 +142,28 @@ static HRESULT WriteUsingWIC(const char* out_file_name, REFGUID container_guid,
                                         height * stride, rgb));
   IFS(IWICBitmapFrameEncode_Commit(frame));
   IFS(IWICBitmapEncoder_Commit(encoder));
+
+  if (SUCCEEDED(hr) && write_to_mem) {
+    HGLOBAL image;
+    IFS(GetHGlobalFromStream(stream, &image));
+    if (SUCCEEDED(hr)) {
+      HANDLE std_output = GetStdHandle(STD_OUTPUT_HANDLE);
+      DWORD mode;
+      const BOOL update_mode = GetConsoleMode(std_output, &mode);
+      void* const image_mem = GlobalLock(image);
+      DWORD bytes_written = 0;
+
+      // Clear output processing if necessary, then output the image.
+      if (update_mode) SetConsoleMode(std_output, 0);
+      if (!WriteFile(std_output, image_mem, GlobalSize(image),
+                     &bytes_written, NULL) ||
+          bytes_written != GlobalSize(image)) {
+        hr = E_FAIL;
+      }
+      if (update_mode) SetConsoleMode(std_output, mode);
+      GlobalUnlock(image);
+    }
+  }
 
   if (frame != NULL) IUnknown_Release(frame);
   if (encoder != NULL) IUnknown_Release(encoder);
@@ -440,7 +470,7 @@ static int SaveOutput(const WebPDecBuffer* const buffer,
                       OutputFileFormat format, const char* const out_file) {
   FILE* fout = NULL;
   int needs_open_file = 1;
-  int use_stdout = !strcmp(out_file, "-");
+  const int use_stdout = !strcmp(out_file, "-");
   int ok = 1;
   Stopwatch stop_watch;
 
@@ -450,7 +480,6 @@ static int SaveOutput(const WebPDecBuffer* const buffer,
 #ifdef HAVE_WINCODEC_H
   needs_open_file = (format != PNG);
 #endif
-  use_stdout &= needs_open_file;
 
 #if defined(_WIN32)
   if (use_stdout && _setmode(_fileno(stdout), _O_BINARY) == -1) {
@@ -490,20 +519,20 @@ static int SaveOutput(const WebPDecBuffer* const buffer,
     fclose(fout);
   }
   if (ok) {
-    if (fout != stdout) {
-      fprintf(stderr, "Saved file %s\n", out_file);
-    } else {
+    if (use_stdout) {
       fprintf(stderr, "Saved to stdout\n");
+    } else {
+      fprintf(stderr, "Saved file %s\n", out_file);
     }
     if (verbose) {
       const double write_time = StopwatchReadAndReset(&stop_watch);
       fprintf(stderr, "Time to write output: %.3fs\n", write_time);
     }
   } else {
-    if (fout != stdout) {
-      fprintf(stderr, "Error writing file %s !!\n", out_file);
-    } else {
+    if (use_stdout) {
       fprintf(stderr, "Error writing to stdout !!\n");
+    } else {
+      fprintf(stderr, "Error writing file %s !!\n", out_file);
     }
   }
   return ok;
