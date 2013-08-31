@@ -64,11 +64,10 @@ void VP8IteratorInit(VP8Encoder* const enc, VP8EncIterator* const it) {
   it->enc_ = enc;
   it->y_stride_  = enc->pic_->y_stride;
   it->uv_stride_ = enc->pic_->uv_stride;
-  // TODO(later): for multithreading, these should be owned by 'it'.
-  it->yuv_in_   = enc->yuv_in_;
-  it->yuv_out_  = enc->yuv_out_;
-  it->yuv_out2_ = enc->yuv_out2_;
-  it->yuv_p_    = enc->yuv_p_;
+  it->yuv_in_   = (uint8_t*)DO_ALIGN(it->yuv_mem_);
+  it->yuv_out_  = it->yuv_in_ + YUV_SIZE;
+  it->yuv_out2_ = it->yuv_out_ + YUV_SIZE;
+  it->yuv_p_    = it->yuv_out2_ + YUV_SIZE;
   it->lf_stats_ = enc->lf_stats_;
   it->percent0_ = enc->percent_;
   it->y_left_ = (uint8_t*)DO_ALIGN(it->yuv_left_mem_ + 1);
