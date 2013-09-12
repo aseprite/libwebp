@@ -153,6 +153,8 @@ static void AssignSegments(VP8Encoder* const enc,
   // 'int' type is ok for histo, and won't overflow
   int accum[NUM_MB_SEGMENTS], dist_accum[NUM_MB_SEGMENTS];
 
+  assert(nb >= 1);
+
   // bracket the input
   for (n = 0; n <= MAX_ALPHA && alphas[n] == 0; ++n) {}
   min_a = n;
