@@ -14,7 +14,7 @@
 # These flags assume you have libpng, libjpeg, libtiff and libgif installed. If
 # not, either follow the install instructions below or just comment out the next
 # four lines.
-EXTRA_FLAGS= -DWEBP_HAVE_PNG -DWEBP_HAVE_JPEG -DWEBP_HAVE_TIFF
+EXTRA_FLAGS= -DWEBP_HAVE_PNG -DWEBP_HAVE_JPEG -DWEBP_HAVE_TIFF -DWEBP_HAVE_GIF
 DWEBP_LIBS= -lpng -lz
 CWEBP_LIBS= $(DWEBP_LIBS) -ljpeg -ltiff
 GIF_LIBS = -lgif
@@ -248,6 +248,7 @@ examples/gif2webp: EXTRA_LIBS += $(GIF_LIBS)
 examples/vwebp: examples/libexample_util.a src/demux/libwebpdemux.a
 examples/vwebp: src/libwebp.a
 examples/vwebp: EXTRA_LIBS += $(GL_LIBS)
+examples/vwebp: EXTRA_FLAGS += -DWEBP_HAVE_GL
 examples/webpmux: examples/libexample_util.a src/mux/libwebpmux.a
 examples/webpmux: src/libwebpdecoder.a
 
