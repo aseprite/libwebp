@@ -929,6 +929,7 @@ int main(int argc, const char *argv[]) {
 
   // Read the input
   if (verbose) {
+    memset(&stop_watch, 0, sizeof(stop_watch));
     StopwatchReadAndReset(&stop_watch);
   }
   if (!ReadPicture(in_file, &picture, keep_alpha,

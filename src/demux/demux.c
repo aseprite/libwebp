@@ -453,8 +453,12 @@ static ParseStatus ParseSingleImage(WebPDemuxer* const dmux) {
       dmux->canvas_height_ = frame->height_;
       dmux->feature_flags_ |= frame->has_alpha_ ? ALPHA_FLAG : 0;
     }
-    AddFrame(dmux, frame);
-    dmux->num_frames_ = 1;
+    if (AddFrame(dmux, frame) == 0) {
+      free(frame);
+      status = PARSE_ERROR;  // last frame was left incomplete
+    } else {
+      dmux->num_frames_ = 1;
+    }
   } else {
     free(frame);
   }
