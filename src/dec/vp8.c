@@ -494,9 +494,6 @@ static int GetCoeffs(VP8BitReader* const br, const VP8BandProbas* const prob,
         p = p_ctx[2];
       }
       out[kZigzag[n]] = VP8GetSigned(br, v) * dq[n > 0];
-      if (n < 15 && !VP8GetBit(br, p[0])) {   // EOB
-        return n + 1;
-      }
     }
   }
   return 16;
@@ -539,7 +536,7 @@ static int ParseResiduals(VP8Decoder* const dec,
     for (x = 0; x < 4; ++x) {
       const int ctx = l + (tnz & 1);
       const int nz = GetCoeffs(token_br, ac_proba, ctx, q->y1_mat_, first, dst);
-      l = (nz > 0);
+      l = (nz > first);
       tnz = (tnz >> 1) | (l << 7);
       nz_dc = (nz_dc << 1) | (dst[0] != 0);
       nz_ac = (nz_ac << 1) | (nz > 1);
