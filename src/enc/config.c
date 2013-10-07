@@ -60,8 +60,8 @@ int WebPConfigInitInternal(WebPConfig* config,
       config->filter_strength = 35;
       break;
     case WEBP_PRESET_PHOTO:
-      config->sns_strength = 80;
-      config->filter_sharpness = 3;
+      config->sns_strength = 70;
+      config->filter_sharpness = 2;
       config->filter_strength = 30;
       break;
     case WEBP_PRESET_DRAWING:

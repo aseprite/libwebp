@@ -201,14 +201,14 @@ static void SetupMatrices(VP8Encoder* enc) {
 
 // Very small filter-strength values have close to no visual effect. So we can
 // save a little decoding-CPU by turning filtering off for these.
-#define FSTRENGTH_CUTOFF 3
+#define FSTRENGTH_CUTOFF 2
 
 static void SetupFilterStrength(VP8Encoder* const enc) {
   int i;
   const int level0 = enc->config_->filter_strength;
   for (i = 0; i < NUM_MB_SEGMENTS; ++i) {
     // Segments with lower quantizer will be less filtered. TODO: tune (wrt SNS)
-    const int level = level0 * 256 * enc->dqm_[i].quant_ / 128;
+    const int level = level0 * 256 * (128 + enc->dqm_[i].quant_) / 128;
     const int f = level / (256 + enc->dqm_[i].beta_);
     enc->dqm_[i].fstrength_ = (f < FSTRENGTH_CUTOFF) ? 0 : (f > 63) ? 63 : f;
   }
