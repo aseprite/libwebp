@@ -590,12 +590,26 @@ int WebPPictureHasTransparency(const WebPPicture* picture) {
 //------------------------------------------------------------------------------
 // RGB -> YUV conversion
 
-// TODO: we can do better than simply 2x2 averaging on U/V samples.
-#define SUM4(ptr) ((ptr)[0] + (ptr)[step] + \
-                   (ptr)[rgb_stride] + (ptr)[rgb_stride + step])
-#define SUM2H(ptr) (2 * (ptr)[0] + 2 * (ptr)[step])
-#define SUM2V(ptr) (2 * (ptr)[0] + 2 * (ptr)[rgb_stride])
+// The following exponent (not really a gamma) is fit to the red balance mostly.
+#define kGamma 1.70
+static WEBP_INLINE float GammaToLinear(int v) {
+  return powf(v / 255.f, 1. / kGamma);
+}
+
+static WEBP_INLINE int LinearToGamma(float v, float scale) {
+  return (int)lrintf(powf(v / scale, kGamma) * scale * 255.f);
+}
+
+#define SUM4(ptr) LinearToGamma(                                               \
+    GammaToLinear((ptr)[0])          + GammaToLinear((ptr)[step]) +            \
+    GammaToLinear((ptr)[rgb_stride]) + GammaToLinear((ptr)[rgb_stride + step]),\
+    4.0f)
+#define SUM2H(ptr) 2 * LinearToGamma(                                          \
+    GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[step]), 2.0f)
+#define SUM2V(ptr) 2 * LinearToGamma(                                          \
+    GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[rgb_stride]), 2.0f)
 #define SUM1(ptr)  (4 * (ptr)[0])
+
 #define RGB_TO_UV(x, y, SUM) {                           \
   const int src = (2 * (step * (x) + (y) * rgb_stride)); \
   const int dst = (x) + (y) * picture->uv_stride;        \
