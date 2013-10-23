@@ -153,6 +153,11 @@ close as possible to this target.
 Set a maximum number of passes to use during the dichotomy used by
 options \fB\-size\fP or \fB\-psnr\fP. Maximum value is 10.
 .TP
+.BI \-resize " width height
+Resize the source to a rectangle with size \fBwidth\fP x \fBheight\fP.
+If either (but not both) of \fBwidth\fP or \fBheight\fP parameter is 0, the
+actual value preserving the aspect-ratio will be used instead.
+.TP
 .BI \-crop " x_position y_position width height
 Crop the source to a rectangle with top-left corner at coordinates
 (\fBx_position\fP, \fBy_position\fP) and size \fBwidth\fP x \fBheight\fP.
