@@ -17,6 +17,7 @@
 #include <string.h>     // for memcpy()
 #include "./vp8li.h"
 #include "../utils/bit_reader.h"
+#include "../utils/random.h"
 #include "../utils/thread.h"
 #include "../dsp/dsp.h"
 
@@ -179,6 +180,9 @@ typedef struct {  // Top/Left Contexts used for syntax-parsing
 typedef int quant_t[2];      // [DC / AC].  Can be 'uint16_t[2]' too (~slower).
 typedef struct {
   quant_t y1_mat_, y2_mat_, uv_mat_;
+
+  int uv_quant_;   // U/V quantizer value
+  int dither_;     // dithering amplitude (0 = off, max=255)
 } VP8QuantMatrix;
 
 // Data needed to reconstruct a macroblock
@@ -196,6 +200,7 @@ typedef struct {
   // This allows to call specialized transform functions.
   uint32_t non_zero_y_;
   uint32_t non_zero_uv_;
+  int dither_;      // local dithering strength
 } VP8MBData;
 
 // Persistent information needed by the parallel processing
@@ -256,6 +261,10 @@ struct VP8Decoder {
   //   bit 6: Gold sign bias, bit 7: Alt sign bias
   //   bit 8: refresh last frame
   uint32_t buffer_flags_;
+
+  // Dithering strength, deduced from decoding options
+  int dither_;
+  VP8Random dithering_rg_;
 
   // dequantization (one set of DC/AC dequant factor per segment)
   VP8QuantMatrix dqm_[NUM_MB_SEGMENTS];
@@ -342,6 +351,9 @@ int VP8ExitCritical(VP8Decoder* const dec, VP8Io* const io);
 int VP8GetThreadMethod(const WebPDecoderOptions* const options,
                        const WebPHeaderStructure* const headers,
                        int width, int height);
+// Init dithering post-process if needed
+void VP8InitDithering(const WebPDecoderOptions* const options,
+                      VP8Decoder* const dec);
 // Process the last decoded row (filtering + output)
 int VP8ProcessRow(VP8Decoder* const dec, VP8Io* const io);
 // To be called at the start of a new scanline, to initialize predictors.
