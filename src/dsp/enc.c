@@ -15,10 +15,6 @@
 #include "./dsp.h"
 #include "../enc/vp8enci.h"
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 static WEBP_INLINE uint8_t clip_8b(int v) {
   return (!(v & ~0xff)) ? v : (v < 0) ? 0 : 255;
 }
@@ -726,6 +722,3 @@ void VP8EncDspInit(void) {
   }
 }
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif
