@@ -1,0 +1,10 @@
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: WebmJenkinsRoleAccount
+Commit-Queue+1: Urvang Joshi <urvang@google.com>
+Code-Review+1: Urvang Joshi <urvang@google.com>
+Verified+1: Urvang Joshi <urvang@google.com>
+Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Wed, 18 Dec 2013 11:05:43 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/68180
+Project: webm/libwebp
+Branch: refs/heads/master
