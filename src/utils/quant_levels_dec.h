@@ -21,11 +21,9 @@ extern "C" {
 #endif
 
 // Apply post-processing to input 'data' of size 'width'x'height' assuming that
-// the source was quantized to a reduced number of levels. The post-processing
-// will be applied to 'num_rows' rows of 'data' starting from 'row'.
+// the source was quantized to a reduced number of levels.
 // Returns false in case of error (data is NULL, invalid parameters, ...).
-int DequantizeLevels(uint8_t* const data, int width, int height,
-                     int row, int num_rows);
+int WebPDequantizeLevels(uint8_t* const data, int width, int height);
 
 #ifdef __cplusplus
 }    // extern "C"
