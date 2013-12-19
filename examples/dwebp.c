@@ -557,6 +557,7 @@ static void Help(void) {
          "  -nofilter .... disable in-loop filtering.\n"
          "  -nodither .... disable dithering.\n"
          "  -dither <d> .. dithering strength (in 0..100)\n"
+         "  -alpha_dither  possibly use alpha-plane dithering.\n"
          "  -mt .......... use multi-threading\n"
          "  -crop <x> <y> <w> <h> ... crop output with the given rectangle\n"
          "  -scale <w> <h> .......... scale the output (*after* any cropping)\n"
@@ -627,6 +628,8 @@ int main(int argc, const char *argv[]) {
       format = YUV;
     } else if (!strcmp(argv[c], "-mt")) {
       config.options.use_threads = 1;
+    } else if (!strcmp(argv[c], "-alpha_dither")) {
+      config.options.allow_alpha_dithering = 1;
     } else if (!strcmp(argv[c], "-nodither")) {
       config.options.dithering_strength = 0;
     } else if (!strcmp(argv[c], "-dither") && c < argc - 1) {
