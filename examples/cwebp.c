@@ -716,7 +716,7 @@ int main(int argc, const char *argv[]) {
       config.show_compressed = 1;
       print_distortion = 2;
     } else if (!strcmp(argv[c], "-short")) {
-      short_output++;
+      ++short_output;
     } else if (!strcmp(argv[c], "-s") && c < argc - 2) {
       picture.width = strtol(argv[++c], NULL, 0);
       picture.height = strtol(argv[++c], NULL, 0);
@@ -1057,37 +1057,42 @@ int main(int argc, const char *argv[]) {
   }
 
   if (!quiet) {
-    if (config.lossless) {
-      PrintExtraInfoLossless(&picture, short_output, in_file);
-    } else {
-      PrintExtraInfoLossy(&picture, short_output, config.low_memory, in_file);
+    if (print_distortion < 0) {
+      if (config.lossless) {
+        PrintExtraInfoLossless(&picture, short_output, in_file);
+      } else {
+        PrintExtraInfoLossy(&picture, short_output, config.low_memory, in_file);
+      }
+    } else {    // print distortion
+      static const char* distortion_names[] = { "PSNR", "SSIM", "LSIM" };
+      float values[5];
+      // Comparison is performed in YUVA colorspace.
+      if (original_picture.use_argb &&
+          !WebPPictureARGBToYUVA(&original_picture, WEBP_YUV420A)) {
+       fprintf(stderr, "Error while converting original picture to YUVA.\n");
+        goto Error;
+      }
+      if (picture.use_argb &&
+          !WebPPictureARGBToYUVA(&picture, WEBP_YUV420A)) {
+        fprintf(stderr, "Error while converting compressed picture to YUVA.\n");
+        goto Error;
+      }
+      if (!WebPPictureDistortion(&picture, &original_picture,
+                                 print_distortion, values)) {
+        fprintf(stderr, "Error while computing the distortion.\n");
+        goto Error;
+      }
+      if (!short_output) {
+        fprintf(stderr, "%s: Y:%.2f U:%.2f V:%.2f A:%.2f  Total:%.2f\n",
+                distortion_names[print_distortion],
+                values[0], values[1], values[2], values[3], values[4]);
+      } else {
+        fprintf(stderr, "%7d %.4f\n", picture.stats->coded_size, values[4]);
+      }
     }
     if (!short_output) {
       PrintMetadataInfo(&metadata, metadata_written);
     }
-  }
-  if (!quiet && !short_output && print_distortion >= 0) {  // print distortion
-    static const char* distortion_names[] = { "PSNR", "SSIM", "LSIM" };
-    float values[5];
-    // Comparison is performed in YUVA colorspace.
-    if (original_picture.use_argb &&
-        !WebPPictureARGBToYUVA(&original_picture, WEBP_YUV420A)) {
-      fprintf(stderr, "Error while converting original picture to YUVA.\n");
-      goto Error;
-    }
-    if (picture.use_argb &&
-        !WebPPictureARGBToYUVA(&picture, WEBP_YUV420A)) {
-      fprintf(stderr, "Error while converting compressed picture to YUVA.\n");
-      goto Error;
-    }
-    if (!WebPPictureDistortion(&picture, &original_picture,
-                               print_distortion, values)) {
-      fprintf(stderr, "Error while computing the distortion.\n");
-      goto Error;
-    }
-    fprintf(stderr, "%s: Y:%.2f U:%.2f V:%.2f A:%.2f  Total:%.2f\n",
-            distortion_names[print_distortion],
-            values[0], values[1], values[2], values[3], values[4]);
   }
   return_value = 0;
 
