@@ -30,16 +30,202 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * Author(s):  Djordje Pesut (djordje.pesut@imgtec.com)
+ * Author(s):  Djordje Pesut    (djordje.pesut@imgtec.com)
+ *             Jovan Zelincevic (jovan.zelincevic@imgtec.com)
  */
 
 #include "./dsp.h"
 
 #if defined(WEBP_USE_MIPS32)
 
-static const int kC1 = 20091 + (1 << 16);
-static const int kC2 = 35468;
+#include "./dec_mips32.h"
 
+static int8_t *psclip1 = &sclip1[1020];
+static int8_t *psclip2 = &sclip2[112];
+static uint8_t *pclip1 = &clip1[255];
+
+// 4 pixels in, 2 pixels out
+static WEBP_INLINE void do_filter2(uint8_t* p, int step) {
+  const int p1 = p[-2*step], p0 = p[-step], q0 = p[0], q1 = p[step];
+  const int a = 3 * (q0 - p0) + psclip1[p1 - q1];
+  const int a1 = psclip2[(a + 4) >> 3];
+  const int a2 = psclip2[(a + 3) >> 3];
+  p[-step] = pclip1[p0 + a2];
+  p[    0] = pclip1[q0 - a1];
+}
+
+// 4 pixels in, 4 pixels out
+static WEBP_INLINE void do_filter4(uint8_t* p, int step) {
+  const int p1 = p[-2*step], p0 = p[-step], q0 = p[0], q1 = p[step];
+  const int a = 3 * (q0 - p0);
+  const int a1 = psclip2[(a + 4) >> 3];
+  const int a2 = psclip2[(a + 3) >> 3];
+  const int a3 = (a1 + 1) >> 1;
+  p[-2*step] = pclip1[p1 + a3];
+  p[-  step] = pclip1[p0 + a2];
+  p[      0] = pclip1[q0 - a1];
+  p[   step] = pclip1[q1 - a3];
+}
+
+// 6 pixels in, 6 pixels out
+static WEBP_INLINE void do_filter6(uint8_t* p, int step) {
+  const int p2 = p[-3*step], p1 = p[-2*step], p0 = p[-step];
+  const int q0 = p[0], q1 = p[step], q2 = p[2*step];
+  const int a = psclip1[3 * (q0 - p0) + psclip1[p1 - q1]];
+  const int a1 = (27 * a + 63) >> 7;  // eq. to ((3 * a + 7) * 9) >> 7
+  const int a2 = (18 * a + 63) >> 7;  // eq. to ((2 * a + 7) * 9) >> 7
+  const int a3 = (9  * a + 63) >> 7;  // eq. to ((1 * a + 7) * 9) >> 7
+  p[-3*step] = pclip1[p2 + a3];
+  p[-2*step] = pclip1[p1 + a2];
+  p[-  step] = pclip1[p0 + a1];
+  p[      0] = pclip1[q0 - a1];
+  p[   step] = pclip1[q1 - a2];
+  p[ 2*step] = pclip1[q2 - a3];
+}
+
+static WEBP_INLINE int hev(const uint8_t* p, int step, int thresh) {
+  const int p1 = p[-2*step], p0 = p[-step], q0 = p[0], q1 = p[step];
+  return (abs_mips32(p1 - p0) > thresh) || (abs_mips32(q1 - q0) > thresh);
+}
+
+static WEBP_INLINE int needs_filter(const uint8_t* p, int step, int thresh) {
+  const int p1 = p[-2*step], p0 = p[-step], q0 = p[0], q1 = p[step];
+  return ((2 * abs_mips32(p0 - q0) + (abs_mips32(p1 - q1) >> 1)) <= thresh);
+}
+
+static WEBP_INLINE int needs_filter2(const uint8_t* p,
+                                     int step, int t, int it) {
+  const int p3 = p[-4*step], p2 = p[-3*step], p1 = p[-2*step], p0 = p[-step];
+  const int q0 = p[0], q1 = p[step], q2 = p[2*step], q3 = p[3*step];
+  if ((2 * abs_mips32(p0 - q0) + (abs_mips32(p1 - q1) >> 1)) > t)
+    return 0;
+  return abs_mips32(p3 - p2) <= it && abs_mips32(p2 - p1) <= it &&
+         abs_mips32(p1 - p0) <= it && abs_mips32(q3 - q2) <= it &&
+         abs_mips32(q2 - q1) <= it && abs_mips32(q1 - q0) <= it;
+}
+
+static WEBP_INLINE void FilterLoop26(uint8_t* p,
+                                     int hstride, int vstride, int size,
+                                     int thresh, int ithresh, int hev_thresh) {
+  while (size-- > 0) {
+    if (needs_filter2(p, hstride, thresh, ithresh)) {
+      if (hev(p, hstride, hev_thresh)) {
+        do_filter2(p, hstride);
+      } else {
+        do_filter6(p, hstride);
+      }
+    }
+    p += vstride;
+  }
+}
+
+static WEBP_INLINE void FilterLoop24(uint8_t* p,
+                                     int hstride, int vstride, int size,
+                                     int thresh, int ithresh, int hev_thresh) {
+  while (size-- > 0) {
+    if (needs_filter2(p, hstride, thresh, ithresh)) {
+      if (hev(p, hstride, hev_thresh)) {
+        do_filter2(p, hstride);
+      } else {
+        do_filter4(p, hstride);
+      }
+    }
+    p += vstride;
+  }
+}
+
+// on macroblock edges
+static void VFilter16MIPS32(uint8_t* p, int stride,
+                      int thresh, int ithresh, int hev_thresh) {
+  FilterLoop26(p, stride, 1, 16, thresh, ithresh, hev_thresh);
+}
+
+static void HFilter16MIPS32(uint8_t* p, int stride,
+                      int thresh, int ithresh, int hev_thresh) {
+  FilterLoop26(p, 1, stride, 16, thresh, ithresh, hev_thresh);
+}
+
+// 8-pixels wide variant, for chroma filtering
+static void VFilter8MIPS32(uint8_t* u, uint8_t* v, int stride,
+                     int thresh, int ithresh, int hev_thresh) {
+  FilterLoop26(u, stride, 1, 8, thresh, ithresh, hev_thresh);
+  FilterLoop26(v, stride, 1, 8, thresh, ithresh, hev_thresh);
+}
+
+static void HFilter8MIPS32(uint8_t* u, uint8_t* v, int stride,
+                     int thresh, int ithresh, int hev_thresh) {
+  FilterLoop26(u, 1, stride, 8, thresh, ithresh, hev_thresh);
+  FilterLoop26(v, 1, stride, 8, thresh, ithresh, hev_thresh);
+}
+
+static void VFilter8iMIPS32(uint8_t* u, uint8_t* v, int stride,
+                      int thresh, int ithresh, int hev_thresh) {
+  FilterLoop24(u + 4 * stride, stride, 1, 8, thresh, ithresh, hev_thresh);
+  FilterLoop24(v + 4 * stride, stride, 1, 8, thresh, ithresh, hev_thresh);
+}
+
+static void HFilter8iMIPS32(uint8_t* u, uint8_t* v, int stride,
+                      int thresh, int ithresh, int hev_thresh) {
+  FilterLoop24(u + 4, 1, stride, 8, thresh, ithresh, hev_thresh);
+  FilterLoop24(v + 4, 1, stride, 8, thresh, ithresh, hev_thresh);
+}
+
+// on three inner edges
+static void VFilter16iMIPS32(uint8_t* p, int stride,
+                       int thresh, int ithresh, int hev_thresh) {
+  int k;
+  for (k = 3; k > 0; --k) {
+    p += 4 * stride;
+    FilterLoop24(p, stride, 1, 16, thresh, ithresh, hev_thresh);
+  }
+}
+
+static void HFilter16iMIPS32(uint8_t* p, int stride,
+                       int thresh, int ithresh, int hev_thresh) {
+  int k;
+  for (k = 3; k > 0; --k) {
+    p += 4;
+    FilterLoop24(p, 1, stride, 16, thresh, ithresh, hev_thresh);
+  }
+}
+
+
+//------------------------------------------------------------------------------
+// Simple In-loop filtering (Paragraph 15.2)
+
+static void SimpleVFilter16MIPS32(uint8_t* p, int stride, int thresh) {
+  int i;
+  for (i = 0; i < 16; ++i) {
+    if (needs_filter(p + i, stride, thresh)) {
+      do_filter2(p + i, stride);
+    }
+  }
+}
+
+static void SimpleHFilter16MIPS32(uint8_t* p, int stride, int thresh) {
+  int i;
+  for (i = 0; i < 16; ++i) {
+    if (needs_filter(p + i * stride, 1, thresh)) {
+      do_filter2(p + i * stride, 1);
+    }
+  }
+}
+
+static void SimpleVFilter16iMIPS32(uint8_t* p, int stride, int thresh) {
+  int k;
+  for (k = 3; k > 0; --k) {
+    p += 4 * stride;
+    SimpleVFilter16MIPS32(p, stride, thresh);
+  }
+}
+
+static void SimpleHFilter16iMIPS32(uint8_t* p, int stride, int thresh) {
+  int k;
+  for (k = 3; k > 0; --k) {
+    p += 4;
+    SimpleHFilter16MIPS32(p, stride, thresh);
+  }
+}
 static void TransformOneMIPS32(const int16_t* in, uint8_t* dst) {
   int temp0, temp1, temp2, temp3, temp4;
   int temp5, temp6, temp7, temp8, temp9;
@@ -388,5 +574,19 @@ extern void VP8DspInitMIPS32(void);
 void VP8DspInitMIPS32(void) {
 #if defined(WEBP_USE_MIPS32)
   VP8Transform = TransformTwoMIPS32;
+
+  VP8VFilter16 = VFilter16MIPS32;
+  VP8HFilter16 = HFilter16MIPS32;
+  VP8VFilter8 = VFilter8MIPS32;
+  VP8HFilter8 = HFilter8MIPS32;
+  VP8VFilter16i = VFilter16iMIPS32;
+  VP8HFilter16i = HFilter16iMIPS32;
+  VP8VFilter8i = VFilter8iMIPS32;
+  VP8HFilter8i = HFilter8iMIPS32;
+
+  VP8SimpleVFilter16 = SimpleVFilter16MIPS32;
+  VP8SimpleHFilter16 = SimpleHFilter16MIPS32;
+  VP8SimpleVFilter16i = SimpleVFilter16iMIPS32;
+  VP8SimpleHFilter16i = SimpleHFilter16iMIPS32;
 #endif /* WEBP_USE_MIPS32 */
 }
