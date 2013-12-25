@@ -91,6 +91,7 @@ void WebPRescalerImportRow(WebPRescaler* const wrk,
 }
 
 uint8_t* WebPRescalerExportRow(WebPRescaler* const wrk) {
+#if !defined (__mips__)
   if (wrk->y_accum <= 0) {
     int x_out;
     uint8_t* const dst = wrk->dst;
@@ -111,6 +112,73 @@ uint8_t* WebPRescalerExportRow(WebPRescaler* const wrk) {
   } else {
     return NULL;
   }
+#else
+  if (wrk->y_accum <= 0) {
+    int x_out;
+    uint8_t* dst = wrk->dst;
+    int32_t* irow = wrk->irow;
+    int32_t* frow = wrk->frow;
+    const int yscale = wrk->fy_scale * (-wrk->y_accum);
+    int x_out_max = wrk->dst_width * wrk->num_channels;
+
+    if((wrk->fxy_scale >> 32) == 0) {
+      int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7, loop_end;
+
+      temp2 = (int)(wrk->fxy_scale);
+      x_out_max <<= 2;
+
+      __asm__ volatile(
+        "addiu    %[temp6],    $zero,       -256          \n\t"
+        "addiu    %[temp7],    $zero,       255           \n\t"
+        "li       %[temp3],    0x10000                    \n\t"
+        "li       %[temp4],    0x8000                     \n\t"
+        "addu     %[loop_end], %[frow],     %[x_out_max]  \n\t"
+      "1:                                                 \n\t"
+        "lw       %[temp0],    0(%[frow])                 \n\t"
+        "mult     %[temp3],    %[temp4]                   \n\t"
+        "addiu    %[frow],     %[frow],     4             \n\t"
+        "sll      %[temp0],    %[temp0],    2             \n\t"
+        "madd     %[temp0],    %[yscale]                  \n\t"
+        "mfhi     %[temp1]                                \n\t"
+        "lw       %[temp0],    0(%[irow])                 \n\t"
+        "addiu    %[dst],      %[dst],      1             \n\t"
+        "addiu    %[irow],     %[irow],     4             \n\t"
+        "subu     %[temp0],    %[temp0],    %[temp1]      \n\t"
+        "mult     %[temp3],    %[temp4]                   \n\t"
+        "sll      %[temp0],    %[temp0],    2             \n\t"
+        "madd     %[temp0],    %[temp2]                   \n\t"
+        "mfhi     %[temp5]                                \n\t"
+        "sw       %[temp1],    -4(%[irow])                \n\t"
+        "and      %[temp0],    %[temp5],    %[temp6]      \n\t"
+        "slti     %[temp1],    %[temp5],    0             \n\t"
+        "beqz     %[temp0],    2f                         \n\t"
+        "xor      %[temp5],    %[temp5],    %[temp5]      \n\t"
+        "movz     %[temp5],    %[temp7],    %[temp1]      \n\t"
+      "2:                                                 \n\t"
+        "sb       %[temp5],    -1(%[dst])                 \n\t"
+        "bne      %[frow],     %[loop_end], 1b            \n\t"
+        : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp3]"=&r"(temp3),
+          [temp4]"=&r"(temp4), [temp5]"=&r"(temp5), [temp6]"=&r"(temp6),
+          [temp7]"=&r"(temp7), [frow]"+r"(frow), [irow]"+r"(irow),
+          [dst]"+r"(dst), [loop_end]"=&r"(loop_end)
+        : [temp2]"r"(temp2), [yscale]"r"(yscale), [x_out_max]"r"(x_out_max)
+        : "memory", "hi", "lo"
+      );
+    } else {
+      for (x_out = 0; x_out < x_out_max; ++x_out) {
+        const int frac = (int)MULT_FIX(frow[x_out], yscale);
+        const int v = (int)MULT_FIX(irow[x_out] - frac, wrk->fxy_scale);
+        dst[x_out] = (!(v & ~0xff)) ? v : (v < 0) ? 0 : 255;
+        irow[x_out] = frac;   // new fractional start
+      }
+    }
+    wrk->y_accum += wrk->y_add;
+    wrk->dst += wrk->dst_stride;
+    return dst;
+  } else {
+    return NULL;
+  }
+#endif //(__mips__)
 }
 
 #undef MULT_FIX
