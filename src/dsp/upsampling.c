@@ -133,10 +133,100 @@ static void FUNC_NAME(const uint8_t* top_y, const uint8_t* bottom_y,           \
 }
 
 // All variants implemented.
+#if !defined (__mips__)
 SAMPLE_FUNC(SampleRgbLinePair,      VP8YuvToRgb,  3)
 SAMPLE_FUNC(SampleBgrLinePair,      VP8YuvToBgr,  3)
 SAMPLE_FUNC(SampleRgbaLinePair,     VP8YuvToRgba, 4)
 SAMPLE_FUNC(SampleBgraLinePair,     VP8YuvToBgra, 4)
+#else
+#define SAMPLE_FUNC_MIPS(FUNC_NAME, XSTEP, R, G, B, A)                         \
+static void FUNC_NAME(const uint8_t* top_y, const uint8_t* bottom_y,           \
+                      const uint8_t* u, const uint8_t* v,                      \
+                      uint8_t* top_dst, uint8_t* bottom_dst, int len) {        \
+  int i, r, g, b;                                                              \
+  int temp0, temp1, temp2, temp3, temp4;                                       \
+  for (i = 0; i < (len >> 1); i++) {                                           \
+    temp1 = kVToR * v[0];                                                      \
+    temp3 = kVToG * v[0];                                                      \
+    temp2 = kUToG * u[0];                                                      \
+    temp4 = kUToB * u[0];                                                      \
+    temp0 = kYScale * top_y[0];                                                \
+    temp1 += kRCst;                                                            \
+    temp3 -= kGCst;                                                            \
+    temp2 += temp3;                                                            \
+    temp4 += kBCst;                                                            \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    temp0 = kYScale * top_y[1];                                                \
+    top_dst[R] = r;                                                            \
+    top_dst[G] = g;                                                            \
+    top_dst[B] = b;                                                            \
+    if (A) top_dst[A] = 0xff;                                                  \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    temp0 = kYScale * bottom_y[0];                                             \
+    top_dst[R + XSTEP] = r;                                                    \
+    top_dst[G + XSTEP] = g;                                                    \
+    top_dst[B + XSTEP] = b;                                                    \
+    if (A) top_dst[A + XSTEP] = 0xff;                                          \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    temp0 = kYScale * bottom_y[1];                                             \
+    bottom_dst[R] = r;                                                         \
+    bottom_dst[G] = g;                                                         \
+    bottom_dst[B] = b;                                                         \
+    if (A) bottom_dst[A] = 0xff;                                               \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    bottom_dst[R + XSTEP] = r;                                                 \
+    bottom_dst[G + XSTEP] = g;                                                 \
+    bottom_dst[B + XSTEP] = b;                                                 \
+    if (A) bottom_dst[A + XSTEP] = 0xff;                                       \
+    top_y += 2;                                                                \
+    bottom_y += 2;                                                             \
+    u++;                                                                       \
+    v++;                                                                       \
+    top_dst += 2 * XSTEP;                                                      \
+    bottom_dst += 2 * XSTEP;                                                   \
+  }                                                                            \
+  if (len & 1) {                                                               \
+    temp1 = kVToR * v[0];                                                      \
+    temp3 = kVToG * v[0];                                                      \
+    temp2 = kUToG * u[0];                                                      \
+    temp4 = kUToB * u[0];                                                      \
+    temp0 = kYScale * top_y[0];                                                \
+    temp1 += kRCst;                                                            \
+    temp3 -= kGCst;                                                            \
+    temp2 += temp3;                                                            \
+    temp4 += kBCst;                                                            \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    temp0 = kYScale * bottom_y[0];                                             \
+    top_dst[R] = r;                                                            \
+    top_dst[G] = g;                                                            \
+    top_dst[B] = b;                                                            \
+    if (A) top_dst[A] = 0xff;                                                  \
+    r = VP8Clip8(temp0 + temp1);                                               \
+    g = VP8Clip8(temp0 - temp2);                                               \
+    b = VP8Clip8(temp0 + temp4);                                               \
+    bottom_dst[R] = r;                                                         \
+    bottom_dst[G] = g;                                                         \
+    bottom_dst[B] = b;                                                         \
+    if (A) bottom_dst[A] = 0xff;                                               \
+  }                                                                            \
+}
+
+SAMPLE_FUNC_MIPS(SampleRgbLinePair,      3, 0, 1, 2, 0)
+SAMPLE_FUNC_MIPS(SampleBgrLinePair,      3, 2, 1, 0, 0)
+SAMPLE_FUNC_MIPS(SampleRgbaLinePair,     4, 0, 1, 2, 3)
+SAMPLE_FUNC_MIPS(SampleBgraLinePair,     4, 2, 1, 0, 3)
+#undef SAMPLE_FUNC_MIPS
+#endif //(__mips__)
 SAMPLE_FUNC(SampleArgbLinePair,     VP8YuvToArgb, 4)
 SAMPLE_FUNC(SampleRgba4444LinePair, VP8YuvToRgba4444, 2)
 SAMPLE_FUNC(SampleRgb565LinePair,   VP8YuvToRgb565, 2)
