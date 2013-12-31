@@ -10,6 +10,7 @@
 // CPU detection
 //
 // Author: Christian Duvivier (cduvivier@google.com)
+//------------------------------------------------------------------------------
 
 #include "./dsp.h"
 
