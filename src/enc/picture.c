@@ -979,11 +979,11 @@ int WebPPictureARGBToYUVA(WebPPicture* picture, WebPEncCSP colorspace) {
 
 #define SIZE 8
 #define SIZE2 (SIZE / 2)
-static int is_transparent_area(const uint8_t* ptr, int stride, int size) {
+static int is_transparent_area(const uint8_t* ptr, int stride, int size, int step) {
   int y, x;
   for (y = 0; y < size; ++y) {
     for (x = 0; x < size; ++x) {
-      if (ptr[x]) {
+      if (ptr[x * step]) {
         return 0;
       }
     }
@@ -992,46 +992,91 @@ static int is_transparent_area(const uint8_t* ptr, int stride, int size) {
   return 1;
 }
 
-static WEBP_INLINE void flatten(uint8_t* ptr, int v, int stride, int size) {
-  int y;
-  for (y = 0; y < size; ++y) {
-    memset(ptr, v, size);
-    ptr += stride;
+static WEBP_INLINE void flatten(uint8_t* ptr, int v, int stride, int size, int step) {
+  if (step == 1) {
+    int y;
+    for (y = 0; y < size; ++y) {
+      memset(ptr, v, size);
+      ptr += stride;
+    }
+  } else {
+    int x, y;
+    for (y = 0; y < size; ++y) {
+      for(x = 0; x < size; ++x) {
+        ptr[x * step] = v;
+      }
+      ptr += stride;
+    }
   }
 }
 
 void WebPCleanupTransparentArea(WebPPicture* pic) {
   int x, y, w, h;
-  const uint8_t* a_ptr;
   int values[3] = { 0 };
 
   if (pic == NULL) return;
 
-  a_ptr = pic->a;
-  if (a_ptr == NULL) return;    // nothing to do
+  if (pic->use_argb) {
+    const int step = 4;
+    const int argb_stride_bytes = pic->argb_stride * step;
+    uint8_t* const argb = (uint8_t*)pic->argb;
+    uint8_t* const r = ALPHA_IS_LAST ? argb + 2 : argb + 1;
+    uint8_t* const g = ALPHA_IS_LAST ? argb + 1 : argb + 2;
+    uint8_t* const b = ALPHA_IS_LAST ? argb + 0 : argb + 3;
+    const uint8_t* const a = ALPHA_IS_LAST ? argb + 3 : argb + 0;
 
-  w = pic->width / SIZE;
-  h = pic->height / SIZE;
-  for (y = 0; y < h; ++y) {
-    int need_reset = 1;
-    for (x = 0; x < w; ++x) {
-      const int off_a = (y * pic->a_stride + x) * SIZE;
-      const int off_y = (y * pic->y_stride + x) * SIZE;
-      const int off_uv = (y * pic->uv_stride + x) * SIZE2;
-      if (is_transparent_area(a_ptr + off_a, pic->a_stride, SIZE)) {
-        if (need_reset) {
-          values[0] = pic->y[off_y];
-          values[1] = pic->u[off_uv];
-          values[2] = pic->v[off_uv];
-          need_reset = 0;
+    w = pic->width / SIZE;
+    h = pic->height / SIZE;
+
+    for (y = 0; y < h; ++y) {
+      int need_reset = 1;
+      for (x = 0; x < w; ++x) {
+        const int off_argb = (y * argb_stride_bytes + x * step) * SIZE;
+        if (is_transparent_area(a + off_argb, argb_stride_bytes, SIZE, step)) {
+          if (need_reset) {
+            values[0] = r[off_argb];
+            values[1] = g[off_argb];
+            values[2] = b[off_argb];
+            need_reset = 0;
+          }
+          flatten(r + off_argb, values[0], argb_stride_bytes, SIZE, step);
+          flatten(g + off_argb, values[1], argb_stride_bytes, SIZE, step);
+          flatten(b + off_argb, values[2], argb_stride_bytes, SIZE, step);
+        } else {
+          need_reset = 1;
         }
-        flatten(pic->y + off_y, values[0], pic->y_stride, SIZE);
-        flatten(pic->u + off_uv, values[1], pic->uv_stride, SIZE2);
-        flatten(pic->v + off_uv, values[2], pic->uv_stride, SIZE2);
-      } else {
-        need_reset = 1;
       }
     }
+  } else {
+    const int step = 1;
+    const uint8_t* a_ptr = pic->a;
+
+    if (a_ptr == NULL) return;    // nothing to do
+
+    w = pic->width / SIZE;
+    h = pic->height / SIZE;
+    for (y = 0; y < h; ++y) {
+      int need_reset = 1;
+      for (x = 0; x < w; ++x) {
+        const int off_a = (y * pic->a_stride + x) * SIZE;
+        const int off_y = (y * pic->y_stride + x) * SIZE;
+        const int off_uv = (y * pic->uv_stride + x) * SIZE2;
+        if (is_transparent_area(a_ptr + off_a, pic->a_stride, SIZE, step)) {
+          if (need_reset) {
+            values[0] = pic->y[off_y];
+            values[1] = pic->u[off_uv];
+            values[2] = pic->v[off_uv];
+            need_reset = 0;
+          }
+          flatten(pic->y + off_y, values[0], pic->y_stride, SIZE, step);
+          flatten(pic->u + off_uv, values[1], pic->uv_stride, SIZE2, step);
+          flatten(pic->v + off_uv, values[2], pic->uv_stride, SIZE2, step);
+        } else {
+          need_reset = 1;
+        }
+      }
+    }
+
     // ignore the left-overs on right/bottom
   }
 }
