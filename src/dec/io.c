@@ -112,7 +112,6 @@ static int EmitFancyRGB(const VP8Io* const io, WebPDecParams* const p) {
   const int y_end = io->mb_y + io->mb_h;
   const int mb_w = io->mb_w;
   const int uv_w = (mb_w + 1) / 2;
-
   if (y == 0) {
     // First line is special cased. We mirror the u/v samples at boundary.
     upsample(cur_y, NULL, cur_u, cur_v, cur_u, cur_v, dst, NULL, mb_w);
