@@ -553,6 +553,7 @@ static int CustomSetup(VP8Io* io) {
   } else {
     if (is_rgb) {
       p->emit = EmitSampledRGB;   // default
+      WebPInitSamplers();
 #ifdef FANCY_UPSAMPLING
       if (io->fancy_upsampling) {
         const int uv_width = (io->mb_w + 1) >> 1;
