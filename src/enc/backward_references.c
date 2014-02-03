@@ -485,7 +485,7 @@ static int BackwardReferencesHashChainDistanceOnly(
   float* const cost =
       (float*)WebPSafeMalloc((uint64_t)pix_count, sizeof(*cost));
   CostModel* cost_model = (CostModel*)malloc(sizeof(*cost_model));
-  HashChain* hash_chain = (HashChain*)malloc(sizeof(*hash_chain));
+  HashChain* hash_chain = (HashChain*)calloc(1, sizeof(*hash_chain));
   VP8LColorCache hashers;
   const double mul0 = (recursive_cost_model != 0) ? 1.0 : 0.68;
   const double mul1 = (recursive_cost_model != 0) ? 1.0 : 0.82;
