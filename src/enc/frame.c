@@ -11,8 +11,6 @@
 //
 // Author: Skal (pascal.massimino@gmail.com)
 
-#include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -22,19 +20,6 @@
 
 #define SEGMENT_VISU 0
 #define DEBUG_SEARCH 0    // useful to track search convergence
-
-// On-the-fly info about the current set of residuals. Handy to avoid
-// passing zillions of params.
-typedef struct {
-  int first;
-  int last;
-  const int16_t* coeffs;
-
-  int coeff_type;
-  ProbaArray* prob;
-  StatsArray* stats;
-  CostArray*  cost;
-} VP8Residual;
 
 //------------------------------------------------------------------------------
 // multi-pass convergence
@@ -337,41 +322,6 @@ static void SetResidualCoeffs(const int16_t* const coeffs,
 //------------------------------------------------------------------------------
 // Mode costs
 
-static int GetResidualCost(int ctx0, const VP8Residual* const res) {
-  int n = res->first;
-  // should be prob[VP8EncBands[n]], but it's equivalent for n=0 or 1
-  const int p0 = res->prob[n][ctx0][0];
-  const uint16_t* t = res->cost[n][ctx0];
-  // bit_cost(1, p0) is already incorporated in t[] tables, but only if ctx != 0
-  // (as required by the syntax). For ctx0 == 0, we need to add it here or it'll
-  // be missing during the loop.
-  int cost = (ctx0 == 0) ? VP8BitCost(1, p0) : 0;
-
-  if (res->last < 0) {
-    return VP8BitCost(0, p0);
-  }
-  for (; n < res->last; ++n) {
-    const int v = abs(res->coeffs[n]);
-    const int b = VP8EncBands[n + 1];
-    const int ctx = (v >= 2) ? 2 : v;
-    cost += VP8LevelCost(t, v);
-    t = res->cost[b][ctx];
-  }
-  // Last coefficient is always non-zero
-  {
-    const int v = abs(res->coeffs[n]);
-    assert(v != 0);
-    cost += VP8LevelCost(t, v);
-    if (n < 15) {
-      const int b = VP8EncBands[n + 1];
-      const int ctx = (v == 1) ? 1 : 2;
-      const int last_p0 = res->prob[b][ctx][0];
-      cost += VP8BitCost(0, last_p0);
-    }
-  }
-  return cost;
-}
-
 int VP8GetCostLuma4(VP8EncIterator* const it, const int16_t levels[16]) {
   const int x = (it->i4_ & 3), y = (it->i4_ >> 2);
   VP8Residual res;
@@ -382,7 +332,7 @@ int VP8GetCostLuma4(VP8EncIterator* const it, const int16_t levels[16]) {
   InitResidual(0, 3, enc, &res);
   ctx = it->top_nz_[x] + it->left_nz_[y];
   SetResidualCoeffs(levels, &res);
-  R += GetResidualCost(ctx, &res);
+  R += VP8GetResidualCost(ctx, &res);
   return R;
 }
 
@@ -397,7 +347,7 @@ int VP8GetCostLuma16(VP8EncIterator* const it, const VP8ModeScore* const rd) {
   // DC
   InitResidual(0, 1, enc, &res);
   SetResidualCoeffs(rd->y_dc_levels, &res);
-  R += GetResidualCost(it->top_nz_[8] + it->left_nz_[8], &res);
+  R += VP8GetResidualCost(it->top_nz_[8] + it->left_nz_[8], &res);
 
   // AC
   InitResidual(1, 0, enc, &res);
@@ -405,7 +355,7 @@ int VP8GetCostLuma16(VP8EncIterator* const it, const VP8ModeScore* const rd) {
     for (x = 0; x < 4; ++x) {
       const int ctx = it->top_nz_[x] + it->left_nz_[y];
       SetResidualCoeffs(rd->y_ac_levels[x + y * 4], &res);
-      R += GetResidualCost(ctx, &res);
+      R += VP8GetResidualCost(ctx, &res);
       it->top_nz_[x] = it->left_nz_[y] = (res.last >= 0);
     }
   }
@@ -426,7 +376,7 @@ int VP8GetCostUV(VP8EncIterator* const it, const VP8ModeScore* const rd) {
       for (x = 0; x < 2; ++x) {
         const int ctx = it->top_nz_[4 + ch + x] + it->left_nz_[4 + ch + y];
         SetResidualCoeffs(rd->uv_levels[ch * 2 + x + y * 2], &res);
-        R += GetResidualCost(ctx, &res);
+        R += VP8GetResidualCost(ctx, &res);
         it->top_nz_[4 + ch + x] = it->left_nz_[4 + ch + y] = (res.last >= 0);
       }
     }
