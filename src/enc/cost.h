@@ -29,6 +29,8 @@ static WEBP_INLINE int VP8BitCost(int bit, uint8_t proba) {
   return !bit ? VP8EntropyCost[proba] : VP8EntropyCost[255 - proba];
 }
 
+extern void GetResidualCostInit(void);
+
 // Level cost calculations
 extern const uint16_t VP8LevelCodes[MAX_VARIABLE_LEVEL][2];
 void VP8CalculateLevelCosts(VP8Proba* const proba);
