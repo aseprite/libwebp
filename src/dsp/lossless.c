@@ -541,15 +541,14 @@ static const PredictorFunc kPredictors[16] = {
   Predictor0, Predictor0    // <- padding security sentinels
 };
 
-// TODO(vikasa): Replace 256 etc with defines.
-static float PredictionCostSpatial(const int* counts,
-                                   int weight_0, double exp_val) {
-  const int significant_symbols = 16;
+static float PredictionCostSpatial(const int* counts, int weight_0,
+                                   double exp_val, int n) {
+  const int significant_symbols = n >> 4;
   const double exp_decay_factor = 0.6;
   double bits = weight_0 * counts[0];
   int i;
   for (i = 1; i < significant_symbols; ++i) {
-    bits += exp_val * (counts[i] + counts[256 - i]);
+    bits += exp_val * (counts[i] + counts[n - i]);
     exp_val *= exp_decay_factor;
   }
   return (float)(-0.1 * bits);
@@ -577,48 +576,53 @@ static float CombinedShannonEntropy(const int* const X,
   return (float)retval;
 }
 
-static float PredictionCostSpatialHistogram(int accumulated[4][256],
-                                            int tile[4][256]) {
+static float PredictionCostSpatialHistogram(
+    const int* accumulated, const int* tile) {
   int i;
   double retval = 0;
   for (i = 0; i < 4; ++i) {
     const double kExpValue = 0.94;
-    retval += PredictionCostSpatial(tile[i], 1, kExpValue);
-    retval += CombinedShannonEntropy(tile[i], accumulated[i], 256);
+    retval += PredictionCostSpatial(&tile[256 * i], 1, kExpValue, 256);
+    retval += CombinedShannonEntropy(&tile[256 * i], &accumulated[256 * i],
+                                     256);
   }
   return (float)retval;
 }
 
+static WEBP_INLINE void UpdateHisto(int* histo_argb, uint32_t argb) {
+  ++histo_argb[0 * 256 + (argb >> 24)];
+  ++histo_argb[1 * 256 + ((argb >> 16) & 0xff)];
+  ++histo_argb[2 * 256 + ((argb >> 8) & 0xff)];
+  ++histo_argb[3 * 256 + (argb & 0xff)];
+}
+
 static int GetBestPredictorForTile(int width, int height,
                                    int tile_x, int tile_y, int bits,
-                                   int accumulated[4][256],
+                                   const int* accumulated,
                                    const uint32_t* const argb_scratch) {
   const int kNumPredModes = 14;
   const int col_start = tile_x << bits;
   const int row_start = tile_y << bits;
   const int tile_size = 1 << bits;
-  const int ymax = GetMin(tile_size, height - row_start);
-  const int xmax = GetMin(tile_size, width - col_start);
-  int histo[4][256];
+  const int max_y = GetMin(tile_size, height - row_start);
+  const int max_x = GetMin(tile_size, width - col_start);
   float best_diff = MAX_DIFF_COST;
   int best_mode = 0;
-
   int mode;
   for (mode = 0; mode < kNumPredModes; ++mode) {
     const uint32_t* current_row = argb_scratch;
     const PredictorFunc pred_func = kPredictors[mode];
     float cur_diff;
     int y;
-    memset(&histo[0][0], 0, sizeof(histo));
-    for (y = 0; y < ymax; ++y) {
+    int histo_argb[4 * 256] = { 0 };
+    for (y = 0; y < max_y; ++y) {
       int x;
       const int row = row_start + y;
       const uint32_t* const upper_row = current_row;
       current_row = upper_row + width;
-      for (x = 0; x < xmax; ++x) {
+      for (x = 0; x < max_x; ++x) {
         const int col = col_start + x;
         uint32_t predict;
-        uint32_t predict_diff;
         if (row == 0) {
           predict = (col == 0) ? ARGB_BLACK : current_row[col - 1];  // Left.
         } else if (col == 0) {
@@ -626,14 +630,10 @@ static int GetBestPredictorForTile(int width, int height,
         } else {
           predict = pred_func(current_row[col - 1], upper_row + col);
         }
-        predict_diff = VP8LSubPixels(current_row[col], predict);
-        ++histo[0][predict_diff >> 24];
-        ++histo[1][((predict_diff >> 16) & 0xff)];
-        ++histo[2][((predict_diff >> 8) & 0xff)];
-        ++histo[3][(predict_diff & 0xff)];
+        UpdateHisto(&histo_argb[0], VP8LSubPixels(current_row[col], predict));
       }
     }
-    cur_diff = PredictionCostSpatialHistogram(accumulated, histo);
+    cur_diff = PredictionCostSpatialHistogram(&accumulated[0], &histo_argb[0]);
     if (cur_diff < best_diff) {
       best_diff = cur_diff;
       best_mode = mode;
@@ -650,18 +650,18 @@ static void CopyTileWithPrediction(int width, int height,
   const int col_start = tile_x << bits;
   const int row_start = tile_y << bits;
   const int tile_size = 1 << bits;
-  const int ymax = GetMin(tile_size, height - row_start);
-  const int xmax = GetMin(tile_size, width - col_start);
+  const int max_y = GetMin(tile_size, height - row_start);
+  const int max_x = GetMin(tile_size, width - col_start);
   const PredictorFunc pred_func = kPredictors[mode];
   const uint32_t* current_row = argb_scratch;
 
   int y;
-  for (y = 0; y < ymax; ++y) {
+  for (y = 0; y < max_y; ++y) {
     int x;
     const int row = row_start + y;
     const uint32_t* const upper_row = current_row;
     current_row = upper_row + width;
-    for (x = 0; x < xmax; ++x) {
+    for (x = 0; x < max_x; ++x) {
       const int col = col_start + x;
       const int pix = row * width + col;
       uint32_t predict;
@@ -686,8 +686,7 @@ void VP8LResidualImage(int width, int height, int bits,
   uint32_t* const upper_row = argb_scratch;
   uint32_t* const current_tile_rows = argb_scratch + width;
   int tile_y;
-  int histo[4][256];
-  memset(histo, 0, sizeof(histo));
+  int histo[4 * 256] = { 0 };
   for (tile_y = 0; tile_y < tiles_per_col; ++tile_y) {
     const int tile_y_offset = tile_y * max_tile_size;
     const int this_tile_height =
@@ -707,8 +706,8 @@ void VP8LResidualImage(int width, int height, int bits,
       if (all_x_max > width) {
         all_x_max = width;
       }
-      pred = GetBestPredictorForTile(width, height, tile_x, tile_y, bits, histo,
-                                     argb_scratch);
+      pred = GetBestPredictorForTile(width, height, tile_x, tile_y, bits,
+                                     &histo[0], argb_scratch);
       image[tile_y * tiles_per_row + tile_x] = 0xff000000u | (pred << 8);
       CopyTileWithPrediction(width, height, tile_x, tile_y, bits, pred,
                              argb_scratch, argb);
@@ -721,11 +720,7 @@ void VP8LResidualImage(int width, int height, int bits,
         }
         ix = all_y * width + tile_x_offset;
         for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-          const uint32_t a = argb[ix];
-          ++histo[0][a >> 24];
-          ++histo[1][((a >> 16) & 0xff)];
-          ++histo[2][((a >> 8) & 0xff)];
-          ++histo[3][(a & 0xff)];
+          UpdateHisto(&histo[0], argb[ix]);
         }
       }
     }
@@ -905,7 +900,7 @@ static float PredictionCostCrossColor(const int accumulated[256],
   // Favor small absolute values for PredictionCostSpatial
   static const double kExpValue = 2.4;
   return CombinedShannonEntropy(counts, accumulated, 256) +
-         PredictionCostSpatial(counts, 3, kExpValue);
+         PredictionCostSpatial(counts, 3, kExpValue, 256);
 }
 
 static float GetPredictionCostCrossColorRed(
