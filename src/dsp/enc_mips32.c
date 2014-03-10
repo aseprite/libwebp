@@ -747,6 +747,108 @@ static int SSE4x4MIPS32(const uint8_t* a, const uint8_t* b) {
 #undef GET_SSE_MIPS32
 #undef GET_SSE_MIPS32_INNER
 
+// Forward declaration.
+extern score_t VP8IsFlatMIPS32(const int16_t* levels, int num_blocks,
+                               score_t thresh);
+
+score_t VP8IsFlatMIPS32(const int16_t* levels, int num_blocks, score_t thresh) {
+  int32_t score;
+  int16_t* loop_end = (int16_t*)levels + (num_blocks << 4);
+  int16_t* pl = (int16_t*)&levels[0];
+  int32_t temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
+  int32_t iThresh = (int32_t)thresh;
+  int32_t ret;
+
+  __asm__ volatile(
+    ".set     push                                             \n\t"
+    ".set     noreorder                                        \n\t"
+    ".set     macro                                            \n\t"
+    "xor      %[score],      %[score],    %[score]             \n\t"
+    "beqz     %[num_blocks], 1f                                \n\t"
+    " addiu   %[ret],        $zero,       1                    \n\t"
+  "2:                                                          \n\t"
+    "lh       %[temp0],      2(%[pl])                          \n\t"
+    "lh       %[temp1],      4(%[pl])                          \n\t"
+    "lh       %[temp2],      6(%[pl])                          \n\t"
+    "lh       %[temp3],      8(%[pl])                          \n\t"
+    "clz      %[temp0],      %[temp0]                          \n\t"
+    "clz      %[temp1],      %[temp1]                          \n\t"
+    "clz      %[temp2],      %[temp2]                          \n\t"
+    "clz      %[temp3],      %[temp3]                          \n\t"
+    "lh       %[temp4],      10(%[pl])                         \n\t"
+    "lh       %[temp5],      12(%[pl])                         \n\t"
+    "lh       %[temp6],      14(%[pl])                         \n\t"
+    "slti     %[temp0],      %[temp0],    32                   \n\t"
+    "slti     %[temp1],      %[temp1],    32                   \n\t"
+    "slti     %[temp2],      %[temp2],    32                   \n\t"
+    "slti     %[temp3],      %[temp3],    32                   \n\t"
+    "clz      %[temp4],      %[temp4]                          \n\t"
+    "clz      %[temp5],      %[temp5]                          \n\t"
+    "clz      %[temp6],      %[temp6]                          \n\t"
+    "addu     %[score],      %[score],    %[temp0]             \n\t"
+    "addu     %[score],      %[score],    %[temp1]             \n\t"
+    "addu     %[score],      %[score],    %[temp2]             \n\t"
+    "addu     %[score],      %[score],    %[temp3]             \n\t"
+    "slti     %[temp4],      %[temp4],    32                   \n\t"
+    "slti     %[temp5],      %[temp5],    32                   \n\t"
+    "slti     %[temp6],      %[temp6],    32                   \n\t"
+    "addu     %[score],      %[score],    %[temp4]             \n\t"
+    "addu     %[score],      %[score],    %[temp5]             \n\t"
+    "addu     %[score],      %[score],    %[temp6]             \n\t"
+    "slt      %[temp4],      %[thresh],   %[score]             \n\t"
+    "lh       %[temp0],      16(%[pl])                         \n\t"
+    "lh       %[temp1],      18(%[pl])                         \n\t"
+    "bne      %[temp4],      $zero,       1f                   \n\t"
+    " xor     %[ret],        %[ret],      %[ret]               \n\t"
+    "lh       %[temp2],      20(%[pl])                         \n\t"
+    "lh       %[temp3],      22(%[pl])                         \n\t"
+    "clz      %[temp0],      %[temp0]                          \n\t"
+    "clz      %[temp1],      %[temp1]                          \n\t"
+    "clz      %[temp2],      %[temp2]                          \n\t"
+    "clz      %[temp3],      %[temp3]                          \n\t"
+    "lh       %[temp4],      24(%[pl])                         \n\t"
+    "lh       %[temp5],      26(%[pl])                         \n\t"
+    "lh       %[temp6],      28(%[pl])                         \n\t"
+    "slti     %[temp0],      %[temp0],    32                   \n\t"
+    "slti     %[temp1],      %[temp1],    32                   \n\t"
+    "slti     %[temp2],      %[temp2],    32                   \n\t"
+    "slti     %[temp3],      %[temp3],    32                   \n\t"
+    "clz      %[temp4],      %[temp4]                          \n\t"
+    "clz      %[temp5],      %[temp5]                          \n\t"
+    "clz      %[temp6],      %[temp6]                          \n\t"
+    "addu     %[score],      %[score],    %[temp0]             \n\t"
+    "addu     %[score],      %[score],    %[temp1]             \n\t"
+    "lh       %[temp0],      30(%[pl])                         \n\t"
+    "addu     %[score],      %[score],    %[temp2]             \n\t"
+    "addu     %[score],      %[score],    %[temp3]             \n\t"
+    "clz      %[temp0],      %[temp0]                          \n\t"
+    "addiu    %[pl],         %[pl],       32                   \n\t"
+    "slti     %[temp4],      %[temp4],    32                   \n\t"
+    "slti     %[temp5],      %[temp5],    32                   \n\t"
+    "slti     %[temp6],      %[temp6],    32                   \n\t"
+    "slti     %[temp0],      %[temp0],    32                   \n\t"
+    "addu     %[score],      %[score],    %[temp4]             \n\t"
+    "addu     %[score],      %[score],    %[temp5]             \n\t"
+    "addu     %[score],      %[score],    %[temp6]             \n\t"
+    "addu     %[score],      %[score],    %[temp0]             \n\t"
+    "slt      %[temp4],      %[thresh],   %[score]             \n\t"
+    "bne      %[temp4],      $zero,       1f                   \n\t"
+    " xor     %[ret],        %[ret],      %[ret]               \n\t"
+    "bne      %[pl],         %[loop_end], 2b                   \n\t"
+    " addiu   %[ret],        $zero, 1                          \n\t"
+  "1:                                                          \n\t"
+    ".set     pop                                              \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
+      [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [score]"=&r"(score),
+      [ret]"=&r"(ret), [pl]"+r"(pl)
+    : [loop_end]"r"(loop_end), [num_blocks]"r"(num_blocks),
+      [thresh]"r"(iThresh)
+    : "memory"
+  );
+  return (score_t)ret;
+}
+
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------

@@ -253,6 +253,7 @@ static VP8Encoder* InitVP8Encoder(const WebPConfig* const config,
   ResetFilterHeader(enc);
   ResetBoundaryPredictions(enc);
   VP8GetResidualCostInit();
+  VP8IsFlatInit();
   VP8EncInitAlpha(enc);
 #ifdef WEBP_EXPERIMENTAL_FEATURES
   VP8EncInitLayer(enc);

@@ -563,6 +563,13 @@ void VP8AdjustFilterStrength(VP8EncIterator* const it);
 // step of 'delta', given a sharpness parameter 'sharpness'.
 int VP8FilterStrengthFromDelta(int sharpness, int delta);
 
+// in quant.c
+typedef score_t (*VP8IsFlatFunc)(const int16_t* levels, int num_blocks,
+                                 score_t thresh);
+extern VP8IsFlatFunc VP8IsFlat;
+
+extern void VP8IsFlatInit(void);  // must be called first
+
 //------------------------------------------------------------------------------
 
 #ifdef __cplusplus
