@@ -861,6 +861,29 @@ static score_t IsFlat(const int16_t* levels, int num_blocks, score_t thresh) {
   return 1;
 }
 
+//------------------------------------------------------------------------------
+// init function
+
+#if defined(WEBP_USE_MIPS32)
+extern score_t VP8IsFlatMIPS32(const int16_t* levels, int num_blocks,
+                               score_t thresh);
+#endif  // WEBP_USE_MIPS32
+
+VP8IsFlatFunc VP8IsFlat = NULL;
+
+void VP8IsFlatInit(void) {
+  if (VP8IsFlat == NULL) {
+    VP8IsFlat = IsFlat;
+    if (VP8GetCPUInfo != NULL) {
+#if defined(WEBP_USE_MIPS32)
+      if (VP8GetCPUInfo(kMIPS32)) {
+        VP8IsFlat = VP8IsFlatMIPS32;
+      }
+#endif
+    }
+  }
+}
+
 static void PickBestIntra16(VP8EncIterator* const it, VP8ModeScore* const rd) {
   const int kNumBlocks = 16;
   VP8SegmentInfo* const dqm = &it->enc_->dqm_[it->mb_->segment_];
@@ -885,7 +908,7 @@ static void PickBestIntra16(VP8EncIterator* const it, VP8ModeScore* const rd) {
     rd16.H = VP8FixedCostsI16[mode];
     rd16.R = VP8GetCostLuma16(it, &rd16);
     if (mode > 0 &&
-        IsFlat(rd16.y_ac_levels[0], kNumBlocks, FLATNESS_LIMIT_I16)) {
+        VP8IsFlat(rd16.y_ac_levels[0], kNumBlocks, FLATNESS_LIMIT_I16)) {
       // penalty to avoid flat area to be mispredicted by complex mode
       rd16.R += FLATNESS_PENALTY * kNumBlocks;
     }
@@ -969,7 +992,7 @@ static int PickBestIntra4(VP8EncIterator* const it, VP8ModeScore* const rd) {
                   : 0;
       rd_tmp.H = mode_costs[mode];
       rd_tmp.R = VP8GetCostLuma4(it, tmp_levels);
-      if (mode > 0 && IsFlat(tmp_levels, kNumBlocks, FLATNESS_LIMIT_I4)) {
+      if (mode > 0 && VP8IsFlat(tmp_levels, kNumBlocks, FLATNESS_LIMIT_I4)) {
         rd_tmp.R += FLATNESS_PENALTY * kNumBlocks;
       }
 
@@ -1031,7 +1054,8 @@ static void PickBestUV(VP8EncIterator* const it, VP8ModeScore* const rd) {
     rd_uv.SD = 0;    // TODO: should we call TDisto? it tends to flatten areas.
     rd_uv.H  = VP8FixedCostsUV[mode];
     rd_uv.R  = VP8GetCostUV(it, &rd_uv);
-    if (mode > 0 && IsFlat(rd_uv.uv_levels[0], kNumBlocks, FLATNESS_LIMIT_UV)) {
+    if (mode > 0 &&
+        VP8IsFlat(rd_uv.uv_levels[0], kNumBlocks, FLATNESS_LIMIT_UV)) {
       rd_uv.R += FLATNESS_PENALTY * kNumBlocks;
     }
 
