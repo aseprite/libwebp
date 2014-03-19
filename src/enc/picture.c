@@ -796,6 +796,24 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
   return 1;
 }
 
+int WebPImportGray(const uint8_t* gray_data, WebPPicture* pic) {
+  int y, width, uv_width;
+  if (pic == NULL || gray_data == NULL) return 0;
+  pic->colorspace = WEBP_YUV420;
+  if (!WebPPictureAlloc(pic)) return 0;
+  width = pic->width;
+  uv_width = (width + 1) >> 1;
+  for (y = 0; y < pic->height; ++y) {
+    memcpy(pic->y + y * pic->y_stride, gray_data, width);
+    gray_data += width;    // <- we could use some 'data_stride' here if needed
+    if ((y & 1) == 0) {
+      memset(pic->u + (y >> 1) * pic->uv_stride, 128, uv_width);
+      memset(pic->v + (y >> 1) * pic->uv_stride, 128, uv_width);
+    }
+  }
+  return 1;
+}
+
 static int Import(WebPPicture* const picture,
                   const uint8_t* const rgb, int rgb_stride,
                   int step, int swap_rb, int import_alpha) {

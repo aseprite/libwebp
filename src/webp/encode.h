@@ -459,6 +459,10 @@ WEBP_EXTERN(int) WebPPictureARGBToYUVADithered(
 // Returns false in case of error.
 WEBP_EXTERN(int) WebPPictureYUVAToARGB(WebPPicture* picture);
 
+// Import luma sample (gray scale image) into 'picture'. The 'picture'
+// width and height must be set prior to calling this function.
+WEBP_EXTERN(int) WebPImportGray(const uint8_t* gray, WebPPicture* picture);
+
 // Helper function: given a width x height plane of RGBA or YUV(A) samples
 // clean-up the YUV or RGB samples under fully transparent area, to help
 // compressibility (no guarantee, though).
