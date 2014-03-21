@@ -97,6 +97,20 @@ int VP8LGetHistoImageSymbols(int xsize, int ysize,
                              VP8LHistogramSet* const image_in,
                              uint16_t* const histogram_symbols);
 
+//------------------------------------------------------------------------------
+
+typedef double (*HuffmanCostFunc)(const int* const population, int length);
+typedef double (*HuffmanCostCombinedFunc)(const int* const X,
+                                          const int* const Y,
+                                          int length);
+
+extern HuffmanCostFunc HuffmanCost;
+extern HuffmanCostCombinedFunc HuffmanCostCombined;
+
+extern void HistogramInit(void);
+
+//------------------------------------------------------------------------------
+
 #ifdef __cplusplus
 }
 #endif
