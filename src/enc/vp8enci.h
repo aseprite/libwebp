@@ -563,6 +563,9 @@ void VP8AdjustFilterStrength(VP8EncIterator* const it);
 // step of 'delta', given a sharpness parameter 'sharpness'.
 int VP8FilterStrengthFromDelta(int sharpness, int delta);
 
+// in histogram.c
+extern void HuffmanCostInit(void);
+
 //------------------------------------------------------------------------------
 
 #ifdef __cplusplus
