@@ -15,6 +15,7 @@
 
 #include <math.h>
 
+#include "../dsp/dsp.h"
 #include "./backward_references.h"
 #include "./histogram.h"
 #include "../dsp/lossless.h"
@@ -208,7 +209,7 @@ static WEBP_INLINE double HuffmanCostRefine(int streak, int val) {
 
 // Returns the cost encode the rle-encoded entropy code.
 // The constants in this function are experimental.
-static double HuffmanCost(const int* const population, int length) {
+static double HuffmanCostC(const int* const population, int length) {
   int streak = 0;
   int i = 0;
   double retval = InitialHuffmanCost();
@@ -224,8 +225,8 @@ static double HuffmanCost(const int* const population, int length) {
   return retval;
 }
 
-static double HuffmanCostCombined(const int* const X, const int* const Y,
-                                  int length) {
+static double HuffmanCostCombinedC(const int* const X, const int* const Y,
+                                   int length) {
   int streak = 0;
   int i = 0;
   double retval = InitialHuffmanCost();
@@ -241,6 +242,25 @@ static double HuffmanCostCombined(const int* const X, const int* const Y,
   }
   retval += HuffmanCostRefine(++streak, X[i] + Y[i]);
   return retval;
+}
+
+//------------------------------------------------------------------------------
+
+HuffmanCostFunc HuffmanCost;
+HuffmanCostCombinedFunc HuffmanCostCombined;
+
+extern void HistogramInitMIPS32(void);
+
+void HistogramInit(void) {
+  HuffmanCost = HuffmanCostC;
+  HuffmanCostCombined = HuffmanCostCombinedC;
+  if (VP8GetCPUInfo) {
+#if defined(WEBP_USE_MIPS32)
+    if (VP8GetCPUInfo(kMIPS32)) {
+      HistogramInitMIPS32();
+    }
+#endif
+  }
 }
 
 static double PopulationCost(const int* const population, int length) {

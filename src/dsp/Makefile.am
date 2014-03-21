@@ -44,6 +44,7 @@ libwebpdsp_la_LDFLAGS = -lm
 libwebpdsp_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE) $(USE_SWAP_16BIT_CSP)
 
 if BUILD_LIBWEBPDECODER
+  COMMON_SOURCES += ../enc/histogram.c
   libwebpdspdecode_la_SOURCES = $(COMMON_SOURCES)
 
   libwebpdspdecode_la_LDFLAGS = $(libwebpdsp_la_LDFLAGS)

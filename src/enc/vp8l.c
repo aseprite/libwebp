@@ -963,6 +963,7 @@ static VP8LEncoder* VP8LEncoderNew(const WebPConfig* const config,
   enc->pic_ = picture;
 
   VP8LDspInit();
+  HistogramInit();
 
   return enc;
 }
