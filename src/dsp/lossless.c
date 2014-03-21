@@ -1460,6 +1460,71 @@ void VP8LBundleColorMap(const uint8_t* const row, int width,
 
 //------------------------------------------------------------------------------
 
+static WEBP_INLINE double InitialHuffmanCost(void) {
+  // Small bias because Huffman code length is typically not stored in
+  // full length.
+  static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
+  static const double kSmallBias = 9.1;
+  return kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
+}
+
+static WEBP_INLINE double HuffmanCostRefine(int streak, int val) {
+  double retval;
+  if (streak > 3) {
+    if (val == 0) {
+      retval = 1.5625 + 0.234375 * streak;
+    } else {
+      retval = 2.578125 + 0.703125 * streak;
+    }
+  } else {
+    if (val == 0) {
+      retval = 1.796875 * streak;
+    } else {
+      retval = 3.28125 * streak;
+    }
+  }
+  return retval;
+}
+
+// Returns the cost encode the rle-encoded entropy code.
+// The constants in this function are experimental.
+static double HuffmanCostC(const int* const population, int length) {
+  int streak = 0;
+  int i = 0;
+  double retval = InitialHuffmanCost();
+  for (; i < length - 1; ++i) {
+    ++streak;
+    if (population[i] == population[i + 1]) {
+      continue;
+    }
+    retval += HuffmanCostRefine(streak, population[i]);
+    streak = 0;
+  }
+  retval += HuffmanCostRefine(++streak, population[i]);
+  return retval;
+}
+
+static double HuffmanCostCombinedC(const int* const X, const int* const Y,
+                                   int length) {
+  int streak = 0;
+  int i = 0;
+  double retval = InitialHuffmanCost();
+  for (; i < length - 1; ++i) {
+    const int xy = X[i] + Y[i];
+    const int xy_next = X[i + 1] + Y[i + 1];
+    ++streak;
+    if (xy == xy_next) {
+      continue;
+    }
+    retval += HuffmanCostRefine(streak, xy);
+    streak = 0;
+  }
+  retval += HuffmanCostRefine(++streak, X[i] + Y[i]);
+  return retval;
+}
+
+//------------------------------------------------------------------------------
+
 VP8LProcessBlueAndRedFunc VP8LSubtractGreenFromBlueAndRed;
 VP8LProcessBlueAndRedFunc VP8LAddGreenToBlueAndRed;
 VP8LPredictorFunc VP8LPredictors[16];
@@ -1475,6 +1540,9 @@ VP8LConvertFunc VP8LConvertBGRAToBGR;
 
 VP8LFastLog2SlowFunc VP8LFastLog2Slow;
 VP8LFastLog2SlowFunc VP8LFastSLog2Slow;
+
+VP8LCostFunc HuffmanCost;
+VP8LCostCombinedFunc HuffmanCostCombined;
 
 extern void VP8LDspInitSSE2(void);
 extern void VP8LDspInitNEON(void);
@@ -1497,6 +1565,9 @@ void VP8LDspInit(void) {
 
   VP8LFastLog2Slow = FastLog2Slow;
   VP8LFastSLog2Slow = FastSLog2Slow;
+
+  HuffmanCost = HuffmanCostC;
+  HuffmanCostCombined = HuffmanCostCombinedC;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {

@@ -110,6 +110,16 @@ void VP8LConvertFromBGRA(const uint32_t* const in_data, int num_pixels,
                          WEBP_CSP_MODE out_colorspace, uint8_t* const rgba);
 
 //------------------------------------------------------------------------------
+
+typedef double (*VP8LCostFunc)(const int* const population, int length);
+typedef double (*VP8LCostCombinedFunc)(const int* const X,
+                                       const int* const Y,
+                                       int length);
+
+extern VP8LCostFunc HuffmanCost;
+extern VP8LCostCombinedFunc HuffmanCostCombined;
+
+//------------------------------------------------------------------------------
 // Misc methods.
 
 // Computes sampled size of 'size' when sampling using 'sampling bits'.

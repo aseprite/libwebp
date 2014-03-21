@@ -180,68 +180,7 @@ static double BitsEntropyCombined(const int* const X, const int* const Y,
   return BitsEntropyRefine(nonzeros, sum, max_val, retval);
 }
 
-static WEBP_INLINE double InitialHuffmanCost(void) {
-  // Small bias because Huffman code length is typically not stored in
-  // full length.
-  static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
-  static const double kSmallBias = 9.1;
-  return kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
-}
-
-static WEBP_INLINE double HuffmanCostRefine(int streak, int val) {
-  double retval;
-  if (streak > 3) {
-    if (val == 0) {
-      retval = 1.5625 + 0.234375 * streak;
-    } else {
-      retval = 2.578125 + 0.703125 * streak;
-    }
-  } else {
-    if (val == 0) {
-      retval = 1.796875 * streak;
-    } else {
-      retval = 3.28125 * streak;
-    }
-  }
-  return retval;
-}
-
-// Returns the cost encode the rle-encoded entropy code.
-// The constants in this function are experimental.
-static double HuffmanCost(const int* const population, int length) {
-  int streak = 0;
-  int i = 0;
-  double retval = InitialHuffmanCost();
-  for (; i < length - 1; ++i) {
-    ++streak;
-    if (population[i] == population[i + 1]) {
-      continue;
-    }
-    retval += HuffmanCostRefine(streak, population[i]);
-    streak = 0;
-  }
-  retval += HuffmanCostRefine(++streak, population[i]);
-  return retval;
-}
-
-static double HuffmanCostCombined(const int* const X, const int* const Y,
-                                  int length) {
-  int streak = 0;
-  int i = 0;
-  double retval = InitialHuffmanCost();
-  for (; i < length - 1; ++i) {
-    const int xy = X[i] + Y[i];
-    const int xy_next = X[i + 1] + Y[i + 1];
-    ++streak;
-    if (xy == xy_next) {
-      continue;
-    }
-    retval += HuffmanCostRefine(streak, xy);
-    streak = 0;
-  }
-  retval += HuffmanCostRefine(++streak, X[i] + Y[i]);
-  return retval;
-}
+//------------------------------------------------------------------------------
 
 static double PopulationCost(const int* const population, int length) {
   return BitsEntropy(population, length) + HuffmanCost(population, length);
