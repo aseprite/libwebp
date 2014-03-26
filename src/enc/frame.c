@@ -18,6 +18,7 @@
 
 #include "./vp8enci.h"
 #include "./cost.h"
+#include "../utils/utils.h"
 #include "../webp/format_constants.h"  // RIFF constants
 
 #define SEGMENT_VISU 0
@@ -162,7 +163,7 @@ static int Record(int bit, proba_t* const stats) {
   return bit;
 }
 
-// We keep the table free variant around for reference, in case.
+// We keep the table-free variant around for reference, in case.
 #define USE_LEVEL_CODE_TABLE
 
 // Simulate block coding, but only record statistics.
