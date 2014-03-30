@@ -16,7 +16,7 @@
 
 #if defined(WEBP_USE_NEON)
 
-// #define USE_INTRINSICS   // use intrinsics when possible
+#define USE_INTRINSICS   // use intrinsics when possible
 
 #include <arm_neon.h>
 
@@ -71,60 +71,60 @@
   FLIP_SIGN_BIT2(p0, q0, q10)
 
 #if defined(USE_INTRINSICS)
-static WEBP_INLINE uint8x16_t NeedsFilter(const uint8x16_t p1, const uint8x16_t p0,
-                                          const uint8x16_t q0, const uint8x16_t q1,
-                                          uint8_t thresh) {
+static uint8x16_t NeedsFilter(const uint8x16_t p1, const uint8x16_t p0,
+                              const uint8x16_t q0, const uint8x16_t q1,
+                              uint8_t thresh) {
   const uint8x16_t thresh_v = vdupq_n_u8(thresh);
-  const uint8x16_t a_p0_q0 = vabdq_u8(p0, q0);     // abs(p0-q0)
-  const uint8x16_t a_p1_q1 = vabdq_u8(p1, q1);     // abs(p1-q1)
-  const uint8x16_t a_p0_q0_2 = vqaddq_u8(a_p0_q0, a_p0_q0); // 2 * abs(p0-q0)
-  const uint8x16_t a_p1_q1_2 = vshrq_n_u8(a_p1_q1, 1);      // abs(p1-q1) / 2
+  const uint8x16_t a_p0_q0 = vabdq_u8(p0, q0);               // abs(p0-q0)
+  const uint8x16_t a_p1_q1 = vabdq_u8(p1, q1);               // abs(p1-q1)
+  const uint8x16_t a_p0_q0_2 = vqaddq_u8(a_p0_q0, a_p0_q0);  // 2 * abs(p0-q0)
+  const uint8x16_t a_p1_q1_2 = vshrq_n_u8(a_p1_q1, 1);       // abs(p1-q1) / 2
   const uint8x16_t sum = vqaddq_u8(a_p0_q0_2, a_p1_q1_2);
-  const uint8x16_t mask = vcgeq_u8(thresh_v, sum);            // mask
+  const uint8x16_t mask = vcgeq_u8(thresh_v, sum);
   return mask;
 }
 
-static WEBP_INLINE int8x16_t FlipSign(const uint8x16_t v) {
+static int8x16_t FlipSign(const uint8x16_t v) {
   const uint8x16_t sign_bit = vdupq_n_u8(0x80);
   return vreinterpretq_s8_u8(veorq_u8(v, sign_bit));
 }
 
-static WEBP_INLINE uint8x16_t FlipSignBack(const int8x16_t v) {
-  const int8x16_t sign_bit = vdupq_n_s8(0x80);
-  return vreinterpretq_u8_s8(veorq_s8(v, sign_bit));
+static uint8x16_t FlipSignBack(const int8x16_t v) {
+  const uint8x16_t sign_bit = vdupq_n_u8(0x80);
+  return veorq_u8(vreinterpretq_u8_s8(v), sign_bit);
 }
 
-static WEBP_INLINE int8x16_t GetBaseDelta(const uint8x16_t p1, const uint8x16_t p0,
-                                          const uint8x16_t q0, const uint8x16_t q1) {
+static int8x16_t GetBaseDelta(const uint8x16_t p1, const uint8x16_t p0,
+                              const uint8x16_t q0, const uint8x16_t q1) {
   const int8x16_t p1s = FlipSign(p1);
   const int8x16_t p0s = FlipSign(p0);
   const int8x16_t q0s = FlipSign(q0);
   const int8x16_t q1s = FlipSign(q1);
-  const int8x16_t p0_q0 = vqsubq_s8(p0s, q0s);     // (p0-q0)
-  const int8x16_t p1_q1 = vqsubq_s8(p1s, q1s);     // (p1-q1)
-  const int8x16_t s1 = vqsubq_s8(p0_q0, p1_q1);    // (p1-q1) + 1 * (p0 - q0)
-  const int8x16_t s2 = vqsubq_s8(p0_q0, s1);    // (p1-q1) + 1 * (p0 - q0)
-  const int8x16_t s3 = vqsubq_s8(p0_q0, s2);    // (p1-q1) + 1 * (p0 - q0)
+  const int8x16_t q0_p0 = vqsubq_s8(q0s, p0s);    // (q0-p0)
+  const int8x16_t p1_q1 = vqsubq_s8(p1s, q1s);    // (p1-q1)
+  const int8x16_t s1 = vqaddq_s8(p1_q1, q0_p0);   // (p1-q1) + 1 * (q0 - p0)
+  const int8x16_t s2 = vqaddq_s8(q0_p0, s1);      // (p1-q1) + 2 * (q0 - p0)
+  const int8x16_t s3 = vqaddq_s8(q0_p0, s2);      // (p1-q1) + 3 * (q0 - p0)
   return s3;
 }
 
 static void DoFilter2(const uint8x16_t p1, const uint8x16_t p0,
                       const uint8x16_t q0, const uint8x16_t q1,
-                      uint8x16_t* op0, uint8x16_t* oq1, int thresh) {
+                      uint8x16_t* op0, uint8x16_t* oq0, int thresh) {
   const uint8x16_t mask = NeedsFilter(p1, p0, q0, q1, (uint8_t)thresh);
   const int8x16_t delta0 = GetBaseDelta(p1, p0, q0, q1);
   const int8x16_t delta1 = vandq_s8(delta0, vreinterpretq_s8_u8(mask));
-  // DoSimpleFilter
+  // DoSimpleFilter:
   const int8x16_t kCst3 = vdupq_n_s8(0x03);
   const int8x16_t kCst4 = vdupq_n_s8(0x04);
   const int8x16_t delta_p3 = vqaddq_s8(delta1, kCst3);
   const int8x16_t delta_p4 = vqaddq_s8(delta1, kCst4);
   const int8x16_t delta3 = vshrq_n_s8(delta_p3, 3);
   const int8x16_t delta4 = vshrq_n_s8(delta_p4, 3);
-  const int8x16_t sp0 = vqaddq_s8(vreinterpretq_s8_u8(p0), delta3);
-  const int8x16_t sq0 = vqsubq_s8(vreinterpretq_s8_u8(q0), delta4);
+  const int8x16_t sp0 = vqaddq_s8(FlipSign(p0), delta3);
+  const int8x16_t sq0 = vqsubq_s8(FlipSign(q0), delta4);
   *op0 = FlipSignBack(sp0);
-  *oq1 = FlipSignBack(sq0);
+  *oq0 = FlipSignBack(sq0);
 }
 #endif    // USE_INTRINSICS
 
@@ -193,19 +193,14 @@ static void SimpleVFilter16NEON(uint8_t* p, int stride, int thresh) {
     : "memory", QRegs
   );
 #else
+  const uint8x16_t p1 = vld1q_u8(p - 2 * stride);
+  const uint8x16_t p0 = vld1q_u8(p - 1 * stride);
+  const uint8x16_t q0 = vld1q_u8(p + 0 * stride);
+  const uint8x16_t q1 = vld1q_u8(p + 1 * stride);
   uint8x16_t oq0, op0;
-  p -= 2 * stride;  // jump back to p1
-  { 
-    const uint8x16_t p1 = vld1q_u8(p + 0 * stride);
-    const uint8x16_t p0 = vld1q_u8(p + 1 * stride);
-    const uint8x16_t q0 = vld1q_u8(p + 2 * stride);
-    const uint8x16_t q1 = vld1q_u8(p + 3 * stride);
-    p += 4 * stride;
-    DoFilter2(p1, p0, q0, q1, &op0, &oq0, thresh);
-  }
-  p -= 2 * stride;   // back to p0
-  vst1q_u8(p, op0); p += stride;
-  vst1q_u8(p, oq0); p += stride;
+  DoFilter2(p1, p0, q0, q1, &op0, &oq0, thresh);
+  vst1q_u8(p - stride, op0);
+  vst1q_u8(p, oq0);
 #endif
 }
 
