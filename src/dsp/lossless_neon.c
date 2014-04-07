@@ -13,7 +13,7 @@
 
 #include "./dsp.h"
 
-#if 0  // defined(WEBP_USE_NEON)
+#if defined(WEBP_USE_NEON)
 
 #include <arm_neon.h>
 
@@ -73,7 +73,7 @@ extern void VP8LDspInitNEON(void);
 void VP8LDspInitNEON(void) {
 // TODO(jzern): these are producing incorrect results with a gcc-4.6/NDK
 // build.
-#if 0  // defined(WEBP_USE_NEON)
+#if defined(WEBP_USE_NEON)
   VP8LConvertBGRAToRGBA = ConvertBGRAToRGBA;
   VP8LConvertBGRAToBGR = ConvertBGRAToBGR;
   VP8LConvertBGRAToRGB = ConvertBGRAToRGB;
