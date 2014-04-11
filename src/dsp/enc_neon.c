@@ -253,6 +253,93 @@ static void ITransform(const uint8_t* ref,
 
 // Forward transform.
 
+#if 0 // #ifdef USE_INTRINSICS
+
+static int16x4_t ConvertLowU8ToS16(const uint8x8_t v) {
+  return vget_low_s16(vreinterpretq_s16_u16(vmovl_u8(v)));
+}
+
+static WEBP_INLINE void Transpose4x4_S16(const int16x4_t A, const int16x4_t B,
+                                         const int16x4_t C, const int16x4_t D,
+                                         int16x8_t* const out01,
+                                         int16x8_t* const out32) {
+  const int16x4x2_t AB = vtrn_s16(A, B);
+  const int16x4x2_t CD = vtrn_s16(C, D);
+  const int32x2x2_t tmp02 = vtrn_s32(vreinterpret_s32_s16(AB.val[0]),
+                                     vreinterpret_s32_s16(CD.val[0]));
+  const int32x2x2_t tmp13 = vtrn_s32(vreinterpret_s32_s16(AB.val[1]),
+                                     vreinterpret_s32_s16(CD.val[1]));
+  *out01 = vreinterpretq_s16_s64(
+      vcombine_s64(vreinterpret_s64_s32(tmp02.val[0]),
+                   vreinterpret_s64_s32(tmp13.val[0])));
+  *out32 = vreinterpretq_s16_s64(
+      vcombine_s64(vreinterpret_s64_s32(tmp13.val[1]),
+                   vreinterpret_s64_s32(tmp02.val[1])));
+}
+
+static void FTransform(const uint8_t* src, const uint8_t* ref,
+                       int16_t* out) {
+  int16x8_t d0d1, d3d2;   // working int16 4x4 variables
+  {
+    // Load 8 pixels at once instead of just 4 (easier)
+    const uint8x8_t s0 = vld1_u8(src + 0 * BPS);
+    const uint8x8_t s1 = vld1_u8(src + 1 * BPS);
+    const uint8x8_t s2 = vld1_u8(src + 2 * BPS);
+    const uint8x8_t s3 = vld1_u8(src + 3 * BPS);
+    const uint8x8_t r0 = vld1_u8(ref + 0 * BPS);
+    const uint8x8_t r1 = vld1_u8(ref + 1 * BPS);
+    const uint8x8_t r2 = vld1_u8(ref + 2 * BPS);
+    const uint8x8_t r3 = vld1_u8(ref + 3 * BPS);
+    const int16x4_t D0 = vsub_s16(ConvertLowU8ToS16(s0), ConvertLowU8ToS16(r0));
+    const int16x4_t D1 = vsub_s16(ConvertLowU8ToS16(s1), ConvertLowU8ToS16(r1));
+    const int16x4_t D2 = vsub_s16(ConvertLowU8ToS16(s2), ConvertLowU8ToS16(r2));
+    const int16x4_t D3 = vsub_s16(ConvertLowU8ToS16(s3), ConvertLowU8ToS16(r3));
+    // 4x4 transpose
+    Transpose4x4_S16(D0, D1, D2, D3, &d0d1, &d3d2);
+  }
+  {    // 1rst pass
+    const int32x4_t kCst937 = vdupq_n_s32(937);
+    const int32x4_t kCst1812 = vdupq_n_s32(1812);
+    const int16x8_t a0a1 = vaddq_s16(d0d1, d3d2);   // d0+d3 | d1+d2   (=a0|a1)
+    const int16x8_t a3a2 = vsubq_s16(d0d1, d3d2);   // d0-d3 | d1-d2   (=a3|a2)
+    const int16x8_t a0a1_2 = vmulq_n_s16(a0a1, 8);
+    const int32x4_t a3_2217 = vmull_n_s16(vget_low_s16(a3a2), 2217);
+    const int32x4_t a2_2217 = vmull_n_s16(vget_high_s16(a3a2), 2217);
+    const int32x4_t a2_p_a3 = vmlal_n_s16(a2_2217, vget_low_s16(a3a2), 5352);
+    const int32x4_t a3_m_a2 = vmlsl_n_s16(a3_2217, vget_high_s16(a3a2), 5352);
+    const int16x4_t tmp1 = vshrn_n_s32(vaddq_s32(a2_p_a3, kCst1812), 9);
+    const int16x4_t tmp3 = vshrn_n_s32(vaddq_s32(a3_m_a2, kCst937), 9);
+    const int16x4_t tmp0 = vadd_s16(vget_low_s16(a0a1_2), vget_high_s16(a0a1_2));
+    const int16x4_t tmp2 = vsub_s16(vget_low_s16(a0a1_2), vget_high_s16(a0a1_2));
+    // 4x4 transpose
+    Transpose4x4_S16(tmp0, tmp1, tmp2, tmp3, &d0d1, &d3d2);
+  }
+  {    // 2nd pass
+    const int32x4_t kCst12000 = vdupq_n_s32(12000 + (1 << 16));
+    const int32x4_t kCst51000 = vdupq_n_s32(51000);
+    const int16x8_t a0a1 = vaddq_s16(d0d1, d3d2);   // d0+d3 | d1+d2   (=a0|a1)
+    const int16x8_t a3a2 = vsubq_s16(d0d1, d3d2);   // d0-d3 | d1-d2   (=a3|a2)
+    const int16x4_t a0_k7 = vadd_s16(vget_low_s16(a0a1), vdup_n_s16(7));
+    const int16x4_t out0 = vshr_n_s16(vadd_s16(a0_k7, vget_high_s16(a0a1)), 4);
+    const int16x4_t out2 = vshr_n_s16(vsub_s16(a0_k7, vget_high_s16(a0a1)), 4);
+    const int32x4_t a3_2217 = vmull_n_s16(vget_low_s16(a3a2), 2217);
+    const int32x4_t a2_2217 = vmull_n_s16(vget_high_s16(a3a2), 2217);
+    const int32x4_t a2_p_a3 = vmlal_n_s16(a2_2217, vget_low_s16(a3a2), 5352);
+    const int32x4_t a3_m_a2 = vmlsl_n_s16(a3_2217, vget_high_s16(a3a2), 5352);
+    const int16x4_t a3_eq_0 =
+        vreinterpret_s16_u16(vceq_s16(vget_low_s16(a3a2), vdup_n_s16(0)));
+    const int16x4_t out1 = vadd_s16(vaddhn_s32(a2_p_a3, kCst12000), a3_eq_0);
+    const int16x4_t out3 = vaddhn_s32(a3_m_a2, kCst51000);
+    vst1_s16(out +  0, out0);
+    vst1_s16(out +  4, out1);
+    vst1_s16(out +  8, out2);
+    vst1_s16(out + 12, out3);
+  }
+  assert(BPS == 16);   // wouldn't work, otherwise
+}
+
+#else
+
 // adapted from vp8/encoder/arm/neon/shortfdct_neon.asm
 static const int16_t kCoeff16[] = {
   5352,  5352,  5352, 5352, 2217,  2217,  2217, 2217
@@ -376,6 +463,8 @@ static void FTransform(const uint8_t* src, const uint8_t* ref,
       "q10", "q11", "q12", "q13"       // clobbered
   );
 }
+
+#endif
 
 static WEBP_INLINE int32x4x4_t Transpose4x4(const int32x4x4_t rows) {
   uint64x2x2_t row01, row23;
