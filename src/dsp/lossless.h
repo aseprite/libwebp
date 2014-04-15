@@ -247,6 +247,14 @@ static WEBP_INLINE uint32_t VP8LSubPixels(uint32_t a, uint32_t b) {
 void VP8LBundleColorMap(const uint8_t* const row, int width,
                         int xbits, uint32_t* const dst);
 
+typedef double (*VP8LCostFunc)(const int* const population, int length);
+typedef double (*VP8LCostCombinedFunc)(const int* const X,
+                                       const int* const Y,
+                                       int length);
+
+extern VP8LCostFunc VP8LExtraCost;
+extern VP8LCostCombinedFunc VP8LExtraCostCombined;
+
 //------------------------------------------------------------------------------
 
 #ifdef __cplusplus
