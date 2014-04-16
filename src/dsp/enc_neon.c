@@ -879,7 +879,8 @@ static int SSE4x4(const uint8_t* a, const uint8_t* b) {
 
 //------------------------------------------------------------------------------
 
-// Compilation with gcc4.6.3 is problematic for now. Disable this function then.
+// Compilation with gcc4.6.3 is problematic for now. Disable this function
+// in this case.
 #if (__GNUC__ <= 4 && __GNUC_MINOR__ < 8)
 #define SKIP_QUANTIZE
 #endif
