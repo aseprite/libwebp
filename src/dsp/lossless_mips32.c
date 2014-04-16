@@ -188,6 +188,102 @@ static double ExtraCostCombined(const int* const X, const int* const Y,
   return (double)((int64_t)temp0 << 32 | temp1);
 }
 
+#define HUFFMAN_COST                                    \
+__asm__ volatile(                                       \
+    "addiu %[temp3],  %[streak],   -3          \n\t"    \
+    "sll   %[temp1],  %[temp0],    2           \n\t"    \
+    "addu  %[temp2],  %[pstreaks], %[temp1]    \n\t"    \
+    "blez  %[temp3],  1f                       \n\t"    \
+    "addu  %[temp3],  %[pcnts],    %[temp1]    \n\t"    \
+    "lw    %[temp0],  8(%[temp2])              \n\t"    \
+    "lw    %[temp1],  0(%[temp3])              \n\t"    \
+    "addu  %[temp0],  %[temp0],    %[streak]   \n\t"    \
+    "addiu %[temp1],  %[temp1],    1           \n\t"    \
+    "sw    %[temp0],  8(%[temp2])              \n\t"    \
+    "sw    %[temp1],  0(%[temp3])              \n\t"    \
+    "b     2f                                  \n\t"    \
+  "1:                                          \n\t"    \
+    "lw    %[temp0],  0(%[temp2])              \n\t"    \
+    "addu  %[temp0],  %[temp0],    %[streak]   \n\t"    \
+    "sw    %[temp0],  0(%[temp2])              \n\t"    \
+  "2:                                          \n\t"    \
+  : [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),           \
+    [temp3]"=&r"(temp3), [temp0]"+r"(temp0)             \
+  : [pstreaks]"r"(pstreaks), [pcnts]"r"(pcnts),         \
+    [streak]"r"(streak)                                 \
+  : "memory"                                            \
+);
+
+// Returns the cost encode the rle-encoded entropy code.
+// The constants in this function are experimental.
+static double HuffmanCost(const int* const population, int length) {
+  int cnts[2] = { 0, 0 };
+  int streaks[2][2] = { { 0, 0 }, { 0, 0 } };
+  int streak = 0;
+  int i;
+  const int* pstreaks = &streaks[0][0];
+  const int* pcnts = &cnts[0];
+  int temp0, temp1, temp2, temp3;
+  for (i = 0; i < length - 1; ++i) {
+    ++streak;
+    if (population[i] == population[i + 1]) {
+      continue;
+    }
+    temp0 = population[i] != 0;
+    HUFFMAN_COST
+    streak = 0;
+  }
+  ++streak;
+
+  temp0 = population[i] != 0;
+  HUFFMAN_COST
+
+  return VP8LFinalHuffmanCost(cnts[0], streaks[0][0], streaks[1][0],
+                              cnts[1], streaks[0][1], streaks[1][1]);
+}
+
+static double HuffmanCostCombined(const int* const X, const int* const Y,
+                                  int length) {
+  int cnts[2] = { 0, 0 };
+  int streaks[2][2] = { { 0, 0 }, { 0, 0 } };
+  int streak = 0;
+  int i;
+  const int* pstreaks = &streaks[0][0];
+  const int* pcnts = &cnts[0];
+  int temp0, temp1, temp2, temp3;
+  for (i = 0; i < length - 1; ++i) {
+    const int xy = X[i] + Y[i];
+    const int xy_next = X[i + 1] + Y[i + 1];
+    ++streak;
+    if (xy == xy_next) {
+      continue;
+    }
+    temp0 = xy != 0;
+    HUFFMAN_COST
+    streak = 0;
+  }
+  {
+    const int xy = X[i] + Y[i];
+    ++streak;
+    temp0 = xy != 0;
+    HUFFMAN_COST
+  }
+  return VP8LFinalHuffmanCost(cnts[0], streaks[0][0], streaks[1][0],
+                              cnts[1], streaks[0][1], streaks[1][1]);
+}
+
+static double PopulationCost(const int* const population, int length) {
+  return VP8LBitsEntropy(population, length) + HuffmanCost(population, length);
+}
+
+static double GetCombinedEntropy(const int* const X, const int* const Y,
+                                 int length) {
+  return VP8LBitsEntropyCombined(X, Y, length) +
+         HuffmanCostCombined(X, Y, length);
+}
+
+#undef HUFFMAN_COST
+
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------
@@ -201,5 +297,7 @@ void VP8LDspInitMIPS32(void) {
   VP8LFastLog2Slow = FastLog2Slow;
   VP8LExtraCost = ExtraCost;
   VP8LExtraCostCombined = ExtraCostCombined;
+  VP8LPopulationCost = PopulationCost;
+  VP8LGetCombinedEntropy = GetCombinedEntropy;
 #endif  // WEBP_USE_MIPS32
 }

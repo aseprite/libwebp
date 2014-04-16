@@ -1476,6 +1476,66 @@ static double ExtraCostCombined(const int* const X, const int* const Y,
   return cost;
 }
 
+// Returns the cost encode the rle-encoded entropy code.
+// The constants in this function are experimental.
+static double HuffmanCost(const int* const population, int length) {
+  int cnts[2] = { 0, 0 };
+  int streaks[2][2] = { { 0, 0 }, { 0, 0 } };
+  int streak = 0;
+  int i;
+  for (i = 0; i < length - 1; ++i) {
+    ++streak;
+    if (population[i] == population[i + 1]) {
+      continue;
+    }
+    cnts[population[i] != 0] += (streak > 3);
+    streaks[population[i] != 0][(streak > 3)] += streak;
+    streak = 0;
+  }
+  ++streak;
+  cnts[population[i] != 0] += (streak > 3);
+  streaks[population[i] != 0][(streak > 3)] += streak;
+  return VP8LFinalHuffmanCost(cnts[0], streaks[0][0], streaks[0][1],
+                              cnts[1], streaks[1][0], streaks[1][1]);
+}
+
+static double HuffmanCostCombined(const int* const X, const int* const Y,
+                                  int length) {
+  int cnts[2] = { 0, 0 };
+  int streaks[2][2] = { { 0, 0 }, { 0, 0 } };
+  int streak = 0;
+  int i;
+  for (i = 0; i < length - 1; ++i) {
+    const int xy = X[i] + Y[i];
+    const int xy_next = X[i + 1] + Y[i + 1];
+    ++streak;
+    if (xy == xy_next) {
+      continue;
+    }
+    cnts[xy != 0] += (streak > 3);
+    streaks[xy != 0][streak > 3] += streak;
+    streak = 0;
+  }
+  {
+    const int xy = X[i] + Y[i];
+    ++streak;
+    cnts[xy != 0] += (streak > 3);
+    streaks[xy != 0][streak > 3] += streak;
+  }
+  return VP8LFinalHuffmanCost(cnts[0], streaks[0][0], streaks[0][1],
+                              cnts[1], streaks[1][0], streaks[1][1]);
+}
+
+static double PopulationCost(const int* const population, int length) {
+  return VP8LBitsEntropy(population, length) + HuffmanCost(population, length);
+}
+
+static double GetCombinedEntropy(const int* const X, const int* const Y,
+                                 int length) {
+  return VP8LBitsEntropyCombined(X, Y, length) +
+         HuffmanCostCombined(X, Y, length);
+}
+
 //------------------------------------------------------------------------------
 
 VP8LProcessBlueAndRedFunc VP8LSubtractGreenFromBlueAndRed;
@@ -1496,6 +1556,9 @@ VP8LFastLog2SlowFunc VP8LFastSLog2Slow;
 
 VP8LCostFunc VP8LExtraCost;
 VP8LCostCombinedFunc VP8LExtraCostCombined;
+VP8LCostFunc VP8LPopulationCost;
+VP8LCostCombinedFunc VP8LGetCombinedEntropy;
+
 
 extern void VP8LDspInitSSE2(void);
 extern void VP8LDspInitNEON(void);
@@ -1521,6 +1584,8 @@ void VP8LDspInit(void) {
 
   VP8LExtraCost = ExtraCost;
   VP8LExtraCostCombined = ExtraCostCombined;
+  VP8LPopulationCost = PopulationCost;
+  VP8LGetCombinedEntropy = GetCombinedEntropy;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
