@@ -17,6 +17,7 @@
 
 #include "../webp/types.h"
 #include "../webp/decode.h"
+#include "../webp/format_constants.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,7 +138,107 @@ static WEBP_INLINE float VP8LFastSLog2(int v) {
 }
 
 // -----------------------------------------------------------------------------
-// Huffman-cost related functions.
+// cost and entropy related functions.
+
+static WEBP_INLINE double VP8LBitsEntropyRefine(int nonzeros, int sum,
+                                                int max_val, double retval) {
+  double mix;
+  if (nonzeros < 5) {
+    if (nonzeros <= 1) {
+      return 0;
+    }
+    // Two symbols, they will be 0 and 1 in a Huffman code.
+    // Let's mix in a bit of entropy to favor good clustering when
+    // distributions of these are combined.
+    if (nonzeros == 2) {
+      return 0.99 * sum + 0.01 * retval;
+    }
+    // No matter what the entropy says, we cannot be better than min_limit
+    // with Huffman coding. I am mixing a bit of entropy into the
+    // min_limit since it produces much better (~0.5 %) compression results
+    // perhaps because of better entropy clustering.
+    if (nonzeros == 3) {
+      mix = 0.95;
+    } else {
+      mix = 0.7;  // nonzeros == 4.
+    }
+  } else {
+    mix = 0.627;
+  }
+
+  {
+    double min_limit = 2 * sum - max_val;
+    min_limit = mix * min_limit + (1.0 - mix) * retval;
+    return (retval < min_limit) ? min_limit : retval;
+  }
+}
+
+static WEBP_INLINE double VP8LBitsEntropy(const int* const array, int n) {
+  double retval = 0.;
+  int sum = 0;
+  int nonzeros = 0;
+  int max_val = 0;
+  int i;
+  for (i = 0; i < n; ++i) {
+    if (array[i] != 0) {
+      sum += array[i];
+      ++nonzeros;
+      retval -= VP8LFastSLog2(array[i]);
+      if (max_val < array[i]) {
+        max_val = array[i];
+      }
+    }
+  }
+  retval += VP8LFastSLog2(sum);
+  return VP8LBitsEntropyRefine(nonzeros, sum, max_val, retval);
+}
+
+static WEBP_INLINE double VP8LBitsEntropyCombined(const int* const X,
+                                                  const int* const Y,
+                                                  int n) {
+  double retval = 0.;
+  int sum = 0;
+  int nonzeros = 0;
+  int max_val = 0;
+  int i;
+  for (i = 0; i < n; ++i) {
+    const int xy = X[i] + Y[i];
+    if (xy != 0) {
+      sum += xy;
+      ++nonzeros;
+      retval -= VP8LFastSLog2(xy);
+      if (max_val < xy) {
+        max_val = xy;
+      }
+    }
+  }
+  retval += VP8LFastSLog2(sum);
+  return VP8LBitsEntropyRefine(nonzeros, sum, max_val, retval);
+}
+
+static WEBP_INLINE double VP8LInitialHuffmanCost(void) {
+  // Small bias because Huffman code length is typically not stored in
+  // full length.
+  static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
+  static const double kSmallBias = 9.1;
+  return kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
+}
+
+// Used to finalized the Huffman cost:
+// cnt_z / cnt_nz: counts the number of 0's and non-0's
+// streak_{z,nz}_le3 / streak_{z,nz}_gt3: number of streaks larger than 3
+// or less-or-equal than 3.
+static WEBP_INLINE double VP8LFinalHuffmanCost(int cnt_z, int streak_z_le3,
+                                               int streak_z_gt3, int cnt_nz,
+                                               int streak_nz_le3,
+                                               int streak_nz_gt3) {
+  double retval = VP8LInitialHuffmanCost();
+  retval += cnt_z * 1.5625 + 0.234375 * streak_z_gt3;
+  retval += cnt_nz * 2.578125 + 0.703125 * streak_nz_gt3;
+  retval += 1.796875 * streak_z_le3;
+  retval += 3.28125 * streak_nz_le3;
+  return retval;
+}
 
 typedef double (*VP8LCostFunc)(const int* const population, int length);
 typedef double (*VP8LCostCombinedFunc)(const int* const X,
@@ -146,6 +247,8 @@ typedef double (*VP8LCostCombinedFunc)(const int* const X,
 
 extern VP8LCostFunc VP8LExtraCost;
 extern VP8LCostCombinedFunc VP8LExtraCostCombined;
+extern VP8LCostFunc VP8LPopulationCost;
+extern VP8LCostCombinedFunc VP8LGetCombinedEntropy;
 
 // -----------------------------------------------------------------------------
 // PrefixEncode()
