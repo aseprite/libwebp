@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #define APPROX_LOG_WITH_CORRECTION_MAX  65536
 #define APPROX_LOG_MAX                   4096
@@ -188,6 +189,93 @@ static double ExtraCostCombined(const int* const X, const int* const Y,
   return (double)((int64_t)temp0 << 32 | temp1);
 }
 
+#define HUFFMAN_COST_PASS                                 \
+  __asm__ volatile(                                       \
+      "sll   %[temp1],  %[temp0],    3           \n\t"    \
+      "addiu %[temp3],  %[streak],   -3          \n\t"    \
+      "addu  %[temp2],  %[pstreaks], %[temp1]    \n\t"    \
+      "blez  %[temp3],  1f                       \n\t"    \
+      "srl   %[temp1],  %[temp1],    1           \n\t"    \
+      "addu  %[temp3],  %[pcnts],    %[temp1]    \n\t"    \
+      "lw    %[temp0],  4(%[temp2])              \n\t"    \
+      "lw    %[temp1],  0(%[temp3])              \n\t"    \
+      "addu  %[temp0],  %[temp0],    %[streak]   \n\t"    \
+      "addiu %[temp1],  %[temp1],    1           \n\t"    \
+      "sw    %[temp0],  4(%[temp2])              \n\t"    \
+      "sw    %[temp1],  0(%[temp3])              \n\t"    \
+      "b     2f                                  \n\t"    \
+    "1:                                          \n\t"    \
+      "lw    %[temp0],  0(%[temp2])              \n\t"    \
+      "addu  %[temp0],  %[temp0],    %[streak]   \n\t"    \
+      "sw    %[temp0],  0(%[temp2])              \n\t"    \
+    "2:                                          \n\t"    \
+    : [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),           \
+      [temp3]"=&r"(temp3), [temp0]"+r"(temp0)             \
+    : [pstreaks]"r"(pstreaks), [pcnts]"r"(pcnts),         \
+      [streak]"r"(streak)                                 \
+    : "memory"                                            \
+  );
+
+// Returns the various RLE counts
+static VP8LStreaks HuffmanCostCount(const int* population, int length) {
+  int i;
+  int streak = 0;
+  VP8LStreaks stats;
+  const int* pstreaks = &stats.streaks[0][0];
+  const int* pcnts = &stats.counts[0];
+  int temp0, temp1, temp2, temp3;
+  int* ppop = (int*)population;
+  memset(&stats, 0, sizeof(stats));
+  for (i = 0; i < length - 1; ++i) {
+    ++streak;
+    temp0 = *ppop++;
+    temp1 = *ppop;
+    if (temp0 == temp1) {
+      continue;
+    }
+    temp0 = temp0 != 0;
+    HUFFMAN_COST_PASS
+    streak = 0;
+  }
+  ++streak;
+  temp0 = *ppop != 0;
+  HUFFMAN_COST_PASS
+
+  return stats;
+ }
+
+static VP8LStreaks HuffmanCostCombinedCount(const int* X, const int* Y,
+                                            int length) {
+  int i;
+  int streak = 0;
+  VP8LStreaks stats;
+  const int* pstreaks = &stats.streaks[0][0];
+  const int* pcnts = &stats.counts[0];
+  int temp0, temp1, temp2, temp3;
+  int* pX = (int*)X;
+  int* pY = (int*)Y;
+  memset(&stats, 0, sizeof(stats));
+  for (i = 0; i < length - 1; ++i) {
+    const int xy = *pX++ + *pY++;
+    const int xy_next = *pX + *pY;
+    ++streak;
+    if (xy == xy_next) {
+      continue;
+    }
+    temp0 = xy != 0;
+    HUFFMAN_COST_PASS
+    streak = 0;
+  }
+  {
+    const int xy = *pX + *pY;
+    ++streak;
+    temp0 = xy != 0;
+    HUFFMAN_COST_PASS
+  }
+
+  return stats;
+}
+
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------
@@ -201,5 +289,7 @@ void VP8LDspInitMIPS32(void) {
   VP8LFastLog2Slow = FastLog2Slow;
   VP8LExtraCost = ExtraCost;
   VP8LExtraCostCombined = ExtraCostCombined;
+  VP8LHuffmanCostCount = HuffmanCostCount;
+  VP8LHuffmanCostCombinedCount = HuffmanCostCombinedCount;
 #endif  // WEBP_USE_MIPS32
 }
