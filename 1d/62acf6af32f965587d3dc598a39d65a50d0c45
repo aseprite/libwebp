@@ -1,0 +1,8 @@
+Code-Review+2: James Zern <jzern@google.com>
+Verified+1: WebmJenkinsRoleAccount
+Verified+1: Djordje Pesut <djordje.pesut@imgtec.com>
+Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Thu, 24 Apr 2014 11:29:46 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/69843
+Project: webm/libwebp
+Branch: refs/heads/master
