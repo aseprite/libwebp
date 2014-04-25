@@ -97,6 +97,11 @@ int VP8LGetHistoImageSymbols(int xsize, int ysize,
                              VP8LHistogramSet* const image_in,
                              uint16_t* const histogram_symbols);
 
+int VP8LGetCombinedHistogramEntropy(const VP8LHistogram* const a,
+                                    const VP8LHistogram* const b,
+                                    double cost_threshold,
+                                    double* cost);
+
 #ifdef __cplusplus
 }
 #endif

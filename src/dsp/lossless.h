@@ -15,8 +15,9 @@
 #ifndef WEBP_DSP_LOSSLESS_H_
 #define WEBP_DSP_LOSSLESS_H_
 
-#include "../webp/types.h"
+#include "../enc/histogram.h"
 #include "../webp/decode.h"
+#include "../webp/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -153,9 +154,17 @@ typedef struct {        // small struct to hold counters
 typedef VP8LStreaks (*VP8LCostCountFunc)(const int* population, int length);
 typedef VP8LStreaks (*VP8LCostCombinedCountFunc)(const int* X, const int* Y,
                                                  int length);
+typedef void (*VP8LHistogramAddFunc)(const VP8LHistogram* const in,
+                                     VP8LHistogram* const out);
+typedef double (*VP8LHistogramAddEvalFunc)(const VP8LHistogram* const a,
+                                           const VP8LHistogram* const b,
+                                           VP8LHistogram* const out,
+                                           double cost_threshold);
 
 extern VP8LCostCountFunc VP8LHuffmanCostCount;
 extern VP8LCostCombinedCountFunc VP8LHuffmanCostCombinedCount;
+extern VP8LHistogramAddFunc VP8LHistogramAdd;
+extern VP8LHistogramAddEvalFunc VP8LHistogramAddEval;
 
 // -----------------------------------------------------------------------------
 // PrefixEncode()

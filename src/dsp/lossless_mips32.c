@@ -14,6 +14,7 @@
 
 #include "./dsp.h"
 #include "./lossless.h"
+#include "../enc/histogram.h"
 
 #if defined(WEBP_USE_MIPS32)
 
@@ -271,6 +272,166 @@ static VP8LStreaks HuffmanCostCombinedCount(const int* X, const int* Y,
   return stats;
 }
 
+#define ASM_START                                       \
+  __asm__ volatile(                                     \
+  "1:                                       \n\t"
+
+// P2 = P0 + P1
+// A..D - offsets
+// E and F - temp variables to tell macro
+//           if pointers should be incremented
+#define ADD_TO_OUT(A, B, C, D, E, F, P0, P1, P2)        \
+    "lw     %[temp0], "#A"(%["#P0"])        \n\t"       \
+    "lw     %[temp1], "#B"(%["#P0"])        \n\t"       \
+    "lw     %[temp2], "#C"(%["#P0"])        \n\t"       \
+    "lw     %[temp3], "#D"(%["#P0"])        \n\t"       \
+    "lw     %[temp4], "#A"(%["#P1"])        \n\t"       \
+    "lw     %[temp5], "#B"(%["#P1"])        \n\t"       \
+    "lw     %[temp6], "#C"(%["#P1"])        \n\t"       \
+    "lw     %[temp7], "#D"(%["#P1"])        \n\t"       \
+    "addu   %[temp4], %[temp4],   %[temp0]  \n\t"       \
+    "addu   %[temp5], %[temp5],   %[temp1]  \n\t"       \
+    "addu   %[temp6], %[temp6],   %[temp2]  \n\t"       \
+    "addu   %[temp7], %[temp7],   %[temp3]  \n\t"       \
+  ".if "#E" == 1                            \n\t"       \
+    "addiu  %["#P0"],  %["#P0"],  16        \n\t"       \
+  ".endif                                   \n\t"       \
+  ".if "#F" == 1                            \n\t"       \
+    "addiu  %["#P1"],  %["#P1"],  16        \n\t"       \
+  ".endif                                   \n\t"       \
+    "sw     %[temp4], "#A"(%["#P2"])        \n\t"       \
+    "sw     %[temp5], "#B"(%["#P2"])        \n\t"       \
+    "sw     %[temp6], "#C"(%["#P2"])        \n\t"       \
+    "sw     %[temp7], "#D"(%["#P2"])        \n\t"       \
+  ".if "#E" == 1                            \n\t"       \
+    "addiu  %["#P2"], %["#P2"],   16        \n\t"       \
+    "bne    %["#P0"], %[LoopEnd], 1b        \n\t"       \
+  ".endif                                   \n\t"
+
+#define ASM_END                                         \
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),         \
+      [temp2]"=&r"(temp2), [temp3]"=&r"(temp3),         \
+      [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),         \
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7),         \
+      [pin]"+r"(pin), [pout]"+r"(pout)                  \
+    : [LoopEnd]"r"(LoopEnd)                             \
+    : "memory"                                          \
+  );
+
+// Adds 'in' histogram to 'out'
+static void HistogramAdd(const VP8LHistogram* const in,
+                         VP8LHistogram* const out) {
+  int* pout;
+  int* pin;
+  int* LoopEnd;
+  int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
+
+  pin = (int*)in->literal_;
+  pout = out->literal_;
+  LoopEnd = pin + PIX_OR_COPY_CODES_MAX;
+  // PIX_OR_COPY_CODES_MAX % 4 = 0
+  ASM_START
+  ADD_TO_OUT(0, 4, 8, 12, 1, 0, pin, pout, pout)
+  ASM_END
+
+  pin = (int*)in->distance_;
+  pout = out->distance_;
+  LoopEnd = pin + NUM_DISTANCE_CODES;
+  // NUM_DISTANCE_CODES % 4 = 0
+  ASM_START
+  ADD_TO_OUT(0, 4, 8, 12, 1, 0, pin, pout, pout)
+  ASM_END
+
+  pin = (int*)in->red_;
+  pout = out->red_;
+  LoopEnd = pin + 256;
+  // works only if 'int red_[256]', 'int blue_[256]' and 'int alpha_[256]'
+  // are successive in memory
+  // &blue_[0] == &red_[256]
+  // &alpha_[0] == &red_[512]
+  ASM_START
+  ADD_TO_OUT(   0,    4,    8,   12, 0, 0, pin, pout, pout)
+  ADD_TO_OUT(1024, 1028, 1032, 1036, 0, 0, pin, pout, pout)
+  ADD_TO_OUT(2048, 2052, 2056, 2060, 1, 0, pin, pout, pout)
+  ASM_END
+}
+
+#undef ASM_END
+
+#define ASM_END                                         \
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),         \
+      [temp2]"=&r"(temp2), [temp3]"=&r"(temp3),         \
+      [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),         \
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7),         \
+      [pa]"+r"(pa), [pb]"+r"(pb), [pout]"+r"(pout)      \
+    : [LoopEnd]"r"(LoopEnd)                             \
+    : "memory"                                          \
+  );
+
+// Performs out = a + b, computing the cost C(a+b) - C(a) - C(b) while comparing
+// to the threshold value 'cost_threshold'. The score returned is
+//  Score = C(a+b) - C(a) - C(b), where C(a) + C(b) is known and fixed.
+// Since the previous score passed is 'cost_threshold', we only need to compare
+// the partial cost against 'cost_threshold + C(a) + C(b)' to possibly bail-out
+// early.
+static double HistogramAddEval(const VP8LHistogram* const a,
+                               const VP8LHistogram* const b,
+                               VP8LHistogram* const out,
+                               double cost_threshold) {
+  double cost = 0;
+  const double sum_cost = a->bit_cost_ + b->bit_cost_;
+  int* pout;
+  int* pa;
+  int* pb;
+  int* LoopEnd;
+  int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
+  cost_threshold += sum_cost;
+
+  if (VP8LGetCombinedHistogramEntropy(a, b, cost_threshold, &cost)) {
+    pa = (int*)a->literal_;
+    pb = (int*)b->literal_;
+    pout = out->literal_;
+    LoopEnd = pa + PIX_OR_COPY_CODES_MAX;
+    // PIX_OR_COPY_CODES_MAX % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 1, pa, pb, pout)
+    ASM_END
+
+    pa = (int*)a->distance_;
+    pb = (int*)b->distance_;
+    pout = out->distance_;
+    LoopEnd = pa + NUM_DISTANCE_CODES;
+    // NUM_DISTANCE_CODES % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 1, pa, pb, pout)
+    ASM_END
+
+    pa = (int*)a->red_;
+    pb = (int*)b->red_;
+    pout = out->red_;
+    LoopEnd = pa + 256;
+    // works only if 'int red_[256]', 'int blue_[256]' and 'int alpha_[256]'
+    // are successive in memory
+    // &blue_[0] == &red_[256]
+    // &alpha_[0] == &red_[512]
+    ASM_START
+    ADD_TO_OUT(   0,    4,    8,   12, 0, 0, pa, pb, pout)
+    ADD_TO_OUT(1024, 1028, 1032, 1036, 0, 0, pa, pb, pout)
+    ADD_TO_OUT(2048, 2052, 2056, 2060, 1, 1, pa, pb, pout)
+    ASM_END
+
+    out->palette_code_bits_ = (a->palette_code_bits_ > b->palette_code_bits_) ?
+                              a->palette_code_bits_ : b->palette_code_bits_;
+    out->bit_cost_ = cost;
+  }
+
+  return cost - sum_cost;
+}
+
+#undef ASM_END
+#undef ADD_TO_OUT
+#undef ASM_START
+
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------
@@ -286,5 +447,7 @@ void VP8LDspInitMIPS32(void) {
   VP8LExtraCostCombined = ExtraCostCombined;
   VP8LHuffmanCostCount = HuffmanCostCount;
   VP8LHuffmanCostCombinedCount = HuffmanCostCombinedCount;
+  VP8LHistogramAdd = HistogramAdd;
+  VP8LHistogramAddEval = HistogramAddEval;
 #endif  // WEBP_USE_MIPS32
 }

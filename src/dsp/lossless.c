@@ -1522,6 +1522,58 @@ static VP8LStreaks HuffmanCostCombinedCount(const int* X, const int* Y,
   return stats;
 }
 
+// Adds 'in' histogram to 'out'
+static void HistogramAdd(const VP8LHistogram* const in,
+                         VP8LHistogram* const out) {
+  int i;
+  for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
+    out->literal_[i] += in->literal_[i];
+  }
+  for (i = 0; i < NUM_DISTANCE_CODES; ++i) {
+    out->distance_[i] += in->distance_[i];
+  }
+  for (i = 0; i < 256; ++i) {
+    out->red_[i] += in->red_[i];
+    out->blue_[i] += in->blue_[i];
+    out->alpha_[i] += in->alpha_[i];
+  }
+}
+
+// Performs out = a + b, computing the cost C(a+b) - C(a) - C(b) while comparing
+// to the threshold value 'cost_threshold'. The score returned is
+//  Score = C(a+b) - C(a) - C(b), where C(a) + C(b) is known and fixed.
+// Since the previous score passed is 'cost_threshold', we only need to compare
+// the partial cost against 'cost_threshold + C(a) + C(b)' to possibly bail-out
+// early.
+static double HistogramAddEval(const VP8LHistogram* const a,
+                               const VP8LHistogram* const b,
+                               VP8LHistogram* const out,
+                               double cost_threshold) {
+  double cost = 0;
+  const double sum_cost = a->bit_cost_ + b->bit_cost_;
+  int i;
+  cost_threshold += sum_cost;
+
+  if (VP8LGetCombinedHistogramEntropy(a, b, cost_threshold, &cost)) {
+    for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
+      out->literal_[i] = a->literal_[i] + b->literal_[i];
+    }
+    for (i = 0; i < NUM_DISTANCE_CODES; ++i) {
+      out->distance_[i] = a->distance_[i] + b->distance_[i];
+    }
+    for (i = 0; i < 256; ++i) {
+      out->red_[i] = a->red_[i] + b->red_[i];
+      out->blue_[i] = a->blue_[i] + b->blue_[i];
+      out->alpha_[i] = a->alpha_[i] + b->alpha_[i];
+    }
+    out->palette_code_bits_ = (a->palette_code_bits_ > b->palette_code_bits_) ?
+                              a->palette_code_bits_ : b->palette_code_bits_;
+    out->bit_cost_ = cost;
+  }
+
+  return cost - sum_cost;
+}
+
 //------------------------------------------------------------------------------
 
 VP8LProcessBlueAndRedFunc VP8LSubtractGreenFromBlueAndRed;
@@ -1545,6 +1597,9 @@ VP8LCostCombinedFunc VP8LExtraCostCombined;
 
 VP8LCostCountFunc VP8LHuffmanCostCount;
 VP8LCostCombinedCountFunc VP8LHuffmanCostCombinedCount;
+
+VP8LHistogramAddFunc VP8LHistogramAdd;
+VP8LHistogramAddEvalFunc VP8LHistogramAddEval;
 
 extern void VP8LDspInitSSE2(void);
 extern void VP8LDspInitNEON(void);
@@ -1573,6 +1628,9 @@ void VP8LDspInit(void) {
 
   VP8LHuffmanCostCount = HuffmanCostCount;
   VP8LHuffmanCostCombinedCount = HuffmanCostCombinedCount;
+
+  VP8LHistogramAdd = HistogramAdd;
+  VP8LHistogramAddEval = HistogramAddEval;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {

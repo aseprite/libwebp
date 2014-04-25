@@ -246,27 +246,10 @@ double VP8LHistogramEstimateBitsBulk(const VP8LHistogram* const p) {
 // -----------------------------------------------------------------------------
 // Various histogram combine/cost-eval functions
 
-// Adds 'in' histogram to 'out'
-static void HistogramAdd(const VP8LHistogram* const in,
-                         VP8LHistogram* const out) {
-  int i;
-  for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
-    out->literal_[i] += in->literal_[i];
-  }
-  for (i = 0; i < NUM_DISTANCE_CODES; ++i) {
-    out->distance_[i] += in->distance_[i];
-  }
-  for (i = 0; i < 256; ++i) {
-    out->red_[i] += in->red_[i];
-    out->blue_[i] += in->blue_[i];
-    out->alpha_[i] += in->alpha_[i];
-  }
-}
-
-static int GetCombinedHistogramEntropy(const VP8LHistogram* const a,
-                                       const VP8LHistogram* const b,
-                                       double cost_threshold,
-                                       double* cost) {
+int VP8LGetCombinedHistogramEntropy(const VP8LHistogram* const a,
+                                    const VP8LHistogram* const b,
+                                    double cost_threshold,
+                                    double* cost) {
   const int palette_code_bits =
       (a->palette_code_bits_ > b->palette_code_bits_) ? a->palette_code_bits_ :
                                                         b->palette_code_bits_;
@@ -293,41 +276,6 @@ static int GetCombinedHistogramEntropy(const VP8LHistogram* const a,
   return 1;
 }
 
-// Performs out = a + b, computing the cost C(a+b) - C(a) - C(b) while comparing
-// to the threshold value 'cost_threshold'. The score returned is
-//  Score = C(a+b) - C(a) - C(b), where C(a) + C(b) is known and fixed.
-// Since the previous score passed is 'cost_threshold', we only need to compare
-// the partial cost against 'cost_threshold + C(a) + C(b)' to possibly bail-out
-// early.
-static double HistogramAddEval(const VP8LHistogram* const a,
-                               const VP8LHistogram* const b,
-                               VP8LHistogram* const out,
-                               double cost_threshold) {
-  double cost = 0;
-  const double sum_cost = a->bit_cost_ + b->bit_cost_;
-  int i;
-  cost_threshold += sum_cost;
-
-  if (GetCombinedHistogramEntropy(a, b, cost_threshold, &cost)) {
-    for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
-      out->literal_[i] = a->literal_[i] + b->literal_[i];
-    }
-    for (i = 0; i < NUM_DISTANCE_CODES; ++i) {
-      out->distance_[i] = a->distance_[i] + b->distance_[i];
-    }
-    for (i = 0; i < 256; ++i) {
-      out->red_[i] = a->red_[i] + b->red_[i];
-      out->blue_[i] = a->blue_[i] + b->blue_[i];
-      out->alpha_[i] = a->alpha_[i] + b->alpha_[i];
-    }
-    out->palette_code_bits_ = (a->palette_code_bits_ > b->palette_code_bits_) ?
-                              a->palette_code_bits_ : b->palette_code_bits_;
-    out->bit_cost_ = cost;
-  }
-
-  return cost - sum_cost;
-}
-
 // Same as HistogramAddEval(), except that the resulting histogram
 // is not stored. Only the cost C(a+b) - C(a) is evaluated. We omit
 // the term C(b) which is constant over all the evaluations.
@@ -335,7 +283,7 @@ static double HistogramAddThresh(const VP8LHistogram* const a,
                                  const VP8LHistogram* const b,
                                  double cost_threshold) {
   double cost = -a->bit_cost_;
-  GetCombinedHistogramEntropy(a, b, cost_threshold, &cost);
+  VP8LGetCombinedHistogramEntropy(a, b, cost_threshold, &cost);
   return cost;
 }
 
@@ -529,9 +477,9 @@ static void HistogramCombineBin(VP8LHistogramSet* const histo_image,
       if (bit_cost_idx2 > 0.) {
         const double bit_cost_thresh = -bit_cost_idx2 * combine_cost_factor;
         const double curr_cost_diff =
-            HistogramAddEval(histo_image->histograms[idx1],
-                             histo_image->histograms[idx2],
-                             cur_combo, bit_cost_thresh);
+            VP8LHistogramAddEval(histo_image->histograms[idx1],
+                                 histo_image->histograms[idx2],
+                                 cur_combo, bit_cost_thresh);
         if (curr_cost_diff < bit_cost_thresh) {
           *histo_image->histograms[idx1] = *cur_combo;
           histo_image->histograms[idx2]->bit_cost_ = 0.;
@@ -587,9 +535,9 @@ static void HistogramCombine(VP8LHistogramSet* const histo_image,
       }
 
       // Calculate cost reduction on combining.
-      curr_cost_diff = HistogramAddEval(histo_image->histograms[idx1],
-                                        histo_image->histograms[idx2],
-                                        cur_combo, best_cost_diff);
+      curr_cost_diff = VP8LHistogramAddEval(histo_image->histograms[idx1],
+                                            histo_image->histograms[idx2],
+                                            cur_combo, best_cost_diff);
       if (curr_cost_diff < best_cost_diff) {    // found a better pair?
         {     // swap cur/best combo histograms
           VP8LHistogram* const tmp_histo = cur_combo;
@@ -652,8 +600,8 @@ static void HistogramRemap(const VP8LHistogramSet* const init_histo,
   }
 
   for (i = 0; i < init_histo->size; ++i) {
-    HistogramAdd(init_histo->histograms[i],
-                 histo_image->histograms[symbols[i]]);
+    VP8LHistogramAdd(init_histo->histograms[i],
+                     histo_image->histograms[symbols[i]]);
   }
 }
 
