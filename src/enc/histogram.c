@@ -246,23 +246,6 @@ double VP8LHistogramEstimateBitsBulk(const VP8LHistogram* const p) {
 // -----------------------------------------------------------------------------
 // Various histogram combine/cost-eval functions
 
-// Adds 'in' histogram to 'out'
-static void HistogramAdd(const VP8LHistogram* const in,
-                         VP8LHistogram* const out) {
-  int i;
-  for (i = 0; i < PIX_OR_COPY_CODES_MAX; ++i) {
-    out->literal_[i] += in->literal_[i];
-  }
-  for (i = 0; i < NUM_DISTANCE_CODES; ++i) {
-    out->distance_[i] += in->distance_[i];
-  }
-  for (i = 0; i < 256; ++i) {
-    out->red_[i] += in->red_[i];
-    out->blue_[i] += in->blue_[i];
-    out->alpha_[i] += in->alpha_[i];
-  }
-}
-
 static int GetCombinedHistogramEntropy(const VP8LHistogram* const a,
                                        const VP8LHistogram* const b,
                                        double cost_threshold,
@@ -652,8 +635,8 @@ static void HistogramRemap(const VP8LHistogramSet* const init_histo,
   }
 
   for (i = 0; i < init_histo->size; ++i) {
-    HistogramAdd(init_histo->histograms[i],
-                 histo_image->histograms[symbols[i]]);
+    VP8LHistogramAdd(init_histo->histograms[i],
+                     histo_image->histograms[symbols[i]]);
   }
 }
 
