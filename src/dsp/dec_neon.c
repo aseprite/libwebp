@@ -16,7 +16,7 @@
 
 #if defined(WEBP_USE_NEON)
 
-// #define USE_INTRINSICS   // use intrinsics when possible
+#define USE_INTRINSICS   // use intrinsics when possible
 
 #include "./neon.h"
 
