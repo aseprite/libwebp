@@ -113,13 +113,7 @@ int VP8LBackwardRefsCopy(const VP8LBackwardRefs* const src,
 // -----------------------------------------------------------------------------
 // Hash chains
 
-static WEBP_INLINE uint64_t GetPixPairHash64(const uint32_t* const argb) {
-  uint64_t key = ((uint64_t)(argb[1]) << 32) | argb[0];
-  key = (key * HASH_MULTIPLIER) >> (64 - HASH_BITS);
-  return key;
-}
-
-static void HashChainInit(VP8LHashChain* const p) {
+void VP8LHashChainInit(VP8LHashChain* const p) {
   int i;
   assert(p != NULL);
   for (i = 0; i < p->size_; ++i) {
@@ -130,26 +124,30 @@ static void HashChainInit(VP8LHashChain* const p) {
   }
 }
 
-VP8LHashChain* VP8LHashChainNew(int size) {
-  VP8LHashChain* const p = (VP8LHashChain*)WebPSafeMalloc(1ULL, sizeof(*p));
-  if (p == NULL) {
-    return NULL;
-  }
-  p->chain_ = (int*)WebPSafeMalloc((uint64_t)size, sizeof(*p->chain_));
-  if (p->chain_ == NULL) {
-    WebPSafeFree(p);
-    return NULL;
-  }
-  p->size_ = size;
-  HashChainInit(p);
-  return p;
+void VP8LHashChainClear(VP8LHashChain* const p) {
+  assert(p != NULL);
+  WebPSafeFree(p->chain_);
+  p->size_ = 0;
+  p->chain_ = NULL;
 }
 
-void VP8LHashChainDelete(VP8LHashChain* const p) {
-  if (p != NULL) {
-    WebPSafeFree(p->chain_);
-    WebPSafeFree(p);
+int VP8LHashChainAlloc(VP8LHashChain* const p, int size) {
+  VP8LHashChainClear(p);
+  if (size > 0) {
+    p->chain_ = (int*)WebPSafeMalloc((uint64_t)size, sizeof(*p->chain_));
+    if (p->chain_ == NULL) return 0;
+    p->size_ = size;
   }
+  VP8LHashChainInit(p);
+  return 1;
+}
+
+// -----------------------------------------------------------------------------
+
+static WEBP_INLINE uint64_t GetPixPairHash64(const uint32_t* const argb) {
+  uint64_t key = ((uint64_t)(argb[1]) << 32) | argb[0];
+  key = (key * HASH_MULTIPLIER) >> (64 - HASH_BITS);
+  return key;
 }
 
 // Insertion of two pixels at a time.
@@ -309,7 +307,7 @@ static int BackwardReferencesHashChain(int xsize, int ysize,
   ClearBackwardRefs(refs);
   GetParamsForHashChainFindCopy(quality, xsize, cache_bits,
                                 &window_size, &iter_pos, &iter_limit);
-  HashChainInit(hash_chain);
+  VP8LHashChainInit(hash_chain);
   for (i = 0; i < pix_count; ) {
     // Alternative#1: Code the pixels starting at 'i' using backward reference.
     int offset = 0;
@@ -534,7 +532,7 @@ static int BackwardReferencesHashChainDistanceOnly(
   dist_array[0] = 0;
   GetParamsForHashChainFindCopy(quality, xsize, cache_bits,
                                 &window_size, &iter_pos, &iter_limit);
-  HashChainInit(hash_chain);
+  VP8LHashChainInit(hash_chain);
   for (i = 0; i < pix_count; ++i) {
     double prev_cost = 0.0;
     int shortmax;
@@ -663,7 +661,7 @@ static int BackwardReferencesHashChainFollowChosenPath(
   ClearBackwardRefs(refs);
   GetParamsForHashChainFindCopy(quality, xsize, cache_bits,
                                 &window_size, &iter_pos, &iter_limit);
-  HashChainInit(hash_chain);
+  VP8LHashChainInit(hash_chain);
   for (ix = 0; ix < chosen_path_size; ++ix, ++size) {
     int offset = 0;
     int len = 0;
