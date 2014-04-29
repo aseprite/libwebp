@@ -32,7 +32,8 @@ static void HistogramClear(VP8LHistogram* const p) {
   uint32_t* const literal = p->literal_;
   const int cache_bits = p->palette_code_bits_;
   const uint64_t histo_size = VP8LGetHistogramSize(cache_bits);
-  memset(p, 0, histo_size);
+  assert((size_t)histo_size == histo_size);
+  memset(p, 0, (size_t)histo_size);
   p->palette_code_bits_ = cache_bits;
   p->literal_ = literal;
 }
@@ -43,7 +44,8 @@ static void HistogramCopy(const VP8LHistogram* const src,
   const int dst_cache_bits = dst->palette_code_bits_;
   const uint64_t histo_size = VP8LGetHistogramSize(dst_cache_bits);
   assert(src->palette_code_bits_ == dst_cache_bits);
-  memcpy(dst, src, histo_size);
+  assert((size_t)histo_size == histo_size);
+  memcpy(dst, src, (size_t)histo_size);
   dst->literal_ = dst_literal;
 }
 
