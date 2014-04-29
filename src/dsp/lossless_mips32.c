@@ -271,6 +271,160 @@ static VP8LStreaks HuffmanCostCombinedCount(const uint32_t* X,
   return stats;
 }
 
+#define ASM_START                                       \
+  __asm__ volatile(                                     \
+    ".set   push                            \n\t"       \
+    ".set   at                              \n\t"       \
+    ".set   macro                           \n\t"       \
+  "1:                                       \n\t"
+
+// P2 = P0 + P1
+// A..D - offsets
+// E and F - temp variables to tell macro
+//           if pointers should be incremented
+// literal_ and successive histograms could be unaligned
+// so we must use ulw and usw
+#define ADD_TO_OUT(A, B, C, D, E, F, P0, P1, P2)        \
+    "ulw    %[temp0], "#A"(%["#P0"])        \n\t"       \
+    "ulw    %[temp1], "#B"(%["#P0"])        \n\t"       \
+    "ulw    %[temp2], "#C"(%["#P0"])        \n\t"       \
+    "ulw    %[temp3], "#D"(%["#P0"])        \n\t"       \
+    "ulw    %[temp4], "#A"(%["#P1"])        \n\t"       \
+    "ulw    %[temp5], "#B"(%["#P1"])        \n\t"       \
+    "ulw    %[temp6], "#C"(%["#P1"])        \n\t"       \
+    "ulw    %[temp7], "#D"(%["#P1"])        \n\t"       \
+    "addu   %[temp4], %[temp4],   %[temp0]  \n\t"       \
+    "addu   %[temp5], %[temp5],   %[temp1]  \n\t"       \
+    "addu   %[temp6], %[temp6],   %[temp2]  \n\t"       \
+    "addu   %[temp7], %[temp7],   %[temp3]  \n\t"       \
+  ".if "#E" == 1                            \n\t"       \
+    "addiu  %["#P0"],  %["#P0"],  16        \n\t"       \
+  ".endif                                   \n\t"       \
+  ".if "#F" == 1                            \n\t"       \
+    "addiu  %["#P1"],  %["#P1"],  16        \n\t"       \
+  ".endif                                   \n\t"       \
+    "usw    %[temp4], "#A"(%["#P2"])        \n\t"       \
+    "usw    %[temp5], "#B"(%["#P2"])        \n\t"       \
+    "usw    %[temp6], "#C"(%["#P2"])        \n\t"       \
+    "usw    %[temp7], "#D"(%["#P2"])        \n\t"       \
+  ".if "#E" == 1                            \n\t"       \
+    "addiu  %["#P2"], %["#P2"],   16        \n\t"       \
+    "bne    %["#P0"], %[LoopEnd], 1b        \n\t"       \
+    ".set   pop                             \n\t"       \
+  ".endif                                   \n\t"
+
+#define ASM_END_0                                       \
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),         \
+      [temp2]"=&r"(temp2), [temp3]"=&r"(temp3),         \
+      [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),         \
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7),         \
+      [pa]"+r"(pa), [pb]"+r"(pb), [pout]"+r"(pout)      \
+    : [LoopEnd]"r"(LoopEnd)                             \
+    : "memory", "at"                                    \
+  );
+
+#define ASM_END_1                                       \
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),         \
+      [temp2]"=&r"(temp2), [temp3]"=&r"(temp3),         \
+      [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),         \
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7),         \
+      [pa]"+r"(pa), [pout]"+r"(pout)                    \
+    : [LoopEnd]"r"(LoopEnd)                             \
+    : "memory", "at"                                    \
+  );
+
+static void HistogramAdd(const VP8LHistogram* const a,
+                         const VP8LHistogram* const b,
+                         VP8LHistogram* const out) {
+  uint32_t* pout;
+  uint32_t* pa;
+  uint32_t* pb;
+  uint32_t* LoopEnd;
+  uint32_t temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7, i;
+
+  assert(a->palette_code_bits_ == b->palette_code_bits_);
+
+  if (b != out) {
+    pa = (uint32_t*)a->literal_;
+    pb = (uint32_t*)b->literal_;
+    pout = out->literal_;
+    LoopEnd = pa + NUM_LITERAL_CODES + NUM_LENGTH_CODES;
+    // (NUM_LITERAL_CODES + NUM_LENGTH_CODES) % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 1, pa, pb, pout)
+    ASM_END_0
+    // remaining literals, if there is any
+    temp0 = (a->palette_code_bits_ > 0) ? (1 << a->palette_code_bits_) : 0;
+    for (i = 0; i < temp0; ++i) {
+      *pout++ = *pa++ + *pb++;
+    }
+
+    pa = (uint32_t*)a->distance_;
+    pb = (uint32_t*)b->distance_;
+    pout = out->distance_;
+    LoopEnd = pa + NUM_DISTANCE_CODES;
+    // NUM_DISTANCE_CODES % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 1, pa, pb, pout)
+    ASM_END_0
+
+    pa = (uint32_t*)a->red_;
+    pb = (uint32_t*)b->red_;
+    pout = out->red_;
+    LoopEnd = pa + NUM_LITERAL_CODES;
+    // works only if 'uint32_t red_[256]', 'uint32_t blue_[256]'
+    // and 'uint32_t alpha_[256]' are successive in memory
+    // &blue_[0] == &red_[256]
+    // &alpha_[0] == &red_[512]
+    // NUM_LITERAL_CODES % 4 = 0
+    ASM_START
+    ADD_TO_OUT(   0,    4,    8,   12, 0, 0, pa, pb, pout)
+    ADD_TO_OUT(1024, 1028, 1032, 1036, 0, 0, pa, pb, pout)
+    ADD_TO_OUT(2048, 2052, 2056, 2060, 1, 1, pa, pb, pout)
+    ASM_END_0
+  } else {
+    pa = (uint32_t*)a->literal_;
+    pout = out->literal_;
+    LoopEnd = pa + NUM_LITERAL_CODES + NUM_LENGTH_CODES;
+    // (NUM_LITERAL_CODES + NUM_LENGTH_CODES) % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 0, pa, pout, pout)
+    ASM_END_1
+    // remaining literals, if there is any
+    temp0 = (a->palette_code_bits_ > 0) ? (1 << a->palette_code_bits_) : 0;
+    for (i = 0; i < temp0; ++i) {
+      *pout++ += *pa++;
+    }
+
+    pa = (uint32_t*)a->distance_;
+    pout = out->distance_;
+    LoopEnd = pa + NUM_DISTANCE_CODES;
+    // NUM_DISTANCE_CODES % 4 = 0
+    ASM_START
+    ADD_TO_OUT(0, 4, 8, 12, 1, 0, pa, pout, pout)
+    ASM_END_1
+
+    pa = (uint32_t*)a->red_;
+    pout = out->red_;
+    LoopEnd = pa + NUM_LITERAL_CODES;
+    // works only if 'int red_[256]', 'int blue_[256]' and 'int alpha_[256]'
+    // are successive in memory
+    // &blue_[0] == &red_[256]
+    // &alpha_[0] == &red_[512]
+    // NUM_LITERAL_CODES % 4 = 0
+    ASM_START
+    ADD_TO_OUT(   0,    4,    8,   12, 0, 0, pa, pout, pout)
+    ADD_TO_OUT(1024, 1028, 1032, 1036, 0, 0, pa, pout, pout)
+    ADD_TO_OUT(2048, 2052, 2056, 2060, 1, 0, pa, pout, pout)
+    ASM_END_1
+  }
+}
+
+#undef ASM_END_1
+#undef ASM_END_0
+#undef ADD_TO_OUT
+#undef ASM_START
+
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------
@@ -286,5 +440,6 @@ void VP8LDspInitMIPS32(void) {
   VP8LExtraCostCombined = ExtraCostCombined;
   VP8LHuffmanCostCount = HuffmanCostCount;
   VP8LHuffmanCostCombinedCount = HuffmanCostCombinedCount;
+  VP8LHistogramAdd = HistogramAdd;
 #endif  // WEBP_USE_MIPS32
 }
