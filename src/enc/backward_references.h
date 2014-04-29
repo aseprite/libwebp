@@ -130,8 +130,10 @@ struct VP8LHashChain {
   int size_;
 };
 
-VP8LHashChain* VP8LHashChainNew(int size);
-void VP8LHashChainDelete(VP8LHashChain* const p);
+// Must be called first, to set size.
+int VP8LHashChainAlloc(VP8LHashChain* const p, int size);
+void VP8LHashChainClear(VP8LHashChain* const p);  // release memory
+void VP8LHashChainInit(VP8LHashChain* const p);   // initialize as empty
 
 typedef struct VP8LBackwardRefs VP8LBackwardRefs;
 struct VP8LBackwardRefs {
