@@ -62,16 +62,17 @@ void VP8LFreeHistogramSet(VP8LHistogramSet* const histo) {
   WebPSafeFree(histo);
 }
 
-void VP8LHistogramStoreRefs(const VP8LBackwardRefs* const refs,
+void VP8LHistogramStoreRefs(VP8LBackwardRefs* const refs,
                             VP8LHistogram* const histo) {
-  int i;
-  for (i = 0; i < refs->size; ++i) {
-    VP8LHistogramAddSinglePixOrCopy(histo, &refs->refs[i]);
+  for (VP8LBackwardRefsCursorInit(refs);
+       VP8LBackwardRefsCursorOk(refs);
+       VP8LBackwardRefsCursorNext(refs)) {
+    VP8LHistogramAddSinglePixOrCopy(histo, refs->cur_pix_or_copy);
   }
 }
 
 void VP8LHistogramCreate(VP8LHistogram* const p,
-                         const VP8LBackwardRefs* const refs,
+                         VP8LBackwardRefs* const refs,
                          int palette_code_bits) {
   if (palette_code_bits >= 0) {
     p->palette_code_bits_ = palette_code_bits;
@@ -421,16 +422,17 @@ static int GetHistoBinIndex(
 
 // Construct the histograms from backward references.
 static void HistogramBuild(
-    int xsize, int histo_bits, const VP8LBackwardRefs* const backward_refs,
+    int xsize, int histo_bits, VP8LBackwardRefs* const backward_refs,
     VP8LHistogramSet* const init_histo) {
-  int i;
   int x = 0, y = 0;
   const int histo_xsize = VP8LSubSampleSize(xsize, histo_bits);
   VP8LHistogram** const histograms = init_histo->histograms;
   assert(histo_bits > 0);
   // Construct the Histo from a given backward references.
-  for (i = 0; i < backward_refs->size; ++i) {
-    const PixOrCopy* const v = &backward_refs->refs[i];
+  for (VP8LBackwardRefsCursorInit(backward_refs);
+       VP8LBackwardRefsCursorOk(backward_refs);
+       VP8LBackwardRefsCursorNext(backward_refs)) {
+    const PixOrCopy* const v = backward_refs->cur_pix_or_copy;
     const int ix = (y >> histo_bits) * histo_xsize + (x >> histo_bits);
     VP8LHistogramAddSinglePixOrCopy(histograms[ix], v);
     x += PixOrCopyLength(v);
@@ -681,7 +683,7 @@ static double GetCombineCostFactor(int histo_size, int quality) {
 }
 
 int VP8LGetHistoImageSymbols(int xsize, int ysize,
-                             const VP8LBackwardRefs* const refs,
+                             VP8LBackwardRefs* const refs,
                              int quality, int histo_bits, int cache_bits,
                              VP8LHistogramSet* const histo_image,
                              uint16_t* const histogram_symbols) {
