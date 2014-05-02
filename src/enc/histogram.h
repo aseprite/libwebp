@@ -59,7 +59,7 @@ typedef struct {
 // codes and backward references (both distances and lengths).  Also: if
 // palette_code_bits is >= 0, initialize the histogram with this value.
 void VP8LHistogramCreate(VP8LHistogram* const p,
-                         const VP8LBackwardRefs* const refs,
+                         VP8LBackwardRefs* const refs,
                          int palette_code_bits);
 
 // Return the size of the histogram for a given palette_code_bits.
@@ -69,7 +69,7 @@ int VP8LGetHistogramSize(int palette_code_bits);
 void VP8LHistogramInit(VP8LHistogram* const p, int palette_code_bits);
 
 // Collect all the references into a histogram (without reset)
-void VP8LHistogramStoreRefs(const VP8LBackwardRefs* const refs,
+void VP8LHistogramStoreRefs(VP8LBackwardRefs* const refs,
                             VP8LHistogram* const histo);
 
 // Free the memory allocated for the histogram.
@@ -106,7 +106,7 @@ static WEBP_INLINE int VP8LHistogramNumCodes(int palette_code_bits) {
 
 // Builds the histogram image.
 int VP8LGetHistoImageSymbols(int xsize, int ysize,
-                             const VP8LBackwardRefs* const refs,
+                             VP8LBackwardRefs* const refs,
                              int quality, int histogram_bits, int cache_bits,
                              VP8LHistogramSet* const image_in,
                              uint16_t* const histogram_symbols);
