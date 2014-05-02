@@ -134,23 +134,47 @@ struct VP8LHashChain {
 int VP8LHashChainInit(VP8LHashChain* const p, int size);
 void VP8LHashChainClear(VP8LHashChain* const p);  // release memory
 
-typedef struct VP8LBackwardRefs VP8LBackwardRefs;
-struct VP8LBackwardRefs {
-  PixOrCopy* refs;
-  int size;      // currently used
-  int max_size;  // maximum capacity
+// Block-based backward-reference storage
+typedef struct PixOrCopyBlock PixOrCopyBlock;
+struct PixOrCopyBlock {
+  PixOrCopyBlock* next;   // next block (or NULL)
+  PixOrCopy* start;       // data start
+  int size;               // max available data size
 };
 
-// Release backward references. 'refs' can be NULL.
-void VP8LBackwardRefsDelete(VP8LBackwardRefs* const refs);
+typedef struct VP8LBackwardRefs VP8LBackwardRefs;
+struct VP8LBackwardRefs {
+  int block_size_;  // common block-size
+  int error_;       // set to true if some memory error occurred
+  // block list and free list
+  PixOrCopyBlock* refs_;
+  PixOrCopyBlock** trail_;
+  PixOrCopyBlock* last_block_;   // used for adding new refs
+  PixOrCopyBlock* free_blocks_;
+};
+// Initialize the object. 'block_size' is the common block size to store
+// references (typically, width * height / 16).
+void VP8LBackwardRefsInit(VP8LBackwardRefs* const refs, int block_size);
 
-// Allocate 'max_size' references. Returns NULL in case of memory error.
-VP8LBackwardRefs* VP8LBackwardRefsNew(int max_size);
+// Release memory for backward references.
+void VP8LBackwardRefsClear(VP8LBackwardRefs* const refs);
 
-// Copies the 'src' backward refs to the 'dst'. Returns 0 if there's mismatch
-// in the capacity (max_size) of 'src' and 'dst' refs.
+// Copies the 'src' backward refs to the 'dst'. Returns 0 in case of error.
 int VP8LBackwardRefsCopy(const VP8LBackwardRefs* const src,
                          VP8LBackwardRefs* const dst);
+
+// Cursor for iterating on references content:
+typedef struct {
+  PixOrCopy* cur_pos;
+  PixOrCopyBlock* cur_block;
+  const PixOrCopy* last_pos;   // sentinel for switching to next block
+} VP8LRefsCursor;
+
+VP8LRefsCursor VP8LRefsCursorInit(const VP8LBackwardRefs* const refs);
+static WEBP_INLINE int VP8LRefsCursorOk(const VP8LRefsCursor* const c) {
+  return (c->cur_pos != NULL);
+}
+void VP8LRefsCursorNext(VP8LRefsCursor* const c);
 
 // -----------------------------------------------------------------------------
 // Main entry points
@@ -162,7 +186,7 @@ int VP8LBackwardRefsCopy(const VP8LBackwardRefs* const src,
 VP8LBackwardRefs* VP8LGetBackwardReferences(
     int width, int height, const uint32_t* const argb, int quality,
     int cache_bits, int use_2d_locality, VP8LHashChain* const hash_chain,
-    VP8LBackwardRefs* const refs[2]);
+    VP8LBackwardRefs refs[2]);
 
 // Produce an estimate for a good color cache size for the image.
 int VP8LCalculateEstimateForCacheSize(const uint32_t* const argb,
