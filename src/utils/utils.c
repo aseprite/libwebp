@@ -14,9 +14,9 @@
 #include <stdlib.h>
 #include "./utils.h"
 
-// If defined, will print extra info like total memory used, number of
-// alloc/free etc. For debugging/tuning purpose only (it's slow, and not
-// multi-thread safe!).
+// If PRINT_MEM_INFO is defined, extra info (like total memory used, number of
+// alloc/free etc) is printed. For debugging/tuning purpose only (it's slow, and
+// not multi-thread safe!).
 // An interesting alternative is valgrind's 'massif' tool:
 //    http://valgrind.org/docs/manual/ms-manual.html
 // Here is an example command line:
@@ -24,9 +24,16 @@
                --stacks=yes --alloc-fn=WebPSafeAlloc --alloc-fn=WebPSafeCalloc
       ms_print massif.out
 */
+// In addition, if PRINT_MEM_TRAFFIC is defined, all the malloc/free cycle
+// details are printed.
+// If MALLOC_FAIL_AT is defined, the global environment variable MALLOC_FAIL_AT
+// is used to simulate a memory error at the nth time calloc or malloc is called.
+// Example usage: export MALLOC_FAIL_AT=50 && ./examples/cwebp input.png
 
-// #define PRINT_MEM_INFO
-#define PRINT_MEM_TRAFFIC   // print fine traffic details
+#define PRINT_MEM_INFO
+// #define PRINT_MEM_TRAFFIC   // print fine traffic details
+// #define MALLOC_FAIL_AT
+// #define MALLOC_LIMIT
 
 //------------------------------------------------------------------------------
 // Checked memory allocation
@@ -39,6 +46,7 @@
 static int num_malloc_calls = 0;
 static int num_calloc_calls = 0;
 static int num_free_calls = 0;
+static int countdown_to_fail = 0;     // 0 = off
 
 typedef struct MemBlock MemBlock;
 struct MemBlock {
@@ -50,8 +58,10 @@ struct MemBlock {
 static MemBlock* all_blocks = NULL;
 static size_t total_mem = 0;
 static size_t high_water_mark = 0;
+static size_t mem_limit = 0;
 
 static int exit_registered = 0;
+
 static void PrintMemInfo(void) {
   fprintf(stderr, "\nMEMORY INFO:\n");
   fprintf(stderr, "num calls to: malloc = %d\n", num_malloc_calls);
@@ -68,6 +78,24 @@ static void PrintMemInfo(void) {
 
 static void Increment(int* const v) {
   if (!exit_registered) {
+#if defined(MALLOC_FAIL_AT)
+    {
+      const char* const malloc_fail_at_str = getenv("MALLOC_FAIL_AT");
+      if (malloc_fail_at_str != NULL) {
+        countdown_to_fail = atoi(malloc_fail_at_str);
+      }
+    }
+#endif
+#if defined(MALLOC_LIMIT)
+    {
+      const char* const malloc_limit_str = getenv("MALLOC_LIMIT");
+      if (malloc_limit_str != NULL) {
+        mem_limit = atoi(malloc_limit_str);
+      }
+    }
+#endif
+    (void)countdown_to_fail;
+    (void)mem_limit;
     atexit(PrintMemInfo);
     exit_registered = 1;
   }
@@ -124,6 +152,17 @@ static int CheckSizeArgumentsOverflow(uint64_t nmemb, size_t size) {
   if (nmemb == 0) return 1;
   if ((uint64_t)size > WEBP_MAX_ALLOCABLE_MEMORY / nmemb) return 0;
   if (total_size != (size_t)total_size) return 0;
+#if defined(PRINT_MEM_INFO) && defined(MALLOC_FAIL_AT)
+  if (countdown_to_fail > 0 && --countdown_to_fail == 0) {
+    return 0;    // fake fail!
+  }
+#endif
+#if defined(MALLOC_LIMIT)
+    if (mem_limit > 0 && total_mem + total_size >= mem_limit) {
+      return 0;   // fake fail!
+    }
+#endif
+
   return 1;
 }
 
