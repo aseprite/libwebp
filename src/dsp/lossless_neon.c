@@ -19,14 +19,16 @@
 
 #include "./lossless.h"
 
-// Right now, some intrinsics function seem slower, so we disable it.
-// Uncomment the following for testing:
-// #define USE_INTRINSICS
+// Right now, some intrinsics functions seem slower, so we disable it everywhere
+// except aarch64 where the inline assembly is incompatible.
+#if defined(__aarch64__)
+#define USE_INTRINSICS
+#endif
 
 //------------------------------------------------------------------------------
 // Colorspace conversion functions
 
-#if LOCAL_GCC_PREREQ(4,8)
+#if LOCAL_GCC_PREREQ(4,8) || defined(__aarch64__)
 // gcc 4.6.0 had some trouble (NDK-r9) with this code. We only use it for
 // gcc-4.8.x at least.
 static void ConvertBGRAToRGBA(const uint32_t* src,
@@ -266,6 +268,9 @@ static uint32_t Predictor13(uint32_t left, const uint32_t* const top) {
 //------------------------------------------------------------------------------
 // Subtract-Green Transform
 
+// vtbl? are unavailable in iOS/arm64 builds.
+#if !defined(__aarch64__)
+
 // 255 = byte will be zero'd
 static const uint8_t kGreenShuffle[8] = { 1, 255, 1, 255, 5, 255, 5, 255  };
 
@@ -297,6 +302,8 @@ static void AddGreenToBlueAndRed(uint32_t* argb_data, int num_pixels) {
   VP8LAddGreenToBlueAndRed_C(argb_data, num_pixels & 3);
 }
 
+#endif   // !__aarch64__
+
 #endif   // USE_INTRINSICS
 
 #endif   // WEBP_USE_NEON
@@ -322,8 +329,10 @@ void VP8LDspInitNEON(void) {
   VP8LPredictors[12] = Predictor12;
   VP8LPredictors[13] = Predictor13;
 
+#if !defined(__aarch64__)
   VP8LSubtractGreenFromBlueAndRed = SubtractGreenFromBlueAndRed;
   VP8LAddGreenToBlueAndRed = AddGreenToBlueAndRed;
+#endif
 #endif
 
 #endif   // WEBP_USE_NEON

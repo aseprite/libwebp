@@ -15,7 +15,9 @@
 
 #if defined(WEBP_USE_NEON)
 
-// #define USE_INTRINSICS   // use intrinsics when possible
+#if defined(__aarch64__)
+#define USE_INTRINSICS   // use intrinsics when possible
+#endif
 
 #include <assert.h>
 
@@ -969,8 +971,8 @@ static int SSE4x4(const uint8_t* a, const uint8_t* b) {
 
 //------------------------------------------------------------------------------
 
-// Compilation with gcc-4.6.x is problematic for now. Disable this function
-// in this case.
+// Compilation with gcc-4.6.x is problematic for now and vtbl? are unavailable
+// in iOS/arm64 builds. Disable this function in those cases.
 #if !LOCAL_GCC_PREREQ(4,8)
 #define SKIP_QUANTIZE
 #endif
