@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define WEBP_ENCODER_ABI_VERSION 0x0204    // MAJOR(8b) + MINOR(8b)
+#define WEBP_ENCODER_ABI_VERSION 0x0205    // MAJOR(8b) + MINOR(8b)
 
 // Note: forward declaring enumerations is not allowed in (strict) C and C++,
 // the types are left here for reference.
@@ -197,7 +197,7 @@ struct WebPAuxStats {
   int segment_level[4];   // filtering strength for each segments [0..63]
 
   int alpha_data_size;    // size of the transparency data
-  int layer_data_size;    // size of the enhancement layer data
+  int unused;             // unused for now
 
   // lossless encoder statistics
   uint32_t lossless_features;  // bit0:predictor bit1:cross-color transform
