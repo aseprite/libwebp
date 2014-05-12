@@ -209,6 +209,8 @@ static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
     }
 #elif defined(_MSC_VER)
     bits = (bit_t)_byteswap_ulong(in_bits);
+#elif defined(__arm__) || defined(_M_ARM)
+    __asm__("rev %0, %0" : "=r"(bits) : "0"(in_bits));
 #else
     bits = (bit_t)(in_bits >> 24) | ((in_bits >> 8) & 0xff00)
          | ((in_bits << 8) & 0xff0000)  | (in_bits << 24);
