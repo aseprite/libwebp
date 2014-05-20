@@ -34,6 +34,7 @@ ENC_SOURCES += enc.c
 ENC_SOURCES += enc_mips32.c
 ENC_SOURCES += enc_neon.c
 ENC_SOURCES += enc_sse2.c
+ENC_SOURCES += enc_avx2.c
 
 libwebpdsp_la_SOURCES = $(COMMON_SOURCES) $(ENC_SOURCES)
 
