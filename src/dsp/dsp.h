@@ -36,8 +36,17 @@ extern "C" {
 #define WEBP_MSC_SSE2  // Visual C++ SSE2 targets
 #endif
 
+#if defined(_MSC_VER) && _MSC_VER > 1500 && \
+    (defined(_M_X64) || defined(_M_IX86))
+#define WEBP_MSC_AVX2  // Visual C++ AVX2 targets
+#endif
+
 #if defined(__SSE2__) || defined(WEBP_MSC_SSE2)
 #define WEBP_USE_SSE2
+#endif
+
+#if defined(__AVX2__) || defined(WEBP_MSC_AVX2)
+#define WEBP_USE_AVX2
 #endif
 
 #if defined(__ANDROID__) && defined(__ARM_ARCH_7A__)

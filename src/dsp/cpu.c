@@ -40,7 +40,7 @@ static WEBP_INLINE void GetCPUInfo(int cpu_info[4], int info_type) {
 }
 #elif defined(_MSC_VER) && _MSC_VER >= 1500  // >= VS2008
 #define GetCPUInfo(info, type) __cpuidex(info, type, 0)  // set ecx=0
-#elif defined(WEBP_MSC_SSE2)
+#elif defined(WEBP_MSC_SSE2) || defined(WEBP_MSC_AVX2)
 #define GetCPUInfo __cpuid
 #endif
 
@@ -72,7 +72,7 @@ static WEBP_INLINE uint64_t xgetbv(void) {
 #define xgetbv() 0U  // no AVX for older x64 or unrecognized toolchains.
 #endif
 
-#if defined(__i386__) || defined(__x86_64__) || defined(WEBP_MSC_SSE2)
+#if defined(__i386__) || defined(__x86_64__) || defined(WEBP_MSC_SSE2) || defined(WEBP_MSC_AVX2)
 static int x86CPUInfo(CPUFeature feature) {
   int cpu_info[4];
   GetCPUInfo(cpu_info, 1);
