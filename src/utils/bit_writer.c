@@ -202,6 +202,7 @@ void VP8BitWriterWipeOut(VP8BitWriter* const bw) {
 
 #define VP8L_WRITER_BYTES ((int)sizeof(vp8l_wtype_t))
 #define VP8L_WRITER_BITS (VP8L_WRITER_BYTES * 8)
+#define VP8L_WRITER_MAX_BITS (8 * (int)sizeof(vp8l_atype_t))
 
 //  endian-specific htoleXX() definition
 // TODO(skal): move this to config.h, and collect all the endian-related code
@@ -274,24 +275,36 @@ void VP8LBitWriterDestroy(VP8LBitWriter* const bw) {
   }
 }
 
+
 void VP8LWriteBits(VP8LBitWriter* const bw, int n_bits, uint32_t bits) {
-  if (n_bits <= 0) return;
-  bw->bits_ |= (vp8l_atype_t)bits << bw->used_;
-  bw->used_ += n_bits;
-  if (bw->used_ > VP8L_WRITER_BITS) {
-    if (bw->cur_ + VP8L_WRITER_BYTES > bw->end_) {
-      const uint64_t extra_size = (bw->end_ - bw->buf_) + MIN_EXTRA_SIZE;
-      if (extra_size != (size_t)extra_size ||
-          !VP8LBitWriterResize(bw, (size_t)extra_size)) {
-        bw->cur_ = bw->buf_;
-        bw->error_ = 1;
-        return;
-      }
+  assert(n_bits <= 32);
+  while (n_bits > 0) {
+    const int used = bw->used_;
+    bw->bits_ |= (vp8l_atype_t)bits << bw->used_;
+    bw->used_ += n_bits;
+    if (bw->used_ < VP8L_WRITER_MAX_BITS) {
+      n_bits = 0;   // new bits are fitting in
+    } else {
+      const int shift = VP8L_WRITER_MAX_BITS - used;
+      bw->used_ = VP8L_WRITER_MAX_BITS;
+      n_bits -= shift;
+      bits >>= shift;
     }
-    *(vp8l_wtype_t*)bw->cur_ = (vp8l_wtype_t)WSWAP((vp8l_wtype_t)bw->bits_);
-    bw->cur_ += VP8L_WRITER_BYTES;
-    bw->bits_ >>= VP8L_WRITER_BITS;
-    bw->used_ -= VP8L_WRITER_BITS;
+    if (bw->used_ >= VP8L_WRITER_BITS) {
+      if (bw->cur_ + VP8L_WRITER_BYTES > bw->end_) {
+        const uint64_t extra_size = (bw->end_ - bw->buf_) + MIN_EXTRA_SIZE;
+        if (extra_size != (size_t)extra_size ||
+            !VP8LBitWriterResize(bw, (size_t)extra_size)) {
+          bw->cur_ = bw->buf_;
+          bw->error_ = 1;
+          return;
+        }
+      }
+      *(vp8l_wtype_t*)bw->cur_ = (vp8l_wtype_t)WSWAP((vp8l_wtype_t)bw->bits_);
+      bw->cur_ += VP8L_WRITER_BYTES;
+      bw->bits_ >>= VP8L_WRITER_BITS;
+      bw->used_ -= VP8L_WRITER_BITS;
+    }
   }
 }
 
