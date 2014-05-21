@@ -48,9 +48,10 @@ static int EmitSampledRGB(const VP8Io* const io, WebPDecParams* const p) {
   WebPDecBuffer* const output = p->output;
   WebPRGBABuffer* const buf = &output->u.RGBA;
   uint8_t* const dst = buf->rgba + io->mb_y * buf->stride;
-  WebPSamplers[output->colorspace](io->y, io->y_stride,
-                                   io->u, io->v, io->uv_stride,
-                                   dst, buf->stride, io->mb_w, io->mb_h);
+  WebPSamplerProcessPlane(io->y, io->y_stride,
+                          io->u, io->v, io->uv_stride,
+                          dst, buf->stride, io->mb_w, io->mb_h,
+                          WebPSamplers[output->colorspace]);
   return io->mb_h;
 }
 
