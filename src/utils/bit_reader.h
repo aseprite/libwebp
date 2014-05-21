@@ -337,7 +337,8 @@ void VP8LBitReaderSetBuffer(VP8LBitReader* const br,
                             const uint8_t* const buffer, size_t length);
 
 // Reads the specified number of bits from Read Buffer.
-// Flags an error in case end_of_stream or n_bits is more than allowed limit.
+// Flags an error in case end_of_stream or n_bits is more than allowed limit
+// of 25 bits (MAX_NUM_BIT_READ).
 // Flags eos if this read attempt is going to cross the read buffer.
 uint32_t VP8LReadBits(VP8LBitReader* const br, int n_bits);
 
