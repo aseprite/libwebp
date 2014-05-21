@@ -194,13 +194,7 @@ void WebPInitUpsamplersNEON(void);
 
 #endif    // FANCY_UPSAMPLING
 
-// Point-sampling methods.
-typedef void (*WebPSamplePlaneFunc)(const uint8_t* y, int y_stride,
-                                    const uint8_t* u, const uint8_t* v,
-                                    int uv_stride,
-                                    uint8_t* dst, int dst_stride,
-                                    int width, int height);
-
+// Per-row point-sampling methods.
 typedef void (*WebPSamplerRowFunc)(const uint8_t* y,
                                    const uint8_t* u, const uint8_t* v,
                                    uint8_t* dst, int len);
@@ -210,8 +204,11 @@ void WebPSamplerProcessPlane(const uint8_t* y, int y_stride,
                              uint8_t* dst, int dst_stride,
                              int width, int height, WebPSamplerRowFunc func);
 
-// Sampling functions to convert YUV to RGB(A) modes
-extern WebPSamplePlaneFunc WebPSamplers[/* MODE_LAST */];
+// Sampling functions to convert rows of YUV to RGB(A)
+extern WebPSamplerRowFunc WebPSamplers[/* MODE_LAST */];
+
+// Initializes SSE2 version of the samplers.
+void WebPInitSamplersSSE2(void);
 
 // Initializes MIPS version of the samplers.
 void WebPInitSamplersMIPS32(void);

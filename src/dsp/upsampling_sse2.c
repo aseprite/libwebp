@@ -215,4 +215,3 @@ void WebPInitPremultiplySSE2(void) {
 void WebPInitPremultiplySSE2(void) {}
 
 #endif  // FANCY_UPSAMPLING
-
