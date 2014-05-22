@@ -13,12 +13,6 @@
 
 #include "./bit_reader.h"
 
-#ifndef USE_RIGHT_JUSTIFY
-#define MK(X) (((range_t)(X) << (BITS)) | (MASK))
-#else
-#define MK(X) ((range_t)(X))
-#endif
-
 //------------------------------------------------------------------------------
 // VP8BitReader
 
@@ -27,12 +21,13 @@ void VP8InitBitReader(VP8BitReader* const br,
   assert(br != NULL);
   assert(start != NULL);
   assert(start <= end);
-  br->range_   = MK(255 - 1);
+  br->range_   = 255 - 1;
   br->buf_     = start;
   br->buf_end_ = end;
   br->value_   = 0;
   br->bits_    = -8;   // to load the very first 8bits
   br->eof_     = 0;
+  VP8LoadNewBytes(br);
 }
 
 void VP8RemapBitReader(VP8BitReader* const br, ptrdiff_t offset) {
@@ -54,46 +49,108 @@ const uint8_t kVP8Log2Range[128] = {
   0
 };
 
-// range = (range << kVP8Log2Range[range]) + trailing 1's
+// range = ((range + 1) << kVP8Log2Range[range]) - 1
 const range_t kVP8NewRange[128] = {
-  MK(127), MK(127), MK(191), MK(127), MK(159), MK(191), MK(223), MK(127),
-  MK(143), MK(159), MK(175), MK(191), MK(207), MK(223), MK(239), MK(127),
-  MK(135), MK(143), MK(151), MK(159), MK(167), MK(175), MK(183), MK(191),
-  MK(199), MK(207), MK(215), MK(223), MK(231), MK(239), MK(247), MK(127),
-  MK(131), MK(135), MK(139), MK(143), MK(147), MK(151), MK(155), MK(159),
-  MK(163), MK(167), MK(171), MK(175), MK(179), MK(183), MK(187), MK(191),
-  MK(195), MK(199), MK(203), MK(207), MK(211), MK(215), MK(219), MK(223),
-  MK(227), MK(231), MK(235), MK(239), MK(243), MK(247), MK(251), MK(127),
-  MK(129), MK(131), MK(133), MK(135), MK(137), MK(139), MK(141), MK(143),
-  MK(145), MK(147), MK(149), MK(151), MK(153), MK(155), MK(157), MK(159),
-  MK(161), MK(163), MK(165), MK(167), MK(169), MK(171), MK(173), MK(175),
-  MK(177), MK(179), MK(181), MK(183), MK(185), MK(187), MK(189), MK(191),
-  MK(193), MK(195), MK(197), MK(199), MK(201), MK(203), MK(205), MK(207),
-  MK(209), MK(211), MK(213), MK(215), MK(217), MK(219), MK(221), MK(223),
-  MK(225), MK(227), MK(229), MK(231), MK(233), MK(235), MK(237), MK(239),
-  MK(241), MK(243), MK(245), MK(247), MK(249), MK(251), MK(253), MK(127)
+  127, 127, 191, 127, 159, 191, 223, 127,
+  143, 159, 175, 191, 207, 223, 239, 127,
+  135, 143, 151, 159, 167, 175, 183, 191,
+  199, 207, 215, 223, 231, 239, 247, 127,
+  131, 135, 139, 143, 147, 151, 155, 159,
+  163, 167, 171, 175, 179, 183, 187, 191,
+  195, 199, 203, 207, 211, 215, 219, 223,
+  227, 231, 235, 239, 243, 247, 251, 127,
+  129, 131, 133, 135, 137, 139, 141, 143,
+  145, 147, 149, 151, 153, 155, 157, 159,
+  161, 163, 165, 167, 169, 171, 173, 175,
+  177, 179, 181, 183, 185, 187, 189, 191,
+  193, 195, 197, 199, 201, 203, 205, 207,
+  209, 211, 213, 215, 217, 219, 221, 223,
+  225, 227, 229, 231, 233, 235, 237, 239,
+  241, 243, 245, 247, 249, 251, 253, 127
 };
 
-#undef MK
-
 void VP8LoadFinalBytes(VP8BitReader* const br) {
-  assert(br != NULL && br->buf_ != NULL);
+  assert(br != NULL && br->buf_ != NULL && br->bits_ <= 0);
   // Only read 8bits at a time
   if (br->buf_ < br->buf_end_) {
-#ifndef USE_RIGHT_JUSTIFY
-    br->value_ |= (bit_t)(*br->buf_++) << ((BITS) - 8 - br->bits_);
-#else
-    br->value_ = (bit_t)(*br->buf_++) | (br->value_ << 8);
-#endif
     br->bits_ += 8;
+    br->value_ |= (bit_t)(*br->buf_++) << ((BITS) - br->bits_);
   } else if (!br->eof_) {
-#ifdef USE_RIGHT_JUSTIFY
-    // These are not strictly needed, but it makes the behaviour
-    // consistent for both USE_RIGHT_JUSTIFY and !USE_RIGHT_JUSTIFY.
-    br->value_ <<= 8;
-    br->bits_ += 8;
-#endif
     br->eof_ = 1;
+  }
+}
+
+void VP8LoadFreshBytes(VP8BitReader* const br) {
+  assert(br != NULL && br->buf_ != NULL && br->bits_ <= 0);
+  // Read 'BITS' bits at a time if possible.
+  assert(br->buf_ + sizeof(lbit_t) <= br->buf_end_);
+  {
+    // convert memory type to register type (with some zero'ing!)
+    bit_t bits;
+#if defined(__mips__)                          // MIPS
+    // This is needed because of un-aligned read.
+    lbit_t in_bits;
+    lbit_t* p_buf_ = (lbit_t*)br->buf_;
+    __asm__ volatile(
+      ".set   push                             \n\t"
+      ".set   at                               \n\t"
+      ".set   macro                            \n\t"
+      "ulw    %[in_bits], 0(%[p_buf_])         \n\t"
+      ".set   pop                              \n\t"
+      : [in_bits]"=r"(in_bits)
+      : [p_buf_]"r"(p_buf_)
+      : "memory", "at"
+    );
+#else
+    const lbit_t in_bits = *(const lbit_t*)br->buf_;
+#endif
+    br->buf_ += (BITS) >> 3;
+#if !defined(__BIG_ENDIAN__)
+#if (BITS > 32)
+// gcc 4.3 has builtin functions for swap32/swap64
+#if defined(__GNUC__) && \
+           (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
+    bits = (bit_t)__builtin_bswap64(in_bits);
+#elif defined(_MSC_VER)
+    bits = (bit_t)_byteswap_uint64(in_bits);
+#elif defined(__x86_64__)
+    __asm__ volatile("bswapq %0" : "=r"(bits) : "0"(in_bits));
+#else  // generic code for swapping 64-bit values (suggested by bdb@)
+    bits = (bit_t)in_bits;
+    bits = ((bits & 0xffffffff00000000ull) >> 32) |
+           ((bits & 0x00000000ffffffffull) << 32);
+    bits = ((bits & 0xffff0000ffff0000ull) >> 16) |
+           ((bits & 0x0000ffff0000ffffull) << 16);
+    bits = ((bits & 0xff00ff00ff00ff00ull) >> 8) |
+           ((bits & 0x00ff00ff00ff00ffull) << 8);
+#endif
+    bits >>= 64 - BITS;
+#elif (BITS >= 24)
+#if defined(__i386__) || defined(__x86_64__)
+    {
+      lbit_t swapped_in_bits;
+      __asm__ volatile("bswap %k0" : "=r"(swapped_in_bits) : "0"(in_bits));
+      bits = (bit_t)swapped_in_bits;   // 24b/32b -> 32b/64b zero-extension
+    }
+#elif defined(_MSC_VER)
+    bits = (bit_t)_byteswap_ulong(in_bits);
+#else
+    bits = (bit_t)(in_bits >> 24) | ((in_bits >> 8) & 0xff00)
+         | ((in_bits << 8) & 0xff0000)  | (in_bits << 24);
+#endif  // x86
+    bits >>= 32 - BITS;
+#elif (BITS == 16)
+    // gcc will recognize a 'rorw $8, ...' here:
+    bits = (bit_t)(in_bits >> 8) | ((in_bits & 0xff) << 8);
+#else   // BITS == 8
+    bits = (bit_t)in_bits;
+#endif
+#else    // BIG_ENDIAN
+    bits = (bit_t)in_bits;
+    bits >>= (8 * sizeof(bit_t) - BITS);
+#endif
+    br->value_ |= bits << (-br->bits_);
+    br->bits_ += (BITS);
   }
 }
 
