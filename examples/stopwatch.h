@@ -47,9 +47,11 @@ static WEBP_INLINE void StopwatchReset(Stopwatch* watch) {
 
 static WEBP_INLINE double StopwatchReadAndReset(Stopwatch* watch) {
   const struct timeval old_value = *watch;
+  double delta_sec, delta_usec;
   gettimeofday(watch, NULL);
-  return watch->tv_sec - old_value.tv_sec +
-      (watch->tv_usec - old_value.tv_usec) / 1000000.0;
+  delta_sec = (double)watch->tv_sec - old_value.tv_sec;
+  delta_usec = (double)watch->tv_usec - old_value.tv_usec;
+  return delta_sec + delta_usec / 1000000.0;
 }
 
 #endif   /* _WIN32 */
