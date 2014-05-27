@@ -63,10 +63,6 @@ extern "C" {
 // BITS can be any multiple of 8 from 8 to 56 (inclusive).
 // Pick values that fit natural register size.
 
-#if !defined(WEBP_REFERENCE_IMPLEMENTATION)
-
-#define USE_RIGHT_JUSTIFY
-
 #if defined(__i386__) || defined(_M_IX86)      // x86 32bit
 #define BITS 16
 #elif defined(__x86_64__) || defined(_M_X64)   // x86 64bit
@@ -77,13 +73,6 @@ extern "C" {
 #define BITS 24
 #else                      // reasonable default
 #define BITS 24
-#endif
-
-#else     // reference choices
-
-#define USE_RIGHT_JUSTIFY
-#define BITS 8
-
 #endif
 
 // some endian fix (e.g.: mips-gcc doesn't define __BIG_ENDIAN__)
@@ -115,26 +104,21 @@ typedef uint32_t bit_t;
 typedef uint8_t lbit_t;
 #endif
 
-#ifndef USE_RIGHT_JUSTIFY
-typedef bit_t range_t;     // type for storing range_
-#define MASK ((((bit_t)1) << (BITS)) - 1)
-#else
-typedef uint32_t range_t;  // range_ only uses 8bits here. No need for bit_t.
-#endif
+typedef uint32_t range_t;  // note: range_ actually only uses 8bits
 
 //------------------------------------------------------------------------------
 // Bitreader
 
 typedef struct VP8BitReader VP8BitReader;
 struct VP8BitReader {
-  const uint8_t* buf_;        // next byte to be read
-  const uint8_t* buf_end_;    // end of read buffer
-  int eof_;                   // true if input is exhausted
-
   // boolean decoder
   range_t range_;            // current range minus 1. In [127, 254] interval.
   bit_t value_;              // current value
   int bits_;                 // number of valid bits left
+  // read buffer
+  const uint8_t* buf_;        // next byte to be read
+  const uint8_t* buf_end_;    // end of read buffer
+  int eof_;                   // true if input is exhausted
 };
 
 // Initialize the bit reader and the boolean decoder.
@@ -183,7 +167,7 @@ static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
 #else
     const lbit_t in_bits = *(const lbit_t*)br->buf_;
 #endif
-    br->buf_ += (BITS) >> 3;
+    br->buf_ += BITS >> 3;
 #if !defined(__BIG_ENDIAN__)
 #if (BITS > 32)
 // gcc 4.3 has builtin functions for swap32/swap64
@@ -228,12 +212,9 @@ static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
     bits = (bit_t)in_bits;
     if (BITS != 8 * sizeof(bit_t)) bits >>= (8 * sizeof(bit_t) - BITS);
 #endif
-#ifndef USE_RIGHT_JUSTIFY
-    br->value_ |= bits << (-br->bits_);
-#else
-    br->value_ = bits | (br->value_ << (BITS));
-#endif
-    br->bits_ += (BITS);
+    br->value_ <<= BITS;
+    br->value_ |= bits;
+    br->bits_ += BITS;
   } else {
     VP8LoadFinalBytes(br);    // no need to be inlined
   }
@@ -243,17 +224,6 @@ static WEBP_INLINE int VP8BitUpdate(VP8BitReader* const br, range_t split) {
   if (br->bits_ < 0) {  // Make sure we have a least BITS bits in 'value_'
     VP8LoadNewBytes(br);
   }
-#ifndef USE_RIGHT_JUSTIFY
-  split |= (MASK);
-  if (br->value_ > split) {
-    br->range_ -= split + 1;
-    br->value_ -= split + 1;
-    return 1;
-  } else {
-    br->range_ = split;
-    return 0;
-  }
-#else
   {
     const int pos = br->bits_;
     const range_t value = (range_t)(br->value_ >> pos);
@@ -266,51 +236,53 @@ static WEBP_INLINE int VP8BitUpdate(VP8BitReader* const br, range_t split) {
       return 0;
     }
   }
-#endif
-}
-
-static WEBP_INLINE void VP8Shift(VP8BitReader* const br) {
-#ifndef USE_RIGHT_JUSTIFY
-  // range_ is in [0..127] interval here.
-  const bit_t idx = br->range_ >> (BITS);
-  const int shift = kVP8Log2Range[idx];
-  br->range_ = kVP8NewRange[idx];
-  br->value_ <<= shift;
-  br->bits_ -= shift;
-#else
-  const int shift = kVP8Log2Range[br->range_];
-  assert(br->range_ < (range_t)128);
-  br->range_ = kVP8NewRange[br->range_];
-  br->bits_ -= shift;
-#endif
 }
 
 static WEBP_INLINE int VP8GetBit(VP8BitReader* const br, int prob) {
-#ifndef USE_RIGHT_JUSTIFY
-  // It's important to avoid generating a 64bit x 64bit multiply here.
-  // We just need an 8b x 8b after all.
-  const range_t split =
-      (range_t)((uint32_t)(br->range_ >> (BITS)) * prob) << ((BITS) - 8);
-  const int bit = VP8BitUpdate(br, split);
-  if (br->range_ <= (((range_t)0x7e << (BITS)) | (MASK))) {
-    VP8Shift(br);
+  range_t range = br->range_;
+  const range_t split = (range * prob) >> 8;
+  if (br->bits_ < 0) {  // Make sure we have a least BITS bits in 'value_'
+    VP8LoadNewBytes(br);
   }
-  return bit;
-#else
-  const range_t split = (br->range_ * prob) >> 8;
-  const int bit = VP8BitUpdate(br, split);
-  if (br->range_ <= (range_t)0x7e) {
-    VP8Shift(br);
+  {
+    const int pos = br->bits_;
+    const range_t value = (range_t)(br->value_ >> pos);
+    const int bit = (value > split);
+    if (bit) {
+      range -= split + 1;
+      br->value_ -= (bit_t)(split + 1) << pos;
+    } else {
+      range = split;
+    }
+    if (range <= (range_t)0x7e) {
+      const int shift = kVP8Log2Range[range];
+      range = kVP8NewRange[range];
+      br->bits_ -= shift;
+    }
+    br->range_ = range;
+    return bit;
   }
-  return bit;
-#endif
 }
 
 static WEBP_INLINE int VP8GetSigned(VP8BitReader* const br, int v) {
-  const range_t split = (br->range_ >> 1);
-  const int bit = VP8BitUpdate(br, split);
-  VP8Shift(br);
-  return bit ? -v : v;
+  if (br->bits_ < 0) {
+    VP8LoadNewBytes(br);
+  }
+  // simplified version of GetBit() for prob=0x80
+  {
+    const int pos = br->bits_;
+    const range_t split = br->range_ >> 1;
+    const range_t value = (range_t)(br->value_ >> pos);
+    if (value > split) {
+      br->range_ -= 1;     // r - (r>>1) - 1 = (r-1) >> 1
+      br->value_ -= (bit_t)(split + 1) << pos;
+      v = -v;
+    }
+    // shift is always 1 here
+    br->bits_ -= 1;
+    br->range_ |= 1;
+    return v;
+  }
 }
 
 // -----------------------------------------------------------------------------
