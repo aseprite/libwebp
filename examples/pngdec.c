@@ -200,7 +200,7 @@ int ReadPNG(FILE* in_file, WebPPicture* const pic, int keep_alpha,
   int ok = 0;
   png_uint_32 width, height, y;
   int stride;
-  uint8_t* rgb = NULL;
+  volatile uint8_t* rgb = NULL;
 
   png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
   if (png == NULL) {
@@ -255,7 +255,7 @@ int ReadPNG(FILE* in_file, WebPPicture* const pic, int keep_alpha,
   if (rgb == NULL) goto Error;
   for (p = 0; p < num_passes; ++p) {
     for (y = 0; y < height; ++y) {
-      png_bytep row = rgb + y * stride;
+      png_bytep row = (png_bytep)(rgb + y * stride);
       png_read_rows(png, &row, NULL, 1);
     }
   }
@@ -272,15 +272,15 @@ int ReadPNG(FILE* in_file, WebPPicture* const pic, int keep_alpha,
   pic->width = width;
   pic->height = height;
   pic->use_argb = 1;
-  ok = has_alpha ? WebPPictureImportRGBA(pic, rgb, stride)
-                 : WebPPictureImportRGB(pic, rgb, stride);
+  ok = has_alpha ? WebPPictureImportRGBA(pic, (const uint8_t*)rgb, stride)
+                 : WebPPictureImportRGB(pic, (const uint8_t*)rgb, stride);
 
   if (!ok) {
     goto Error;
   }
 
  End:
-  free(rgb);
+  free((void*)rgb);
   return ok;
 }
 #else  // !WEBP_HAVE_PNG
