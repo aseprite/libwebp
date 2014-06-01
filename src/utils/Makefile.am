@@ -13,6 +13,7 @@ COMMON_SOURCES += alpha_processing.c
 COMMON_SOURCES += alpha_processing.h
 COMMON_SOURCES += bit_reader.c
 COMMON_SOURCES += bit_reader.h
+COMMON_SOURCES += bit_reader_inl.h
 COMMON_SOURCES += color_cache.c
 COMMON_SOURCES += color_cache.h
 COMMON_SOURCES += filters.c
