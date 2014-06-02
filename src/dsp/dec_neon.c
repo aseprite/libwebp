@@ -846,17 +846,20 @@ static void HFilter16(uint8_t* p, int stride,
 static void VFilter16i(uint8_t* p, int stride,
                        int thresh, int ithresh, int hev_thresh) {
   int k;
+  uint8x16_t p3, p2, p1, p0;
+  Load16x4(p + 2  * stride, stride, &p3, &p2, &p1, &p0);
   for (k = 3; k > 0; --k) {
-    uint8x16_t p3, p2, p1, p0, q0, q1, q2, q3;
+    uint8x16_t q0, q1, q2, q3;
     p += 4 * stride;
-    Load16x8(p, stride, &p3, &p2, &p1, &p0, &q0, &q1, &q2, &q3);
+    Load16x4(p + 2  * stride, stride, &q0, &q1, &q2, &q3);
     {
       const uint8x16_t mask =
           NeedsFilter2(p3, p2, p1, p0, q0, q1, q2, q3, ithresh, thresh);
       const uint8x16_t hev_mask = NeedsHev(p1, p0, q0, q1, hev_thresh);
-      uint8x16_t op1, op0, oq0, oq1;
-      DoFilter4(p1, p0, q0, q1, mask, hev_mask, &op1, &op0, &oq0, &oq1);
-      Store16x4(op1, op0, oq0, oq1, p, stride);
+      DoFilter4(p1, p0, q0, q1, mask, hev_mask, &p1, &p0, &p3, &p2);
+      Store16x4(p1, p0, p3, p2, p, stride);
+      p1 = q2;
+      p0 = q3;
     }
   }
 }
@@ -865,17 +868,20 @@ static void VFilter16i(uint8_t* p, int stride,
 static void HFilter16i(uint8_t* p, int stride,
                        int thresh, int ithresh, int hev_thresh) {
   int k;
+  uint8x16_t p3, p2, p1, p0;
+  Load4x16(p + 2, stride, &p3, &p2, &p1, &p0);
   for (k = 3; k > 0; --k) {
-    uint8x16_t p3, p2, p1, p0, q0, q1, q2, q3;
+    uint8x16_t q0, q1, q2, q3;
     p += 4;
-    Load8x16(p, stride, &p3, &p2, &p1, &p0, &q0, &q1, &q2, &q3);
+    Load4x16(p + 2, stride, &q0, &q1, &q2, &q3);
     {
       const uint8x16_t mask =
           NeedsFilter2(p3, p2, p1, p0, q0, q1, q2, q3, ithresh, thresh);
       const uint8x16_t hev_mask = NeedsHev(p1, p0, q0, q1, hev_thresh);
-      uint8x16_t op1, op0, oq0, oq1;
-      DoFilter4(p1, p0, q0, q1, mask, hev_mask, &op1, &op0, &oq0, &oq1);
-      Store4x16(op1, op0, oq0, oq1, p, stride);
+      DoFilter4(p1, p0, q0, q1, mask, hev_mask, &p1, &p0, &p3, &p2);
+      Store4x16(p1, p0, p3, p2, p, stride);
+      p1 = q2;
+      p0 = q3;
     }
   }
 }
