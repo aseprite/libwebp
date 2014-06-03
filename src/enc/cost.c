@@ -12,11 +12,6 @@
 // Author: Skal (pascal.massimino@gmail.com)
 
 #include "./cost.h"
-
-#if defined(WEBP_USE_SSE2)
-#include <emmintrin.h>
-#endif  // WEBP_USE_SSE2
-
 #include "../utils/utils.h"
 
 //------------------------------------------------------------------------------
