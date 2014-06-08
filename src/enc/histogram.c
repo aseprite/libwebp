@@ -10,7 +10,7 @@
 // Author: Jyrki Alakuijala (jyrki@google.com)
 //
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include "./config.h"
 #endif
 
 #include <math.h>
