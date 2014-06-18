@@ -64,6 +64,16 @@ extern "C" {
 #define WEBP_USE_MIPS32
 #endif
 
+#if (defined(__GNUC__) && __GNUC__)
+#define DECLARE_ALIGNED(n,typ,val)  typ val __attribute__ ((aligned (n)))
+#elif defined(_MSC_VER)
+#define DECLARE_ALIGNED(n,typ,val)  __declspec(align(n)) typ val
+#else
+#warning No alignment directives known for this compiler.
+#define DECLARE_ALIGNED(n,typ,val)  typ val
+#endif
+
+
 typedef enum {
   kSSE2,
   kSSE3,
@@ -111,6 +121,10 @@ struct VP8Matrix;   // forward declaration
 typedef int (*VP8QuantizeBlock)(int16_t in[16], int16_t out[16],
                                 const struct VP8Matrix* const mtx);
 extern VP8QuantizeBlock VP8EncQuantizeBlock;
+
+typedef int (*VP8QuantizeBlockFWZ)(int16_t in[16], int16_t out[16],
+                                const struct VP8Matrix* const mtx);
+extern VP8QuantizeBlockFWZ VP8EncQuantizeBlockFWZ;
 
 // specific to 2nd transform:
 typedef int (*VP8QuantizeBlockWHT)(int16_t in[16], int16_t out[16],

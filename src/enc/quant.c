@@ -749,8 +749,7 @@ static int ReconstructIntra16(VP8EncIterator* const it,
     for (n = 0; n < 16; ++n) {
       // Zero-out the first coeff, so that: a) nz is correct below, and
       // b) finding 'last' non-zero coeffs in SetResidualCoeffs() is simplified.
-      tmp[n][0] = 0;
-      nz |= VP8EncQuantizeBlock(tmp[n], rd->y_ac_levels[n], &dqm->y1_) << n;
+      nz |= VP8EncQuantizeBlockFWZ(tmp[n], rd->y_ac_levels[n], &dqm->y1_) << n;
       assert(rd->y_ac_levels[n][0] == 0);
     }
   }
