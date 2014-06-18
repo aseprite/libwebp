@@ -21,6 +21,7 @@
 #include "../enc/vp8enci.h"
 #include "../utils/utils.h"
 
+DECLARE_ALIGNED(16, static const int16_t, zero_first_word[16]) = {0, -1, -1, -1, -1, -1, -1, -1};
 //------------------------------------------------------------------------------
 // Quite useful macro for debugging. Left here for convenience.
 
@@ -806,7 +807,7 @@ static int Disto16x16(const uint8_t* const a, const uint8_t* const b,
 //
 
 #define QFIX2 0
-static WEBP_INLINE int DoQuantizeBlock(int16_t in[16], int16_t out[16],
+static WEBP_INLINE int DoQuantizeBlock(__m128i in0, int16_t in[16], int16_t out[16],
                                        int shift,
                                        const uint16_t* const sharpen,
                                        const VP8Matrix* const mtx) {
@@ -819,7 +820,6 @@ static WEBP_INLINE int DoQuantizeBlock(int16_t in[16], int16_t out[16],
   // Load all inputs.
   // TODO(cduvivier): Make variable declarations and allocations aligned so that
   //                  we can use _mm_load_si128 instead of _mm_loadu_si128.
-  __m128i in0 = _mm_loadu_si128((__m128i*)&in[0]);
   __m128i in8 = _mm_loadu_si128((__m128i*)&in[8]);
   const __m128i iq0 = _mm_loadu_si128((__m128i*)&mtx->iq_[0]);
   const __m128i iq8 = _mm_loadu_si128((__m128i*)&mtx->iq_[8]);
@@ -921,14 +921,24 @@ static WEBP_INLINE int DoQuantizeBlock(int16_t in[16], int16_t out[16],
   return (_mm_movemask_epi8(_mm_cmpeq_epi8(packed_out, zero)) != 0xffff);
 }
 
+static int QuantizeBlockFWZ(int16_t in[16], int16_t out[16],
+                         const VP8Matrix* const mtx) {
+   
+  __m128i in0 = _mm_loadu_si128((__m128i*)&in[0]);
+  in0 = _mm_and_si128(in0, _mm_load_si128((__m128i const *)zero_first_word));
+  return DoQuantizeBlock(in0, in, out, 0, &mtx->sharpen_[0], mtx);
+}
+
 static int QuantizeBlock(int16_t in[16], int16_t out[16],
                          const VP8Matrix* const mtx) {
-  return DoQuantizeBlock(in, out, 0, &mtx->sharpen_[0], mtx);
+  __m128i in0 = _mm_loadu_si128((__m128i*)&in[0]);
+  return DoQuantizeBlock(in0, in, out, 0, &mtx->sharpen_[0], mtx);
 }
 
 static int QuantizeBlockWHT(int16_t in[16], int16_t out[16],
                             const VP8Matrix* const mtx) {
-  return DoQuantizeBlock(in, out, 0, &mtx->sharpen_[0], mtx);
+  __m128i in0 = _mm_loadu_si128((__m128i*)&in[0]);
+  return DoQuantizeBlock(in0, in, out, 0, &mtx->sharpen_[0], mtx);
 }
 
 // Forward declaration.
@@ -969,6 +979,7 @@ void VP8EncDspInitSSE2(void) {
 #if defined(WEBP_USE_SSE2)
   VP8CollectHistogram = CollectHistogram;
   VP8EncQuantizeBlock = QuantizeBlock;
+  VP8EncQuantizeBlockFWZ = QuantizeBlockFWZ;
   VP8EncQuantizeBlockWHT = QuantizeBlockWHT;
   VP8ITransform = ITransform;
   VP8FTransform = FTransform;
