@@ -452,7 +452,7 @@ static void FTransform(const uint8_t* src, const uint8_t* ref, int16_t* out) {
   }
 }
 
-static void FTransformWHT(const int16_t* in, int16_t* out) {
+static void FTransformWHT(int16_t* in, int16_t* out) {
   int32_t tmp[16];
   int i;
   for (i = 0; i < 4; ++i, in += 64) {
@@ -460,6 +460,7 @@ static void FTransformWHT(const int16_t* in, int16_t* out) {
     const int a1 = (in[1 * 16] + in[3 * 16]);
     const int a2 = (in[1 * 16] - in[3 * 16]);
     const int a3 = (in[0 * 16] - in[2 * 16]);
+    in[0 * 16] = in[1 * 16] = in[2 * 16] = in[3 * 16] = 0;
     tmp[0 + i * 4] = a0 + a1;
     tmp[1 + i * 4] = a3 + a2;
     tmp[2 + i * 4] = a3 - a2;

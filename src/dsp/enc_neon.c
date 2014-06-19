@@ -472,31 +472,32 @@ static void FTransform(const uint8_t* src, const uint8_t* ref,
 
 #endif
 
-#define LOAD_LANE_16b(VALUE, LANE) do {             \
+#define LOADZ_LANE_16b(VALUE, LANE) do {             \
   (VALUE) = vld1_lane_s16(src, (VALUE), (LANE));    \
+  src[0] = 0;                                       \
   src += stride;                                    \
 } while (0)
 
-static void FTransformWHT(const int16_t* src, int16_t* out) {
+static void FTransformWHT(int16_t* src, int16_t* out) {
   int32x4x4_t tmp0;
   const int stride = 16;
   int16x4x4_t in = {{{0}, {0}, {0}, {0}}};
-  LOAD_LANE_16b(in.val[0], 0);
-  LOAD_LANE_16b(in.val[1], 0);
-  LOAD_LANE_16b(in.val[2], 0);
-  LOAD_LANE_16b(in.val[3], 0);
-  LOAD_LANE_16b(in.val[0], 1);
-  LOAD_LANE_16b(in.val[1], 1);
-  LOAD_LANE_16b(in.val[2], 1);
-  LOAD_LANE_16b(in.val[3], 1);
-  LOAD_LANE_16b(in.val[0], 2);
-  LOAD_LANE_16b(in.val[1], 2);
-  LOAD_LANE_16b(in.val[2], 2);
-  LOAD_LANE_16b(in.val[3], 2);
-  LOAD_LANE_16b(in.val[0], 3);
-  LOAD_LANE_16b(in.val[1], 3);
-  LOAD_LANE_16b(in.val[2], 3);
-  LOAD_LANE_16b(in.val[3], 3);
+  LOADZ_LANE_16b(in.val[0], 0);
+  LOADZ_LANE_16b(in.val[1], 0);
+  LOADZ_LANE_16b(in.val[2], 0);
+  LOADZ_LANE_16b(in.val[3], 0);
+  LOADZ_LANE_16b(in.val[0], 1);
+  LOADZ_LANE_16b(in.val[1], 1);
+  LOADZ_LANE_16b(in.val[2], 1);
+  LOADZ_LANE_16b(in.val[3], 1);
+  LOADZ_LANE_16b(in.val[0], 2);
+  LOADZ_LANE_16b(in.val[1], 2);
+  LOADZ_LANE_16b(in.val[2], 2);
+  LOADZ_LANE_16b(in.val[3], 2);
+  LOADZ_LANE_16b(in.val[0], 3);
+  LOADZ_LANE_16b(in.val[1], 3);
+  LOADZ_LANE_16b(in.val[2], 3);
+  LOADZ_LANE_16b(in.val[3], 3);
 
   {
     // a0 = in[0 * 16] + in[2 * 16]
@@ -537,7 +538,7 @@ static void FTransformWHT(const int16_t* src, int16_t* out) {
     vst1_s16(out + 12, out3);
   }
 }
-#undef LOAD_LANE_16b
+#undef LOADZ_LANE_16b
 
 //------------------------------------------------------------------------------
 // Texture distortion

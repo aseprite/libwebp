@@ -85,10 +85,11 @@ extern VP8CPUInfo VP8GetCPUInfo;
 typedef void (*VP8Idct)(const uint8_t* ref, const int16_t* in, uint8_t* dst,
                         int do_two);
 typedef void (*VP8Fdct)(const uint8_t* src, const uint8_t* ref, int16_t* out);
-typedef void (*VP8WHT)(const int16_t* in, int16_t* out);
+// The WHT transform is responsible for zero-ing in[k * 16], with k = [0..15]
+typedef void (*VP8FWHT)(int16_t* in, int16_t* out);
 extern VP8Idct VP8ITransform;
 extern VP8Fdct VP8FTransform;
-extern VP8WHT VP8FTransformWHT;
+extern VP8FWHT VP8FTransformWHT;
 // Predictions
 // *dst is the destination block. *top and *left can be NULL.
 typedef void (*VP8IntraPreds)(uint8_t *dst, const uint8_t* left,
@@ -138,6 +139,7 @@ extern VP8DecIdct VP8TransformAC3;
 extern VP8DecIdct VP8TransformUV;
 extern VP8DecIdct VP8TransformDC;
 extern VP8DecIdct VP8TransformDCUV;
+typedef void (*VP8WHT)(const int16_t* in, int16_t* out);  // not zeroing
 extern VP8WHT VP8TransformWHT;
 
 // *dst is the destination block, with stride BPS. Boundary samples are

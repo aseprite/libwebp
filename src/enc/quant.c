@@ -679,8 +679,8 @@ static int TrellisQuantizeBlock(const VP8Encoder* const enc,
   }
 
   // Fresh start
-  memset(in + first, 0, (16 - first) * sizeof(*in));
-  memset(out + first, 0, (16 - first) * sizeof(*out));
+  memset(in, 0, 16 * sizeof(*in));
+  memset(out, 0, 16 * sizeof(*out));
   if (best_path[0] == -1) {
     return 0;   // skip!
   }
@@ -741,15 +741,12 @@ static int ReconstructIntra16(VP8EncIterator* const it,
             TrellisQuantizeBlock(enc, tmp[n], rd->y_ac_levels[n], ctx, 0,
                                  &dqm->y1_, dqm->lambda_trellis_i16_);
         it->top_nz_[x] = it->left_nz_[y] = non_zero;
-        rd->y_ac_levels[n][0] = 0;
+        assert(rd->y_ac_levels[n][0] == 0);
         nz |= non_zero << n;
       }
     }
   } else {
     for (n = 0; n < 16; ++n) {
-      // Zero-out the first coeff, so that: a) nz is correct below, and
-      // b) finding 'last' non-zero coeffs in SetResidualCoeffs() is simplified.
-      tmp[n][0] = 0;
       nz |= VP8EncQuantizeBlock(tmp[n], rd->y_ac_levels[n], &dqm->y1_) << n;
       assert(rd->y_ac_levels[n][0] == 0);
     }

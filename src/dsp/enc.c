@@ -159,7 +159,7 @@ static void FTransform(const uint8_t* src, const uint8_t* ref, int16_t* out) {
   }
 }
 
-static void FTransformWHT(const int16_t* in, int16_t* out) {
+static void FTransformWHT(int16_t* in, int16_t* out) {
   // input is 12b signed
   int32_t tmp[16];
   int i;
@@ -168,6 +168,7 @@ static void FTransformWHT(const int16_t* in, int16_t* out) {
     const int a1 = (in[1 * 16] + in[3 * 16]);
     const int a2 = (in[1 * 16] - in[3 * 16]);
     const int a3 = (in[0 * 16] - in[2 * 16]);
+    in[0 * 16] = in[1 * 16] = in[2 * 16] = in[3 * 16] = 0;
     tmp[0 + i * 4] = a0 + a1;   // 14b
     tmp[1 + i * 4] = a3 + a2;
     tmp[2 + i * 4] = a3 - a2;
@@ -673,7 +674,7 @@ static void Copy4x4(const uint8_t* src, uint8_t* dst) { Copy(src, dst, 4); }
 VP8CHisto VP8CollectHistogram;
 VP8Idct VP8ITransform;
 VP8Fdct VP8FTransform;
-VP8WHT VP8FTransformWHT;
+VP8FWHT VP8FTransformWHT;
 VP8Intra4Preds VP8EncPredLuma4;
 VP8IntraPreds VP8EncPredLuma16;
 VP8IntraPreds VP8EncPredChroma8;
