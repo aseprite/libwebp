@@ -1175,37 +1175,49 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
 // Separate out pixels packed together using pixel-bundling.
 // We define two methods for ARGB data (uint32_t) and alpha-only data (uint8_t).
 #define COLOR_INDEX_INVERSE(FUNC_NAME, TYPE, GET_INDEX, GET_VALUE)             \
-void FUNC_NAME(const VP8LTransform* const transform,                           \
+int FUNC_NAME(const VP8LTransform* const transform,                            \
                int y_start, int y_end, const TYPE* src, TYPE* dst) {           \
   int y;                                                                       \
   const int bits_per_pixel = 8 >> transform->bits_;                            \
   const int width = transform->xsize_;                                         \
   const uint32_t* const color_map = transform->data_;                          \
+  const int num_colors = transform->num_colors_;                               \
   if (bits_per_pixel < 8) {                                                    \
     const int pixels_per_byte = 1 << transform->bits_;                         \
     const int count_mask = pixels_per_byte - 1;                                \
     const uint32_t bit_mask = (1 << bits_per_pixel) - 1;                       \
     for (y = y_start; y < y_end; ++y) {                                        \
       uint32_t packed_pixels = 0;                                              \
-      int x;                                                                   \
+      int x, idx;                                                              \
       for (x = 0; x < width; ++x) {                                            \
         /* We need to load fresh 'packed_pixels' once every                */  \
         /* 'pixels_per_byte' increments of x. Fortunately, pixels_per_byte */  \
         /* is a power of 2, so can just use a mask for that, instead of    */  \
         /* decrementing a counter.                                         */  \
         if ((x & count_mask) == 0) packed_pixels = GET_INDEX(*src++);          \
-        *dst++ = GET_VALUE(color_map[packed_pixels & bit_mask]);               \
+        idx = packed_pixels & bit_mask;                                        \
+        if (idx < num_colors) {                                                \
+          *dst++ = GET_VALUE(color_map[idx]);                                  \
+        } else {                                                               \
+          return 0;                                                            \
+        }                                                                      \
         packed_pixels >>= bits_per_pixel;                                      \
       }                                                                        \
     }                                                                          \
   } else {                                                                     \
     for (y = y_start; y < y_end; ++y) {                                        \
-      int x;                                                                   \
+      int x, idx;                                                              \
       for (x = 0; x < width; ++x) {                                            \
-        *dst++ = GET_VALUE(color_map[GET_INDEX(*src++)]);                      \
+        idx = GET_INDEX(*src++);                                               \
+        if (idx < num_colors) {                                                \
+          *dst++ = GET_VALUE(color_map[idx]);                                  \
+        } else {                                                               \
+          return 0;                                                            \
+        }                                                                      \
       }                                                                        \
     }                                                                          \
   }                                                                            \
+  return 1;                                                                    \
 }
 
 static WEBP_INLINE uint32_t GetARGBIndex(uint32_t idx) {

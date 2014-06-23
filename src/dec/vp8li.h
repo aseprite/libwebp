@@ -35,6 +35,7 @@ typedef struct VP8LTransform VP8LTransform;
 struct VP8LTransform {
   VP8LImageTransformType type_;   // transform type.
   int                    bits_;   // subsampling bits defining transform window.
+  int                    num_colors_;   // for COLOR_INDEXING_TRANSFORM
   int                    xsize_;  // transform window X index.
   int                    ysize_;  // transform window Y index.
   uint32_t              *data_;   // transform data.

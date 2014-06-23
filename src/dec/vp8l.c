@@ -946,26 +946,13 @@ static void ClearTransform(VP8LTransform* const transform) {
 
 // For security reason, we need to remap the color map to span
 // the total possible bundled values, and not just the num_colors.
-static int ExpandColorMap(int num_colors, VP8LTransform* const transform) {
+static int ExpandColorMap(VP8LTransform* const transform) {
   int i;
-  const int final_num_colors = 1 << (8 >> transform->bits_);
-  uint32_t* const new_color_map =
-      (uint32_t*)WebPSafeMalloc((uint64_t)final_num_colors,
-                                sizeof(*new_color_map));
-  if (new_color_map == NULL) {
-    return 0;
-  } else {
-    uint8_t* const data = (uint8_t*)transform->data_;
-    uint8_t* const new_data = (uint8_t*)new_color_map;
-    new_color_map[0] = transform->data_[0];
-    for (i = 4; i < 4 * num_colors; ++i) {
-      // Equivalent to AddPixelEq(), on a byte-basis.
-      new_data[i] = (data[i] + new_data[i - 4]) & 0xff;
-    }
-    for (; i < 4 * final_num_colors; ++i)
-      new_data[i] = 0;  // black tail.
-    WebPSafeFree(transform->data_);
-    transform->data_ = new_color_map;
+  const int num_colors = transform->num_colors_;
+  uint8_t* const cmap = (uint8_t*)transform->data_;
+  for (i = 4; i < 4 * num_colors; ++i) {
+    // Equivalent to AddPixelEq(), on a byte-basis.
+    cmap[i] = (cmap[i] + cmap[i - 4]) & 0xff;
   }
   return 1;
 }
@@ -1009,8 +996,9 @@ static int ReadTransform(int* const xsize, int const* ysize,
                       : 3;
        *xsize = VP8LSubSampleSize(transform->xsize_, bits);
        transform->bits_ = bits;
+       transform->num_colors_ = num_colors;
        ok = DecodeImageStream(num_colors, 1, 0, dec, &transform->data_);
-       ok = ok && ExpandColorMap(num_colors, transform);
+       ok = ok && ExpandColorMap(transform);
       break;
     }
     case SUBTRACT_GREEN:

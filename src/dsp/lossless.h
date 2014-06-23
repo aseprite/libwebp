@@ -94,7 +94,7 @@ void VP8LInverseTransform(const struct VP8LTransform* const transform,
 // Similar to the static method ColorIndexInverseTransform() that is part of
 // lossless.c, but used only for alpha decoding. It takes uint8_t (rather than
 // uint32_t) arguments for 'src' and 'dst'.
-void VP8LColorIndexInverseTransformAlpha(
+int VP8LColorIndexInverseTransformAlpha(
     const struct VP8LTransform* const transform, int y_start, int y_end,
     const uint8_t* src, uint8_t* dst);
 
