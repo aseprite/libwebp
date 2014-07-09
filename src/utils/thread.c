@@ -269,7 +269,7 @@ static void Launch(WebPWorker* const worker) {
 }
 
 static void End(WebPWorker* const worker) {
-  if (worker->status_ >= OK) {
+  if (worker->impl_ != NULL) {
 #ifdef WEBP_USE_THREAD
     ChangeState(worker, NOT_OK);
     pthread_join(worker->impl_->thread_, NULL);
@@ -278,9 +278,9 @@ static void End(WebPWorker* const worker) {
 #else
     worker->status_ = NOT_OK;
 #endif
+    WebPSafeFree(worker->impl_);
+    worker->impl_ = NULL;
   }
-  WebPSafeFree(worker->impl_);
-  worker->impl_ = NULL;
   assert(worker->status_ == NOT_OK);
 }
 
