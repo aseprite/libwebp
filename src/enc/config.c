@@ -149,6 +149,7 @@ static const struct {
   { 4, 50 }, { 4, 75 }, { 4, 90 }, { 5, 90 }, { 6, 100 }
 };
 
+#if WEBP_ENCODER_ABI_VERSION > 0x0202
 int WebPConfigLosslessPreset(WebPConfig* config, int level) {
   if (config == NULL || level < 0 || level > MAX_LEVEL) return 0;
   config->lossless = 1;
@@ -156,5 +157,6 @@ int WebPConfigLosslessPreset(WebPConfig* config, int level) {
   config->quality = kLosslessPresets[level].quality_;
   return 1;
 }
+#endif
 
 //------------------------------------------------------------------------------
