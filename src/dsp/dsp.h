@@ -80,6 +80,14 @@ extern "C" {
 #endif
 #endif
 
+#if (defined(__GNUC__) && __GNUC__)
+#define WEBP_ALIGNED_DECL(n,typ,val)  typ val __attribute__ ((aligned (n)))
+#elif defined(_MSC_VER)
+#define WEBP_ALIGNED_DECL(n,typ,val)  __declspec(align(n)) typ val
+#else
+#define WEBP_ALIGNED_DECL(n,typ,val)  typ val
+#endif
+
 typedef enum {
   kSSE2,
   kSSE3,
@@ -103,8 +111,8 @@ typedef void (*VP8Idct)(const uint8_t* ref, const int16_t* in, uint8_t* dst,
                         int do_two);
 typedef void (*VP8Fdct)(const uint8_t* src, const uint8_t* ref, int16_t* out);
 typedef void (*VP8WHT)(const int16_t* in, int16_t* out);
-extern VP8Idct VP8ITransform;
-extern VP8Fdct VP8FTransform;
+extern VP8Idct VP8ITransform, VP8ITransform4x2;
+extern VP8Fdct VP8FTransform, VP8FTransform4x2;
 extern VP8WHT VP8FTransformWHT;
 // Predictions
 // *dst is the destination block. *top and *left can be NULL.
@@ -121,8 +129,14 @@ typedef int (*VP8WMetric)(const uint8_t* pix, const uint8_t* ref,
                           const uint16_t* const weights);
 extern VP8WMetric VP8TDisto4x4, VP8TDisto16x16;
 
+typedef void (*VP8Metric2)(const uint8_t* pix, const uint8_t* ref, int64_t *D1, int64_t *D2);
+extern VP8Metric2 VP8SSE4x4x2;
+typedef void (*VP8WMetric2)(const uint8_t* pix, const uint8_t* ref,
+                          const uint16_t* const weights, int64_t* SD1, int64_t* SD2);
+extern VP8WMetric2 VP8TDisto4x4x2;
+
 typedef void (*VP8BlockCopy)(const uint8_t* src, uint8_t* dst);
-extern VP8BlockCopy VP8Copy4x4;
+extern VP8BlockCopy VP8Copy4x4, VP8Copy4x4x2;
 // Quantization
 struct VP8Matrix;   // forward declaration
 typedef int (*VP8QuantizeBlock)(int16_t in[16], int16_t out[16],
@@ -133,6 +147,11 @@ typedef int (*VP8Quantize2Blocks)(int16_t in[32], int16_t out[32],
 
 extern VP8QuantizeBlock VP8EncQuantizeBlock;
 extern VP8Quantize2Blocks VP8EncQuantize2Blocks;
+
+typedef void (*VP8QuantizeBlock4x2)(int16_t in[32], int16_t out[32],
+                                const struct VP8Matrix* const mtx,
+                                 uint32_t* nz1, uint32_t* nz2);
+extern VP8QuantizeBlock4x2 VP8EncQuantizeBlock4x2;
 
 // specific to 2nd transform:
 typedef int (*VP8QuantizeBlockWHT)(int16_t in[16], int16_t out[16],
