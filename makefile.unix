@@ -70,10 +70,10 @@ EXTRA_FLAGS += -Wshadow
 # EXTRA_FLAGS += -Wvla
 
 # AVX2-specific flags:
-ifeq ($(HAVE_AVX2), 1)
+#ifeq ($(HAVE_AVX2), 1)
 EXTRA_FLAGS += -DWEBP_HAVE_AVX2
 src/dsp/%_avx2.o: EXTRA_FLAGS += -mavx2
-endif
+#endif
 
 # NEON-specific flags:
 # EXTRA_FLAGS += -march=armv7-a -mfloat-abi=hard -mfpu=neon -mtune=cortex-a8
@@ -156,6 +156,7 @@ ENC_OBJS = \
     src/enc/picture_rescale.o \
     src/enc/picture_tools.o \
     src/enc/quant.o \
+    src/enc/quant_avx2.o \
     src/enc/syntax.o \
     src/enc/token.o \
     src/enc/tree.o \
