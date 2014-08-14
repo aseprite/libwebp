@@ -221,6 +221,7 @@ static VP8Encoder* InitVP8Encoder(const WebPConfig* const config,
 
   MapConfigToTools(enc);
   VP8EncDspInit();
+  //VP8EncQuantInit();
   VP8DefaultProbas(enc);
   ResetSegmentHeader(enc);
   ResetFilterHeader(enc);
