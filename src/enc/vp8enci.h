@@ -260,7 +260,8 @@ typedef struct {
 
 // Handy transient struct to accumulate score and info during RD-optimization
 // and mode evaluation.
-typedef struct {
+typedef struct VP8ModeScore VP8ModeScore;
+struct VP8ModeScore{
   score_t D, SD;              // Distortion, spectral distortion
   score_t H, R, score;        // header bits, rate, score.
   int16_t y_dc_levels[16];    // Quantized levels for luma-DC, luma-AC, chroma.
@@ -270,11 +271,12 @@ typedef struct {
   uint8_t modes_i4[16];       // mode numbers for intra4 predictions
   int mode_uv;                // mode number of chroma prediction
   uint32_t nz;                // non-zero blocks
-} VP8ModeScore;
+};
 
 // Iterator structure to iterate through macroblocks, pointing to the
 // right neighbouring data (samples, predictions, contexts, ...)
-typedef struct {
+typedef struct VP8EncIterator VP8EncIterator;
+struct VP8EncIterator{
   int x_, y_;                      // current macroblock
   int y_stride_, uv_stride_;       // respective strides
   uint8_t*      yuv_in_;           // input samples
@@ -310,7 +312,7 @@ typedef struct {
   // memory for storing y/u/v_left_ and yuv_in_/out_*
   uint8_t yuv_left_mem_[17 + 16 + 16 + 8 + ALIGN_CST];     // memory for *_left_
   uint8_t yuv_mem_[3 * YUV_SIZE + PRED_SIZE + ALIGN_CST];  // memory for yuv_*
-} VP8EncIterator;
+};
 
   // in iterator.c
 // must be called first
