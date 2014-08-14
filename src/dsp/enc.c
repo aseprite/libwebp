@@ -672,7 +672,9 @@ static void Copy4x4(const uint8_t* src, uint8_t* dst) { Copy(src, dst, 4); }
 // implementations within VP8EncDspInit().
 VP8CHisto VP8CollectHistogram;
 VP8Idct VP8ITransform;
+VP8Idct VP8ITransform4x2;
 VP8Fdct VP8FTransform;
+VP8Fdct VP8FTransform4x2;
 VP8WHT VP8FTransformWHT;
 VP8Intra4Preds VP8EncPredLuma4;
 VP8IntraPreds VP8EncPredLuma16;
@@ -681,11 +683,15 @@ VP8Metric VP8SSE16x16;
 VP8Metric VP8SSE8x8;
 VP8Metric VP8SSE16x8;
 VP8Metric VP8SSE4x4;
+VP8Metric2 VP8SSE4x4x2;
 VP8WMetric VP8TDisto4x4;
+VP8WMetric2 VP8TDisto4x4x2;
 VP8WMetric VP8TDisto16x16;
 VP8QuantizeBlock VP8EncQuantizeBlock;
+VP8QuantizeBlock4x2 VP8EncQuantizeBlock4x2;
 VP8QuantizeBlockWHT VP8EncQuantizeBlockWHT;
 VP8BlockCopy VP8Copy4x4;
+VP8BlockCopy VP8Copy4x4x2;
 
 extern void VP8EncDspInitSSE2(void);
 extern void VP8EncDspInitAVX2(void);
