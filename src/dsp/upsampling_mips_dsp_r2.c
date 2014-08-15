@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+// Copyright 2014 Google Inc. All Rights Reserved.
 //
 // Use of this source code is governed by a BSD-style license
 // that can be found in the COPYING file in the root of the source
@@ -9,20 +9,130 @@
 //
 // YUV to RGB upsampling functions.
 //
-// Author: somnath@google.com (Somnath Banerjee)
+// Author(s): Branimir Vasic (branimir.vasic@imgtec.com)
+//            Djordje Pesut  (djordje.pesut@imgtec.com)
 
 #include "./dsp.h"
-#include "./yuv.h"
 
+#if defined(WEBP_USE_MIPS_DSP_R2)
+
+#include "./yuv.h"
 #include <assert.h>
+
+#if !defined(WEBP_YUV_USE_TABLE)
+
+#define VP8YUV_FUNCTIONS(Y, U, V) do {                                         \
+    t1 = kYScale * Y;                                                          \
+    t2 = kVToR * V;                                                            \
+    t3 = kUToG * U;                                                            \
+    t4 = kUToB * U;                                                            \
+    t5 = kVToG * V;                                                            \
+    t2 = t1 + t2;                                                              \
+    t3 = t1 - t3;                                                              \
+    t4 = t1 + t4;                                                              \
+    t2 = t2 + kRCst;                                                           \
+    t3 = t3 - t5 + kGCst;                                                      \
+    t4 = t4 + kBCst;                                                           \
+    __asm__ volatile (                                                         \
+      "shll_s.w         %[t2],      %[t2],        9                 \n\t"      \
+      "shll_s.w         %[t3],      %[t3],        9                 \n\t"      \
+      "shll_s.w         %[t4],      %[t4],        9                 \n\t"      \
+      "precrqu_s.qb.ph  %[t2],      %[t2],        $zero             \n\t"      \
+      "precrqu_s.qb.ph  %[t3],      %[t3],        $zero             \n\t"      \
+      "precrqu_s.qb.ph  %[t4],      %[t4],        $zero             \n\t"      \
+      "srl              %[t2],      %[t2],        24                \n\t"      \
+      "srl              %[t3],      %[t3],        24                \n\t"      \
+      "srl              %[t4],      %[t4],        24                \n\t"      \
+      : [t2]"+r"(t2), [t3]"+r"(t3), [t4]"+r"(t4)                               \
+      :                                                                        \
+    );                                                                         \
+  } while (0)
+
+static WEBP_INLINE void VP8YuvToRgbMips(int y, int u, int v,
+                                        uint8_t* const rgb) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  rgb[0] = t2;
+  rgb[1] = t3;
+  rgb[2] = t4;
+}
+static WEBP_INLINE void VP8YuvToBgrMips(int y, int u, int v,
+                                        uint8_t* const bgr) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  bgr[0] = t4;
+  bgr[1] = t3;
+  bgr[2] = t2;
+}
+static WEBP_INLINE void VP8YuvToRgb565Mips(int y, int u, int v,
+                                           uint8_t* const rgb) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  {
+    const int rg = (t2 & 0xf8) | (t3 >> 5);
+    const int gb = ((t3 << 3) & 0xe0) | (t4 >> 3);
+#ifdef WEBP_SWAP_16BIT_CSP
+    rgb[0] = gb;
+    rgb[1] = rg;
+#else
+    rgb[0] = rg;
+    rgb[1] = gb;
+#endif
+  }
+}
+static WEBP_INLINE void VP8YuvToRgba4444Mips(int y, int u, int v,
+                                             uint8_t* const argb) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  {
+    const int rg = (t2 & 0xf0) | (t3 >> 4);
+    const int ba = (t4 & 0xf0) | 0x0f;     // overwrite the lower 4 bits
+#ifdef WEBP_SWAP_16BIT_CSP
+    argb[0] = ba;
+    argb[1] = rg;
+#else
+    argb[0] = rg;
+    argb[1] = ba;
+#endif
+   }
+}
+#endif  // WEBP_YUV_USE_TABLE
+
+//-----------------------------------------------------------------------------
+// Alpha handling variants
+
+static WEBP_INLINE void VP8YuvToArgbMips(uint8_t y, uint8_t u, uint8_t v,
+                                         uint8_t* const argb) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  argb[0] = 0xff;
+  argb[1] =(t2);
+  argb[2] =(t3);
+  argb[3] =(t4);
+}
+static WEBP_INLINE void VP8YuvToBgraMips(uint8_t y, uint8_t u, uint8_t v,
+                                         uint8_t* const bgra) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  bgra[0] =(t4);
+  bgra[1] =(t3);
+  bgra[2] =(t2);
+  bgra[3] = 0xff;
+}
+static WEBP_INLINE void VP8YuvToRgbaMips(uint8_t y, uint8_t u, uint8_t v,
+                                         uint8_t* const rgba) {
+  int t1, t2, t3, t4, t5;
+  VP8YUV_FUNCTIONS(y,u,v);
+  rgba[0] =(t2);
+  rgba[1] =(t3);
+  rgba[2] =(t4);
+  rgba[3] = 0xff;
+}
 
 //------------------------------------------------------------------------------
 // Fancy upsampler
 
 #ifdef FANCY_UPSAMPLING
-
-// Fancy upsampling functions to convert YUV to RGB
-WebPUpsampleLinePairFunc WebPUpsamplers[MODE_LAST];
 
 // Given samples laid out in a square as:
 //  [a b]
@@ -93,61 +203,18 @@ static void FUNC_NAME(const uint8_t* top_y, const uint8_t* bottom_y,           \
 }
 
 // All variants implemented.
-UPSAMPLE_FUNC(UpsampleRgbLinePair,  VP8YuvToRgb,  3)
-UPSAMPLE_FUNC(UpsampleBgrLinePair,  VP8YuvToBgr,  3)
-UPSAMPLE_FUNC(UpsampleRgbaLinePair, VP8YuvToRgba, 4)
-UPSAMPLE_FUNC(UpsampleBgraLinePair, VP8YuvToBgra, 4)
-UPSAMPLE_FUNC(UpsampleArgbLinePair, VP8YuvToArgb, 4)
-UPSAMPLE_FUNC(UpsampleRgba4444LinePair, VP8YuvToRgba4444, 2)
-UPSAMPLE_FUNC(UpsampleRgb565LinePair,  VP8YuvToRgb565,  2)
+UPSAMPLE_FUNC(UpsampleRgbLinePair,  VP8YuvToRgbMips,  3)
+UPSAMPLE_FUNC(UpsampleBgrLinePair,  VP8YuvToBgrMips,  3)
+UPSAMPLE_FUNC(UpsampleRgbaLinePair, VP8YuvToRgbaMips, 4)
+UPSAMPLE_FUNC(UpsampleBgraLinePair, VP8YuvToBgraMips, 4)
+UPSAMPLE_FUNC(UpsampleArgbLinePair, VP8YuvToArgbMips, 4)
+UPSAMPLE_FUNC(UpsampleRgba4444LinePair, VP8YuvToRgba4444Mips, 2)
+UPSAMPLE_FUNC(UpsampleRgb565LinePair,  VP8YuvToRgb565Mips,  2)
 
 #undef LOAD_UV
 #undef UPSAMPLE_FUNC
 
 #endif  // FANCY_UPSAMPLING
-
-//------------------------------------------------------------------------------
-
-#if !defined(FANCY_UPSAMPLING)
-#define DUAL_SAMPLE_FUNC(FUNC_NAME, FUNC)                                      \
-static void FUNC_NAME(const uint8_t* top_y, const uint8_t* bot_y,              \
-                      const uint8_t* top_u, const uint8_t* top_v,              \
-                      const uint8_t* bot_u, const uint8_t* bot_v,              \
-                      uint8_t* top_dst, uint8_t* bot_dst, int len) {           \
-  const int half_len = len >> 1;                                               \
-  int x;                                                                       \
-  assert(top_dst != NULL);                                                     \
-  {                                                                            \
-    for (x = 0; x < half_len; ++x) {                                           \
-      FUNC(top_y[2 * x + 0], top_u[x], top_v[x], top_dst + 8 * x + 0);         \
-      FUNC(top_y[2 * x + 1], top_u[x], top_v[x], top_dst + 8 * x + 4);         \
-    }                                                                          \
-    if (len & 1) FUNC(top_y[2 * x + 0], top_u[x], top_v[x], top_dst + 8 * x);  \
-  }                                                                            \
-  if (bot_dst != NULL) {                                                       \
-    for (x = 0; x < half_len; ++x) {                                           \
-      FUNC(bot_y[2 * x + 0], bot_u[x], bot_v[x], bot_dst + 8 * x + 0);         \
-      FUNC(bot_y[2 * x + 1], bot_u[x], bot_v[x], bot_dst + 8 * x + 4);         \
-    }                                                                          \
-    if (len & 1) FUNC(bot_y[2 * x + 0], bot_u[x], bot_v[x], bot_dst + 8 * x);  \
-  }                                                                            \
-}
-
-DUAL_SAMPLE_FUNC(DualLineSamplerBGRA, VP8YuvToBgra)
-DUAL_SAMPLE_FUNC(DualLineSamplerARGB, VP8YuvToArgb)
-#undef DUAL_SAMPLE_FUNC
-
-#endif  // !FANCY_UPSAMPLING
-
-WebPUpsampleLinePairFunc WebPGetLinePairConverter(int alpha_is_last) {
-  WebPInitUpsamplers();
-  VP8YUVInit();
-#ifdef FANCY_UPSAMPLING
-  return WebPUpsamplers[alpha_is_last ? MODE_BGRA : MODE_ARGB];
-#else
-  return (alpha_is_last ? DualLineSamplerBGRA : DualLineSamplerARGB);
-#endif
-}
 
 //------------------------------------------------------------------------------
 // YUV444 converter
@@ -159,38 +226,24 @@ static void FUNC_NAME(const uint8_t* y, const uint8_t* u, const uint8_t* v,    \
   for (i = 0; i < len; ++i) FUNC(y[i], u[i], v[i], &dst[i * XSTEP]);           \
 }
 
-YUV444_FUNC(Yuv444ToRgb,      VP8YuvToRgb,  3)
-YUV444_FUNC(Yuv444ToBgr,      VP8YuvToBgr,  3)
-YUV444_FUNC(Yuv444ToRgba,     VP8YuvToRgba, 4)
-YUV444_FUNC(Yuv444ToBgra,     VP8YuvToBgra, 4)
-YUV444_FUNC(Yuv444ToArgb,     VP8YuvToArgb, 4)
-YUV444_FUNC(Yuv444ToRgba4444, VP8YuvToRgba4444, 2)
-YUV444_FUNC(Yuv444ToRgb565,   VP8YuvToRgb565, 2)
+YUV444_FUNC(Yuv444ToRgb,      VP8YuvToRgbMips,  3)
+YUV444_FUNC(Yuv444ToBgr,      VP8YuvToBgrMips,  3)
+YUV444_FUNC(Yuv444ToRgba,     VP8YuvToRgbaMips, 4)
+YUV444_FUNC(Yuv444ToBgra,     VP8YuvToBgraMips, 4)
+YUV444_FUNC(Yuv444ToArgb,     VP8YuvToArgbMips, 4)
+YUV444_FUNC(Yuv444ToRgba4444, VP8YuvToRgba4444Mips, 2)
+YUV444_FUNC(Yuv444ToRgb565,   VP8YuvToRgb565Mips, 2)
 
 #undef YUV444_FUNC
 
-WebPYUV444Converter WebPYUV444Converters[MODE_LAST] = {
-  Yuv444ToRgb,       // MODE_RGB
-  Yuv444ToRgba,      // MODE_RGBA
-  Yuv444ToBgr,       // MODE_BGR
-  Yuv444ToBgra,      // MODE_BGRA
-  Yuv444ToArgb,      // MODE_ARGB
-  Yuv444ToRgba4444,  // MODE_RGBA_4444
-  Yuv444ToRgb565,    // MODE_RGB_565
-  Yuv444ToRgba,      // MODE_rgbA
-  Yuv444ToBgra,      // MODE_bgrA
-  Yuv444ToArgb,      // MODE_Argb
-  Yuv444ToRgba4444   // MODE_rgbA_4444
-};
+#endif  // WEBP_USE_MIPS_DSP_R2
 
 //------------------------------------------------------------------------------
-// Main calls
 
-extern void WebPInitUpsamplersSSE2(void);
-extern void WebPInitUpsamplersNEON(void);
 extern void WebPInitUpsamplersMIPSdspR2(void);
 
-void WebPInitUpsamplers(void) {
+void WebPInitUpsamplersMIPSdspR2(void) {
+#if defined(WEBP_USE_MIPS_DSP_R2)
 #ifdef FANCY_UPSAMPLING
   WebPUpsamplers[MODE_RGB]       = UpsampleRgbLinePair;
   WebPUpsamplers[MODE_RGBA]      = UpsampleRgbaLinePair;
@@ -203,29 +256,19 @@ void WebPInitUpsamplers(void) {
   WebPUpsamplers[MODE_bgrA]      = UpsampleBgraLinePair;
   WebPUpsamplers[MODE_Argb]      = UpsampleArgbLinePair;
   WebPUpsamplers[MODE_rgbA_4444] = UpsampleRgba4444LinePair;
-
-  // If defined, use CPUInfo() to overwrite some pointers with faster versions.
-  if (VP8GetCPUInfo != NULL) {
-#if defined(WEBP_USE_SSE2)
-    if (VP8GetCPUInfo(kSSE2)) {
-      WebPInitUpsamplersSSE2();
-    }
-#endif
-#if defined(WEBP_USE_NEON)
-    if (VP8GetCPUInfo(kNEON)) {
-      WebPInitUpsamplersNEON();
-    }
-#endif
-  }
 #endif  // FANCY_UPSAMPLING
-
-  if (VP8GetCPUInfo != NULL) {
-#if defined(WEBP_USE_MIPS_DSP_R2)
-    if (VP8GetCPUInfo(kMIPSdspR2)) {
-      WebPInitUpsamplersMIPSdspR2();
-    }
-#endif
-  }
+  WebPYUV444Converters[MODE_RGB]       = Yuv444ToRgb;
+  WebPYUV444Converters[MODE_RGBA]      = Yuv444ToRgba;
+  WebPYUV444Converters[MODE_BGR]       = Yuv444ToBgr;
+  WebPYUV444Converters[MODE_BGRA]      = Yuv444ToBgra;
+  WebPYUV444Converters[MODE_ARGB]      = Yuv444ToArgb;
+  WebPYUV444Converters[MODE_RGBA_4444] = Yuv444ToRgba4444;
+  WebPYUV444Converters[MODE_RGB_565]   = Yuv444ToRgb565;
+  WebPYUV444Converters[MODE_rgbA]      = Yuv444ToRgba;
+  WebPYUV444Converters[MODE_bgrA]      = Yuv444ToBgra;
+  WebPYUV444Converters[MODE_Argb]      = Yuv444ToArgb;
+  WebPYUV444Converters[MODE_rgbA_4444] = Yuv444ToRgba4444;
+#endif  // WEBP_USE_MIPS_DSP_R2
 }
 
 //------------------------------------------------------------------------------
