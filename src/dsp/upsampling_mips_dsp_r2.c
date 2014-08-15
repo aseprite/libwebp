@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc. All Rights Reserved.
+// Copyright 2014 Google Inc. All Rights Reserved.
 //
 // Use of this source code is governed by a BSD-style license
 // that can be found in the COPYING file in the root of the source
@@ -9,20 +9,20 @@
 //
 // YUV to RGB upsampling functions.
 //
-// Author: somnath@google.com (Somnath Banerjee)
+// Author(s): Branimir Vasic (branimir.vasic@imgtec.com)
+//            Djordje Pesut  (djordje.pesut@imgtec.com)
 
 #include "./dsp.h"
-#include "./yuv.h"
 
+#if defined(WEBP_USE_MIPS_DSP_R2)
+
+#include "./yuv.h"
 #include <assert.h>
 
 //------------------------------------------------------------------------------
 // Fancy upsampler
 
 #ifdef FANCY_UPSAMPLING
-
-// Fancy upsampling functions to convert YUV to RGB
-WebPUpsampleLinePairFunc WebPUpsamplers[MODE_LAST];
 
 // Given samples laid out in a square as:
 //  [a b]
@@ -107,49 +107,6 @@ UPSAMPLE_FUNC(UpsampleRgb565LinePair,  VP8YuvToRgb565,  2)
 #endif  // FANCY_UPSAMPLING
 
 //------------------------------------------------------------------------------
-
-#if !defined(FANCY_UPSAMPLING)
-#define DUAL_SAMPLE_FUNC(FUNC_NAME, FUNC)                                      \
-static void FUNC_NAME(const uint8_t* top_y, const uint8_t* bot_y,              \
-                      const uint8_t* top_u, const uint8_t* top_v,              \
-                      const uint8_t* bot_u, const uint8_t* bot_v,              \
-                      uint8_t* top_dst, uint8_t* bot_dst, int len) {           \
-  const int half_len = len >> 1;                                               \
-  int x;                                                                       \
-  assert(top_dst != NULL);                                                     \
-  {                                                                            \
-    for (x = 0; x < half_len; ++x) {                                           \
-      FUNC(top_y[2 * x + 0], top_u[x], top_v[x], top_dst + 8 * x + 0);         \
-      FUNC(top_y[2 * x + 1], top_u[x], top_v[x], top_dst + 8 * x + 4);         \
-    }                                                                          \
-    if (len & 1) FUNC(top_y[2 * x + 0], top_u[x], top_v[x], top_dst + 8 * x);  \
-  }                                                                            \
-  if (bot_dst != NULL) {                                                       \
-    for (x = 0; x < half_len; ++x) {                                           \
-      FUNC(bot_y[2 * x + 0], bot_u[x], bot_v[x], bot_dst + 8 * x + 0);         \
-      FUNC(bot_y[2 * x + 1], bot_u[x], bot_v[x], bot_dst + 8 * x + 4);         \
-    }                                                                          \
-    if (len & 1) FUNC(bot_y[2 * x + 0], bot_u[x], bot_v[x], bot_dst + 8 * x);  \
-  }                                                                            \
-}
-
-DUAL_SAMPLE_FUNC(DualLineSamplerBGRA, VP8YuvToBgra)
-DUAL_SAMPLE_FUNC(DualLineSamplerARGB, VP8YuvToArgb)
-#undef DUAL_SAMPLE_FUNC
-
-#endif  // !FANCY_UPSAMPLING
-
-WebPUpsampleLinePairFunc WebPGetLinePairConverter(int alpha_is_last) {
-  WebPInitUpsamplers();
-  VP8YUVInit();
-#ifdef FANCY_UPSAMPLING
-  return WebPUpsamplers[alpha_is_last ? MODE_BGRA : MODE_ARGB];
-#else
-  return (alpha_is_last ? DualLineSamplerBGRA : DualLineSamplerARGB);
-#endif
-}
-
-//------------------------------------------------------------------------------
 // YUV444 converter
 
 #define YUV444_FUNC(FUNC_NAME, FUNC, XSTEP)                                    \
@@ -169,28 +126,14 @@ YUV444_FUNC(Yuv444ToRgb565,   VP8YuvToRgb565, 2)
 
 #undef YUV444_FUNC
 
-WebPYUV444Converter WebPYUV444Converters[MODE_LAST] = {
-  Yuv444ToRgb,       // MODE_RGB
-  Yuv444ToRgba,      // MODE_RGBA
-  Yuv444ToBgr,       // MODE_BGR
-  Yuv444ToBgra,      // MODE_BGRA
-  Yuv444ToArgb,      // MODE_ARGB
-  Yuv444ToRgba4444,  // MODE_RGBA_4444
-  Yuv444ToRgb565,    // MODE_RGB_565
-  Yuv444ToRgba,      // MODE_rgbA
-  Yuv444ToBgra,      // MODE_bgrA
-  Yuv444ToArgb,      // MODE_Argb
-  Yuv444ToRgba4444   // MODE_rgbA_4444
-};
+#endif  // WEBP_USE_MIPS_DSP_R2
 
 //------------------------------------------------------------------------------
-// Main calls
 
-extern void WebPInitUpsamplersSSE2(void);
-extern void WebPInitUpsamplersNEON(void);
 extern void WebPInitUpsamplersMIPSdspR2(void);
 
-void WebPInitUpsamplers(void) {
+void WebPInitUpsamplersMIPSdspR2(void) {
+#if defined(WEBP_USE_MIPS_DSP_R2)
 #ifdef FANCY_UPSAMPLING
   WebPUpsamplers[MODE_RGB]       = UpsampleRgbLinePair;
   WebPUpsamplers[MODE_RGBA]      = UpsampleRgbaLinePair;
@@ -203,29 +146,19 @@ void WebPInitUpsamplers(void) {
   WebPUpsamplers[MODE_bgrA]      = UpsampleBgraLinePair;
   WebPUpsamplers[MODE_Argb]      = UpsampleArgbLinePair;
   WebPUpsamplers[MODE_rgbA_4444] = UpsampleRgba4444LinePair;
-
-  // If defined, use CPUInfo() to overwrite some pointers with faster versions.
-  if (VP8GetCPUInfo != NULL) {
-#if defined(WEBP_USE_SSE2)
-    if (VP8GetCPUInfo(kSSE2)) {
-      WebPInitUpsamplersSSE2();
-    }
-#endif
-#if defined(WEBP_USE_NEON)
-    if (VP8GetCPUInfo(kNEON)) {
-      WebPInitUpsamplersNEON();
-    }
-#endif
-  }
 #endif  // FANCY_UPSAMPLING
-
-  if (VP8GetCPUInfo != NULL) {
-#if defined(WEBP_USE_MIPS_DSP_R2)
-    if (VP8GetCPUInfo(kMIPSdspR2)) {
-      WebPInitUpsamplersMIPSdspR2();
-    }
-#endif
-  }
+  WebPYUV444Converters[MODE_RGB]       = Yuv444ToRgb;
+  WebPYUV444Converters[MODE_RGBA]      = Yuv444ToRgba;
+  WebPYUV444Converters[MODE_BGR]       = Yuv444ToBgr;
+  WebPYUV444Converters[MODE_BGRA]      = Yuv444ToBgra;
+  WebPYUV444Converters[MODE_ARGB]      = Yuv444ToArgb;
+  WebPYUV444Converters[MODE_RGBA_4444] = Yuv444ToRgba4444;
+  WebPYUV444Converters[MODE_RGB_565]   = Yuv444ToRgb565;
+  WebPYUV444Converters[MODE_rgbA]      = Yuv444ToRgba;
+  WebPYUV444Converters[MODE_bgrA]      = Yuv444ToBgra;
+  WebPYUV444Converters[MODE_Argb]      = Yuv444ToArgb;
+  WebPYUV444Converters[MODE_rgbA_4444] = Yuv444ToRgba4444;
+#endif  // WEBP_USE_MIPS_DSP_R2
 }
 
 //------------------------------------------------------------------------------
