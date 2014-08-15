@@ -87,6 +87,7 @@ enum {
 
 // slower on x86 by ~7-8%, but bit-exact with the SSE2 version
 
+#if !defined(WEBP_USE_MIPS_DSP_R2)
 static WEBP_INLINE int VP8Clip8(int v) {
   return ((v & ~YUV_MASK2) == 0) ? (v >> YUV_FIX2) : (v < 0) ? 0 : 255;
 }
@@ -148,6 +149,7 @@ static WEBP_INLINE void VP8YuvToRgba4444(int y, int u, int v,
   argb[1] = ba;
 #endif
 }
+#endif  // !WEBP_USE_MIPS_DSP_R2
 
 #else
 
@@ -216,9 +218,14 @@ static WEBP_INLINE void VP8YuvToRgba4444(int y, int u, int v,
 
 #endif  // WEBP_YUV_USE_TABLE
 
+#if defined(WEBP_USE_MIPS_DSP_R2)
+#include "./yuv_mips_dsp_r2.h"
+#endif
+
 //-----------------------------------------------------------------------------
 // Alpha handling variants
 
+#if !defined(WEBP_USE_MIPS_DSP_R2)
 static WEBP_INLINE void VP8YuvToArgb(uint8_t y, uint8_t u, uint8_t v,
                                      uint8_t* const argb) {
   argb[0] = 0xff;
@@ -236,6 +243,7 @@ static WEBP_INLINE void VP8YuvToRgba(uint8_t y, uint8_t u, uint8_t v,
   VP8YuvToRgb(y, u, v, rgba);
   rgba[3] = 0xff;
 }
+#endif
 
 // Must be called before everything, to initialize the tables.
 void VP8YUVInit(void);
