@@ -152,6 +152,7 @@ ENC_OBJS = \
     src/enc/picture_rescale.o \
     src/enc/picture_tools.o \
     src/enc/quant.o \
+    src/enc/quant_avx2.o \
     src/enc/syntax.o \
     src/enc/token.o \
     src/enc/tree.o \

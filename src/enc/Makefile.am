@@ -1,4 +1,9 @@
-noinst_LTLIBRARIES = libwebpencode.la
+noinst_LTLIBRARIES = libwebpencode.la libwebpencode_avx2.la
+
+libwebpencode_avx2_la_SOURCES =
+libwebpencode_avx2_la_SOURCES += enc_avx2.c
+libwebpencode_avx2_la_CPPFLAGS = $(libwebpencode_la_CPPFLAGS)
+libwebpencode_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2_FLAGS)
 
 libwebpencode_la_SOURCES =
 libwebpencode_la_SOURCES += alpha.c
@@ -17,6 +22,7 @@ libwebpencode_la_SOURCES += picture_csp.c
 libwebpencode_la_SOURCES += picture_psnr.c
 libwebpencode_la_SOURCES += picture_rescale.c
 libwebpencode_la_SOURCES += picture_tools.c
+libwebpencode_la_SOURCES += quant.h
 libwebpencode_la_SOURCES += quant.c
 libwebpencode_la_SOURCES += syntax.c
 libwebpencode_la_SOURCES += token.c
@@ -34,3 +40,7 @@ noinst_HEADERS += ../webp/format_constants.h
 libwebpencode_la_LDFLAGS = -lm
 libwebpencode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE)
 libwebpencodeincludedir = $(includedir)/webp
+
+libwebpencode_la_CPPFLAGS = $(USE_EXPERIMENTAL_CODE) $(USE_SWAP_16BIT_CSP)
+libwebpencode_la_LDFLAGS = -lm
+libwebpencode_la_LIBADD = libwebpencode_avx2.la

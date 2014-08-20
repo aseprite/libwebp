@@ -151,7 +151,14 @@ typedef void (*VP8CHisto)(const uint8_t* ref, const uint8_t* pred,
 extern const int VP8DspScan[16 + 4 + 4];
 extern VP8CHisto VP8CollectHistogram;
 
+struct VP8EncIterator;
+struct VP8ModeScore;
+// specific to 2nd transform:
+typedef int (*VP8PickBestIntra4)(struct VP8EncIterator* const it, struct VP8ModeScore* const rd);
+extern VP8PickBestIntra4 VP8EncPickBestIntra4;
+
 void VP8EncDspInit(void);   // must be called before using any of the above
+void VP8EncQuantInit(void);   // must be called before using any of the above
 
 //------------------------------------------------------------------------------
 // Decoding

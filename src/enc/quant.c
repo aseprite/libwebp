@@ -15,10 +15,8 @@
 #include <math.h>
 #include <stdlib.h>  // for abs()
 
-#include "./vp8enci.h"
-#include "./cost.h"
+#include "quant.h"
 
-#define DO_TRELLIS_I4  1
 #define DO_TRELLIS_I16 1   // not a huge gain, but ok at low bitrate.
 #define DO_TRELLIS_UV  0   // disable trellis for UV. Risky. Not worth.
 #define USE_TDISTO 1
@@ -103,10 +101,6 @@ static void PrintBlockInfo(const VP8EncIterator* const it,
 static WEBP_INLINE int clip(int v, int m, int M) {
   return v < m ? m : v > M ? M : v;
 }
-
-static const uint8_t kZigzag[16] = {
-  0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15
-};
 
 static const uint8_t kDcTable[128] = {
   4,     5,   6,   7,   8,   9,  10,  10,
@@ -466,86 +460,10 @@ static const int VP8ScanUV[4 + 4] = {
   8 + 0 * BPS,  12 + 0 * BPS, 8 + 4 * BPS, 12 + 4 * BPS     // V
 };
 
-//------------------------------------------------------------------------------
-// Distortion measurement
-
-static const uint16_t kWeightY[16] = {
-  38, 32, 20, 9, 32, 28, 17, 7, 20, 17, 10, 4, 9, 7, 4, 2
-};
-
-static const uint16_t kWeightTrellis[16] = {
-#if USE_TDISTO == 0
-  16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16
-#else
-  30, 27, 19, 11,
-  27, 24, 17, 10,
-  19, 17, 12,  8,
-  11, 10,  8,  6
-#endif
-};
-
-// Init/Copy the common fields in score.
-static void InitScore(VP8ModeScore* const rd) {
-  rd->D  = 0;
-  rd->SD = 0;
-  rd->R  = 0;
-  rd->H  = 0;
-  rd->nz = 0;
-  rd->score = MAX_COST;
-}
-
-static void CopyScore(VP8ModeScore* const dst, const VP8ModeScore* const src) {
-  dst->D  = src->D;
-  dst->SD = src->SD;
-  dst->R  = src->R;
-  dst->H  = src->H;
-  dst->nz = src->nz;      // note that nz is not accumulated, but just copied.
-  dst->score = src->score;
-}
-
-static void AddScore(VP8ModeScore* const dst, const VP8ModeScore* const src) {
-  dst->D  += src->D;
-  dst->SD += src->SD;
-  dst->R  += src->R;
-  dst->H  += src->H;
-  dst->nz |= src->nz;     // here, new nz bits are accumulated.
-  dst->score += src->score;
-}
 
 //------------------------------------------------------------------------------
 // Performs trellis-optimized quantization.
 
-// Trellis node
-typedef struct {
-  int8_t prev;            // best previous node
-  int8_t sign;            // sign of coeff_i
-  int16_t level;          // level
-} Node;
-
-// Score state
-typedef struct {
-  score_t score;          // partial RD score
-  const uint16_t* costs;  // shortcut to cost tables
-} ScoreState;
-
-// If a coefficient was quantized to a value Q (using a neutral bias),
-// we test all alternate possibilities between [Q-MIN_DELTA, Q+MAX_DELTA]
-// We don't test negative values though.
-#define MIN_DELTA 0   // how much lower level to try
-#define MAX_DELTA 1   // how much higher
-#define NUM_NODES (MIN_DELTA + 1 + MAX_DELTA)
-#define NODE(n, l) (nodes[(n)][(l) + MIN_DELTA])
-#define SCORE_STATE(n, l) (score_states[n][(l) + MIN_DELTA])
-
-static WEBP_INLINE void SetRDScore(int lambda, VP8ModeScore* const rd) {
-  // TODO: incorporate the "* 256" in the tables?
-  rd->score = (rd->R + rd->H) * lambda + 256 * (rd->D + rd->SD);
-}
-
-static WEBP_INLINE score_t RDScoreTrellis(int lambda, score_t rate,
-                                          score_t distortion) {
-  return rate * lambda + 256 * distortion;
-}
 
 static int TrellisQuantizeBlock(const VP8Encoder* const enc,
                                 int16_t in[16], int16_t out[16],
@@ -842,29 +760,6 @@ static void StoreMaxDelta(VP8SegmentInfo* const dqm, const int16_t DCs[16]) {
   if (max_v > dqm->max_edge_) dqm->max_edge_ = max_v;
 }
 
-static void SwapPtr(uint8_t** a, uint8_t** b) {
-  uint8_t* const tmp = *a;
-  *a = *b;
-  *b = tmp;
-}
-
-static void SwapOut(VP8EncIterator* const it) {
-  SwapPtr(&it->yuv_out_, &it->yuv_out2_);
-}
-
-static score_t IsFlat(const int16_t* levels, int num_blocks, score_t thresh) {
-  score_t score = 0;
-  while (num_blocks-- > 0) {      // TODO(skal): refine positional scoring?
-    int i;
-    for (i = 1; i < 16; ++i) {    // omit DC, we're only interested in AC
-      score += (levels[i] != 0);
-      if (score > thresh) return 0;
-    }
-    levels += 16;
-  }
-  return 1;
-}
-
 static void PickBestIntra16(VP8EncIterator* const it, VP8ModeScore* const rd) {
   const int kNumBlocks = 16;
   VP8SegmentInfo* const dqm = &it->enc_->dqm_[it->mb_->segment_];
@@ -918,16 +813,6 @@ static void PickBestIntra16(VP8EncIterator* const it, VP8ModeScore* const rd) {
 
 //------------------------------------------------------------------------------
 
-// return the cost array corresponding to the surrounding prediction modes.
-static const uint16_t* GetCostModeI4(VP8EncIterator* const it,
-                                     const uint8_t modes[16]) {
-  const int preds_w = it->enc_->preds_w_;
-  const int x = (it->i4_ & 3), y = it->i4_ >> 2;
-  const int left = (x == 0) ? it->preds_[y * preds_w - 1] : modes[it->i4_ - 1];
-  const int top = (y == 0) ? it->preds_[-preds_w + x] : modes[it->i4_ - 4];
-  return VP8FixedCostsI4[top][left];
-}
-
 static int PickBestIntra4(VP8EncIterator* const it, VP8ModeScore* const rd) {
   const VP8Encoder* const enc = it->enc_;
   const VP8SegmentInfo* const dqm = &enc->dqm_[it->mb_->segment_];
@@ -941,7 +826,6 @@ static int PickBestIntra4(VP8EncIterator* const it, VP8ModeScore* const rd) {
   if (enc->max_i4_header_bits_ == 0) {
     return 0;
   }
-
   InitScore(&rd_best);
   rd_best.H = 211;  // '211' is the value of VP8BitCost(0, 145)
   SetRDScore(dqm->lambda_mode_, &rd_best);
@@ -1150,7 +1034,7 @@ int VP8Decimate(VP8EncIterator* const it, VP8ModeScore* const rd,
     it->do_trellis_ = (rd_opt >= RD_OPT_TRELLIS_ALL);
     PickBestIntra16(it, rd);
     if (method >= 2) {
-      PickBestIntra4(it, rd);
+      VP8EncPickBestIntra4(it, rd);
     }
     PickBestUV(it, rd);
     if (rd_opt == RD_OPT_TRELLIS) {   // finish off with trellis-optim now
@@ -1168,3 +1052,16 @@ int VP8Decimate(VP8EncIterator* const it, VP8ModeScore* const rd,
   return is_skipped;
 }
 
+
+VP8PickBestIntra4 VP8EncPickBestIntra4;
+
+extern void VP8EncQuantInitAVX2(void);
+
+void VP8EncQuantInit(void) {
+  VP8EncPickBestIntra4 = PickBestIntra4;
+#if defined(WEBP_USE_AVX2)
+    if (VP8GetCPUInfo(kAVX2)) {
+      VP8EncQuantInitAVX2();
+    }
+#endif
+}
