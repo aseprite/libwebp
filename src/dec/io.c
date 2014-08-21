@@ -14,8 +14,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "../dec/vp8i.h"
-#include "./webpi.h"
 #include "../dsp/dsp.h"
+#include "../dsp/io.h"
 #include "../dsp/yuv.h"
 #include "../utils/utils.h"
 
@@ -167,32 +167,6 @@ static int EmitAlphaYUV(const VP8Io* const io, WebPDecParams* const p) {
     }
   }
   return 0;
-}
-
-static int GetAlphaSourceRow(const VP8Io* const io,
-                             const uint8_t** alpha, int* const num_rows) {
-  int start_y = io->mb_y;
-  *num_rows = io->mb_h;
-
-  // Compensate for the 1-line delay of the fancy upscaler.
-  // This is similar to EmitFancyRGB().
-  if (io->fancy_upsampling) {
-    if (start_y == 0) {
-      // We don't process the last row yet. It'll be done during the next call.
-      --*num_rows;
-    } else {
-      --start_y;
-      // Fortunately, *alpha data is persistent, so we can go back
-      // one row and finish alpha blending, now that the fancy upscaler
-      // completed the YUV->RGB interpolation.
-      *alpha -= io->width;
-    }
-    if (io->crop_top + io->mb_y + io->mb_h == io->crop_bottom) {
-      // If it's the very last call, we process all the remaining rows!
-      *num_rows = io->crop_bottom - io->crop_top - start_y;
-    }
-  }
-  return start_y;
 }
 
 static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
@@ -590,10 +564,11 @@ static int CustomSetup(VP8Io* io) {
       p->emit = EmitYUV;
     }
     if (is_alpha) {  // need transparency output
+      VP8IOInit();
       p->emit_alpha =
           (colorspace == MODE_RGBA_4444 || colorspace == MODE_rgbA_4444) ?
               EmitAlphaRGBA4444
-          : is_rgb ? EmitAlphaRGB
+          : is_rgb ? VP8EmitAlphaRGB
           : EmitAlphaYUV;
       if (is_rgb) {
         WebPInitAlphaProcessing();
@@ -643,6 +618,23 @@ void WebPInitCustomIo(WebPDecParams* const params, VP8Io* const io) {
   io->setup    = CustomSetup;
   io->teardown = CustomTeardown;
   io->opaque   = params;
+}
+
+VP8EmitAlphaFunc VP8EmitAlphaRGB;
+
+extern void VP8IOInitMIPSdspR2(void);
+
+void VP8IOInit(void) {
+  VP8EmitAlphaRGB = EmitAlphaRGB;
+
+  // If defined, use CPUInfo() to overwrite some pointers with faster versions.
+  if (VP8GetCPUInfo != NULL) {
+#if defined(WEBP_USE_MIPS_DSP_R2)
+    if (VP8GetCPUInfo(kMIPSdspR2)) {
+      VP8IOInitMIPSdspR2();
+    }
+#endif
+  }
 }
 
 //------------------------------------------------------------------------------

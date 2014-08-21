@@ -115,6 +115,7 @@ DSP_DEC_OBJS = \
     src/dsp/dec_neon.o \
     src/dsp/dec_sse2.o \
     src/dsp/filters_mips_dsp_r2.o \
+    src/dsp/io_mips_dsp_r2.o \
     src/dsp/lossless.o \
     src/dsp/lossless_mips32.o \
     src/dsp/lossless_neon.o \
@@ -213,6 +214,7 @@ HDRS = \
     src/dec/vp8li.h \
     src/dec/webpi.h \
     src/dsp/dsp.h \
+    src/dsp/io.h \
     src/dsp/lossless.h \
     src/dsp/neon.h \
     src/dsp/yuv.h \
