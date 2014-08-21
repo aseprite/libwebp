@@ -251,6 +251,10 @@ extern void (*WebPApplyAlphaMultiply)(
 extern void (*WebPApplyAlphaMultiply4444)(
     uint8_t* rgba4444, int w, int h, int stride);
 
+extern uint32_t (*WebPFindAlphaMask)(uint8_t* const, const int, const int,
+                                     const int, const uint8_t*, const int,
+                                     const int);
+
 // Pre-Multiply operation transforms x into x * A / 255  (where x=Y,R,G or B).
 // Un-Multiply operation transforms x into x * 255 / A.
 

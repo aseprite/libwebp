@@ -284,25 +284,51 @@ static void ApplyAlphaMultiply_16b(uint8_t* rgba4444,
 #endif
 }
 
+static uint32_t FindAlphaMask(uint8_t* const base_rgba, const int alpha_first,
+                              const int num_rows, const int mb_w,
+                              const uint8_t* alpha, const int io_width,
+                              const int buf_stride) {
+  uint8_t* dst = base_rgba + (alpha_first ? 0 : 3);
+  uint32_t alpha_mask = 0xffffffff;
+  int i, j;
+
+  for (j = 0; j < num_rows; ++j) {
+    for (i = 0; i < mb_w; ++i) {
+      const uint32_t alpha_value = alpha[i];
+      dst[4 * i] = alpha_value;
+      alpha_mask &= alpha_value;
+    }
+    alpha += io_width;
+    dst += buf_stride;
+  }
+
+  return alpha_mask;
+}
+
 void (*WebPApplyAlphaMultiply)(uint8_t*, int, int, int, int);
 void (*WebPApplyAlphaMultiply4444)(uint8_t*, int, int, int);
+uint32_t (*WebPFindAlphaMask)(uint8_t* const, const int, const int, const int,
+                              const uint8_t*, const int, const int);
 
 //------------------------------------------------------------------------------
 // Init function
 
 extern void VP8FiltersInitMIPSdspR2(void);
+extern void WebPInitAlphaProcessingMIPSdspR2(void);
 
 void WebPInitAlphaProcessing(void) {
   WebPMultARGBRow = MultARGBRow;
   WebPMultRow = MultRow;
   WebPApplyAlphaMultiply = ApplyAlphaMultiply;
   WebPApplyAlphaMultiply4444 = ApplyAlphaMultiply_16b;
+  WebPFindAlphaMask = FindAlphaMask;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
     if (VP8GetCPUInfo(kMIPSdspR2)) {
       VP8FiltersInitMIPSdspR2();
+      WebPInitAlphaProcessingMIPSdspR2();
     }
 #endif
   }

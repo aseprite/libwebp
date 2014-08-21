@@ -206,19 +206,10 @@ static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
     int num_rows;
     const int start_y = GetAlphaSourceRow(io, &alpha, &num_rows);
     uint8_t* const base_rgba = buf->rgba + start_y * buf->stride;
-    uint8_t* dst = base_rgba + (alpha_first ? 0 : 3);
-    uint32_t alpha_mask = 0xff;
-    int i, j;
+    const uint32_t alpha_mask = WebPFindAlphaMask(base_rgba, alpha_first,
+                                                  num_rows, mb_w, alpha,
+                                                  io->width, buf->stride);
 
-    for (j = 0; j < num_rows; ++j) {
-      for (i = 0; i < mb_w; ++i) {
-        const uint32_t alpha_value = alpha[i];
-        dst[4 * i] = alpha_value;
-        alpha_mask &= alpha_value;
-      }
-      alpha += io->width;
-      dst += buf->stride;
-    }
     // alpha_mask is < 0xff if there's non-trivial alpha to premultiply with.
     if (alpha_mask != 0xff && WebPIsPremultipliedMode(colorspace)) {
       WebPApplyAlphaMultiply(base_rgba, alpha_first,
