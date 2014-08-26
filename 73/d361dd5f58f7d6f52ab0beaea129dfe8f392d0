@@ -1,0 +1,9 @@
+Code-Review+2: James Zern <jzern@google.com>
+Code-Review+2: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: pascal massimino <pascal.massimino@gmail.com>
+Verified+1: WebmJenkinsRoleAccount
+Submitted-by: pascal massimino <pascal.massimino@gmail.com>
+Submitted-at: Mon, 25 Aug 2014 21:11:36 -0700
+Reviewed-on: https://gerrit.chromium.org/gerrit/71342
+Project: webm/libwebp
+Branch: refs/heads/master
