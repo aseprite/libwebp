@@ -745,6 +745,34 @@ static void ExtractPalettedAlphaRows(VP8LDecoder* const dec, int row) {
   dec->last_row_ = dec->last_out_row_ = row;
 }
 
+// cyclic rotation of pattern word
+#if defined(WORDS_BIGENDIAN)
+#define ROTATE_WORD() do {                                                     \
+  temp1 = ((temp1 & 0xff000000) >> 24) | (temp1 << 8);                         \
+} while (0)
+#else
+#define ROTATE_WORD() do {                                                     \
+  temp1 = ((temp1 & 0xff) << 24) | (temp1 >> 8);                               \
+} while (0)
+#endif
+
+// copy 1, 2 or 4-bytes pattern
+#define COPY_PATTERN() do {                                                    \
+  while ((int32_t)pdata1 & 3) {                                                \
+    *pdata1++ = *pdata2++;                                                     \
+    ROTATE_WORD();                                                             \
+    ilength--;                                                                 \
+  }                                                                            \
+  pdata = (uint32_t*)pdata1;                                                   \
+  for (i = 0; i < ilength >> 2; ++i) {                                         \
+     *pdata++ = temp1;                                                         \
+  }                                                                            \
+  pdata1 = (uint8_t*)pdata;                                                    \
+  for (i = 0; i < (ilength & 3); ++i) {                                        \
+     *pdata1++ = *pdata2++;                                                    \
+  }                                                                            \
+} while (0)
+
 static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
                            int width, int height, int last_row) {
   int ok = 1;
@@ -791,8 +819,30 @@ static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(width, dist_code);
       if (pos >= dist && end - pos >= length) {
+        int ilength = length;
+        uint8_t* pdata1 = data + pos;
+        uint8_t* pdata2 = pdata1 - dist;
+        uint32_t temp0, temp1;
+        uint32_t* pdata;
         int i;
-        for (i = 0; i < length; ++i) data[pos + i] = data[pos + i - dist];
+        switch (dist) {
+          case 1:
+            temp0 = *(pdata1 - 1);
+            temp1 = (temp0 << 24) | (temp0 << 16) | (temp0 << 8) | temp0;
+            COPY_PATTERN();
+            break;
+          case 2:
+            temp0 = *(uint16_t*)(pdata1 - 2);
+            temp1 = (temp0 << 16) | temp0;
+            COPY_PATTERN();
+            break;
+          case 4:
+            temp1 = *(uint32_t*)(pdata1 - 4);
+            COPY_PATTERN();
+            break;
+          default:
+            for (i = 0; i < length; ++i) *pdata1++ = *pdata2++;
+        }
       } else {
         ok = 0;
         goto End;
@@ -830,6 +880,9 @@ static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
   }
   return ok;
 }
+
+#undef COPY_PATTERN
+#undef ROTATE_WORD
 
 static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
                            int width, int height, int last_row,
