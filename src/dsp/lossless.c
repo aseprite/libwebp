@@ -1182,6 +1182,20 @@ static void ColorSpaceInverseTransform(const VP8LTransform* const transform,
   }
 }
 
+
+#if defined(WEBP_USE_MIPS_DSP_R2)
+#include "./lossless_mips_dsp_r2.h"
+#else
+#define VALUE_COLOR_MAP(GET_INDEX, GET_VALUE, TYPE) do {                       \
+  for (y = y_start; y < y_end; ++y) {                                          \
+    int x;                                                                     \
+    for (x = 0; x < width; ++x) {                                              \
+      *dst++ = GET_VALUE(color_map[GET_INDEX(*src++)]);                        \
+    }                                                                          \
+  }                                                                            \
+} while (0)
+#endif
+
 // Separate out pixels packed together using pixel-bundling.
 // We define two methods for ARGB data (uint32_t) and alpha-only data (uint8_t).
 #define COLOR_INDEX_INVERSE(FUNC_NAME, TYPE, GET_INDEX, GET_VALUE)             \
@@ -1209,12 +1223,7 @@ void FUNC_NAME(const VP8LTransform* const transform,                           \
       }                                                                        \
     }                                                                          \
   } else {                                                                     \
-    for (y = y_start; y < y_end; ++y) {                                        \
-      int x;                                                                   \
-      for (x = 0; x < width; ++x) {                                            \
-        *dst++ = GET_VALUE(color_map[GET_INDEX(*src++)]);                      \
-      }                                                                        \
-    }                                                                          \
+    VALUE_COLOR_MAP(GET_INDEX, GET_VALUE, TYPE);                               \
   }                                                                            \
 }
 
