@@ -164,6 +164,37 @@ typedef void (*VP8LHistogramAddFunc)(const VP8LHistogram* const a,
 extern VP8LHistogramAddFunc VP8LHistogramAdd;
 
 // -----------------------------------------------------------------------------
+// color mapping related functions.
+
+static WEBP_INLINE uint32_t GetARGBIndex(uint32_t idx) {
+  return (idx >> 8) & 0xff;
+}
+
+static WEBP_INLINE uint8_t GetAlphaIndex(uint8_t idx) {
+  return idx;
+}
+
+static WEBP_INLINE uint32_t GetARGBValue(uint32_t val) {
+  return val;
+}
+
+static WEBP_INLINE uint8_t GetAlphaValue(uint32_t val) {
+  return (val >> 8) & 0xff;
+}
+
+typedef void (*VP8LMapARGBFunc)(const uint32_t* src,
+                                const uint32_t* const color_map,
+                                uint32_t* dst, int y_start,
+                                int y_end, int width);
+typedef void (*VP8LMapAlphaFunc)(const uint8_t* src,
+                                 const uint32_t* const color_map,
+                                 uint8_t* dst, int y_start,
+                                 int y_end, int width);
+
+extern VP8LMapARGBFunc VP8LMapColor_uint32_t;
+extern VP8LMapAlphaFunc VP8LMapColor_uint8_t;
+
+// -----------------------------------------------------------------------------
 // PrefixEncode()
 
 static WEBP_INLINE int VP8LBitsLog2Ceiling(uint32_t n) {
