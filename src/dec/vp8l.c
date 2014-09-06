@@ -813,6 +813,7 @@ static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
       ok = 0;
       goto End;
     }
+    assert(br->eos_ == VP8LIsEndOfStream(br));
     ok = !br->error_;
     if (!ok) goto End;
   }
@@ -930,6 +931,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       ok = 0;
       goto End;
     }
+    assert(br->eos_ == VP8LIsEndOfStream(br));
     ok = !br->error_;
     if (!ok) goto End;
   }
