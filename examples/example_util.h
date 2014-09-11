@@ -20,6 +20,18 @@
 extern "C" {
 #endif
 
+//------------------------------------------------------------------------------
+// String parsing
+
+// Parses 'v' using strto(ul|l|d)(). '*error' is set to true on failure while on
+// success it is left unmodified to allow chaining of calls.
+uint32_t ExUtilGetUInt(const char* const v, int base, int* const error);
+int ExUtilGetInt(const char* const v, int base, int* const error);
+float ExUtilGetFloat(const char* const v, int* const error);
+
+//------------------------------------------------------------------------------
+// File I/O
+
 // Reopen file in binary (O_BINARY) mode.
 // Returns 'file' on success, NULL otherwise.
 FILE* ExUtilSetBinaryMode(FILE* file);
