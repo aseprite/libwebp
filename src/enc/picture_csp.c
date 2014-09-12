@@ -444,7 +444,6 @@ static int ConvertWRGBToYUV(const fixed_y_t* const best_y,
   return 1;
 }
 
-
 //------------------------------------------------------------------------------
 // Main function
 
@@ -580,6 +579,22 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
 #define SUM2V(ptr) \
     LinearToGamma(GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[rgb_stride]), 1)
 
+#define SUM2A(ptr) ((ptr)[0] + (ptr)[step])
+#define SUM4A(ptr) (SUM2A(ptr) + SUM2A((ptr) + rgb_stride))
+
+static WEBP_INLINE int LinearToGammaWeighted(const uint8_t* src,
+                                             const uint8_t* a_ptr,
+                                             int total_a, int step,
+                                             int rgb_stride) {
+  const int sum = 
+      a_ptr[0] * GammaToLinear(src[0]) +
+      a_ptr[step] * GammaToLinear(src[step]) +
+      a_ptr[rgb_stride] * GammaToLinear(src[rgb_stride]) +
+      a_ptr[rgb_stride + step] * GammaToLinear(src[rgb_stride + step]);
+  assert(total_a > 0 && total_a < 4 * 0xff);
+  return LinearToGamma(4 * sum / total_a, 0);
+}
+
 static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
                                       const uint8_t* const g_ptr,
                                       const uint8_t* const b_ptr,
@@ -593,6 +608,51 @@ static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
   }
 }
 
+static WEBP_INLINE void ConvertRowsToUVWithAlpha(const uint8_t* const r_ptr,
+                                                 const uint8_t* const g_ptr,
+                                                 const uint8_t* const b_ptr,
+                                                 const uint8_t* const a_ptr,
+                                                 int step, int rgb_stride,
+                                                 uint8_t* const dst_u,
+                                                 uint8_t* const dst_v,
+                                                 int width,
+                                                 VP8Random* const rg) {
+  int i, j;
+  for (i = 0, j = 0; i < (width >> 1); ++i, j += 2 * step) {
+    const int a = SUM4A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM4(r_ptr + j);
+      g = SUM4(g_ptr + j);
+      b = SUM4(b_ptr + j);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, step, rgb_stride);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, step, rgb_stride);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, step, rgb_stride);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+  if (width & 1) {
+    const int a = 2 * SUM2A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM2V(r_ptr + j);
+      g = SUM2V(g_ptr + j);
+      b = SUM2V(b_ptr + j);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, step, 0);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, step, 0);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, step, 0);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+}
 static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
                                         const uint8_t* const g_ptr,
                                         const uint8_t* const b_ptr,
@@ -616,6 +676,18 @@ static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
     dst_u[i] = RGBToU(r, g, b, rg);
     dst_v[i] = RGBToV(r, g, b, rg);
   }
+}
+
+// Returns true if there's only trivial 0xff alpha values.
+static int ImportAlphaRow(const uint8_t* src, uint8_t* dst,
+                          int width, int step) {
+  int alphas = 0xff;
+  int i;
+  for (i = 0; i < width; ++i) {
+    dst[i] = src[i * step];
+    alphas &= dst[i];
+  }
+  return (alphas == 0xff);
 }
 
 static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
@@ -654,6 +726,7 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
     uint8_t* dst_y = picture->y;
     uint8_t* dst_u = picture->u;
     uint8_t* dst_v = picture->v;
+    uint8_t* dst_a = picture->a;
 
     VP8Random base_rg;
     VP8Random* rg = NULL;
@@ -666,6 +739,7 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
 
     // Downsample Y/U/V planes, two rows at a time
     for (y = 0; y < (height >> 1); ++y) {
+      int trivial_alpha = !has_alpha;
       const int off1 = (2 * y + 0) * rgb_stride;
       const int off2 = (2 * y + 1) * rgb_stride;
       ConvertRowToY(r_ptr + off1, g_ptr + off1, b_ptr + off1, step,
@@ -673,28 +747,38 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
       ConvertRowToY(r_ptr + off2, g_ptr + off2, b_ptr + off2, step,
                     dst_y + picture->y_stride, width, rg);
       dst_y += 2 * picture->y_stride;
-      ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
-                      step, rgb_stride, dst_u, dst_v, width, rg);
+      if (!trivial_alpha) {
+        assert(step >= 4);
+        trivial_alpha |= ImportAlphaRow(a_ptr + off1, dst_a, width, step);
+        dst_a += picture->a_stride;
+        trivial_alpha |= ImportAlphaRow(a_ptr + off2, dst_a, width, step);
+        dst_a += picture->a_stride;
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                        step, rgb_stride, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                                 a_ptr + off1, step, rgb_stride, dst_u, dst_v,
+                                 width, rg);
+      }
       dst_u += picture->uv_stride;
       dst_v += picture->uv_stride;
     }
     if (height & 1) {    // extra last row
       const int off = 2 * y * rgb_stride;
+      int trivial_alpha = !has_alpha;
       ConvertRowToY(r_ptr + off, g_ptr + off, b_ptr + off, step,
                     dst_y, width, rg);
-      ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
-                      step, 0, dst_u, dst_v, width, rg);
-    }
-  }
-
-  if (has_alpha) {
-    assert(step >= 4);
-    assert(picture->a != NULL);
-    for (y = 0; y < height; ++y) {
-      int x;
-      for (x = 0; x < width; ++x) {
-        picture->a[x + y * picture->a_stride] =
-            a_ptr[step * x + y * rgb_stride];
+      if (!trivial_alpha) {
+        trivial_alpha |= ImportAlphaRow(a_ptr + off, dst_a, width, step);
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
+                        step, 0, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off, g_ptr + off, b_ptr + off,
+                                 a_ptr + off, step, 0, dst_u, dst_v, width, rg);
       }
     }
   }
