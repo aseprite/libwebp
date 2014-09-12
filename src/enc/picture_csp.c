@@ -444,7 +444,6 @@ static int ConvertWRGBToYUV(const fixed_y_t* const best_y,
   return 1;
 }
 
-
 //------------------------------------------------------------------------------
 // Main function
 
@@ -580,6 +579,157 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
 #define SUM2V(ptr) \
     LinearToGamma(GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[rgb_stride]), 1)
 
+#define SUM2A(ptr) ((ptr)[0] + (ptr)[step])
+#define SUM4A(ptr) (SUM2A(ptr) + SUM2A((ptr) + rgb_stride))
+
+static const int kAlphaFix = 18;
+// 4 * v / a is bit-wise the same as (v * inv_a) >> 18, for v in [0..255],
+// a in [0..4*0xff) and inv_a = ((4 << 18) + 1004) / a
+static const uint32_t kInvAlpha[4 * 0xff + 1] = {  // ((4 << 18) + 1004) / alpha
+  0,  /* alpha = 0 */
+  1049580, 524790, 349860, 262395, 209916, 174930, 149940, 131197,
+  116620, 104958, 95416, 87465, 80736, 74970, 69972, 65598,
+  61740, 58310, 55241, 52479, 49980, 47708, 45633, 43732,
+  41983, 40368, 38873, 37485, 36192, 34986, 33857, 32799,
+  31805, 30870, 29988, 29155, 28367, 27620, 26912, 26239,
+  25599, 24990, 24408, 23854, 23324, 22816, 22331, 21866,
+  21420, 20991, 20580, 20184, 19803, 19436, 19083, 18742,
+  18413, 18096, 17789, 17493, 17206, 16928, 16660, 16399,
+  16147, 15902, 15665, 15435, 15211, 14994, 14782, 14577,
+  14377, 14183, 13994, 13810, 13630, 13456, 13285, 13119,
+  12957, 12799, 12645, 12495, 12348, 12204, 12064, 11927,
+  11793, 11662, 11533, 11408, 11285, 11165, 11048, 10933,
+  10820, 10710, 10601, 10495, 10391, 10290, 10190, 10092,
+  9996,  9901,  9809,  9718,  9629,  9541,  9455,  9371,
+  9288,  9206,  9126,  9048,  8970,  8894,  8820,  8746,
+  8674,  8603,  8533,  8464,  8396,  8330,  8264,  8199,
+  8136,  8073,  8012,  7951,  7891,  7832,  7774,  7717,
+  7661,  7605,  7550,  7497,  7443,  7391,  7339,  7288,
+  7238,  7188,  7140,  7091,  7044,  6997,  6950,  6905,
+  6860,  6815,  6771,  6728,  6685,  6642,  6601,  6559,
+  6519,  6478,  6439,  6399,  6361,  6322,  6284,  6247,
+  6210,  6174,  6137,  6102,  6066,  6032,  5997,  5963,
+  5929,  5896,  5863,  5831,  5798,  5766,  5735,  5704,
+  5673,  5642,  5612,  5582,  5553,  5524,  5495,  5466,
+  5438,  5410,  5382,  5355,  5327,  5300,  5274,  5247,
+  5221,  5195,  5170,  5145,  5119,  5095,  5070,  5046,
+  5021,  4998,  4974,  4950,  4927,  4904,  4881,  4859,
+  4836,  4814,  4792,  4770,  4749,  4727,  4706,  4685,
+  4664,  4644,  4623,  4603,  4583,  4563,  4543,  4524,
+  4504,  4485,  4466,  4447,  4428,  4410,  4391,  4373,
+  4355,  4337,  4319,  4301,  4284,  4266,  4249,  4232,
+  4215,  4198,  4181,  4165,  4148,  4132,  4116,  4099,
+  4083,  4068,  4052,  4036,  4021,  4006,  3990,  3975,
+  3960,  3945,  3931,  3916,  3901,  3887,  3872,  3858,
+  3844,  3830,  3816,  3802,  3789,  3775,  3761,  3748,
+  3735,  3721,  3708,  3695,  3682,  3669,  3657,  3644,
+  3631,  3619,  3606,  3594,  3582,  3570,  3557,  3545,
+  3533,  3522,  3510,  3498,  3486,  3475,  3463,  3452,
+  3441,  3430,  3418,  3407,  3396,  3385,  3374,  3364,
+  3353,  3342,  3332,  3321,  3310,  3300,  3290,  3279,
+  3269,  3259,  3249,  3239,  3229,  3219,  3209,  3199,
+  3190,  3180,  3170,  3161,  3151,  3142,  3133,  3123,
+  3114,  3105,  3096,  3087,  3077,  3068,  3060,  3051,
+  3042,  3033,  3024,  3016,  3007,  2998,  2990,  2981,
+  2973,  2964,  2956,  2948,  2940,  2931,  2923,  2915,
+  2907,  2899,  2891,  2883,  2875,  2867,  2859,  2852,
+  2844,  2836,  2829,  2821,  2813,  2806,  2798,  2791,
+  2784,  2776,  2769,  2762,  2754,  2747,  2740,  2733,
+  2726,  2719,  2712,  2705,  2698,  2691,  2684,  2677,
+  2670,  2663,  2657,  2650,  2643,  2637,  2630,  2623,
+  2617,  2610,  2604,  2597,  2591,  2585,  2578,  2572,
+  2566,  2559,  2553,  2547,  2541,  2535,  2529,  2523,
+  2516,  2510,  2504,  2499,  2493,  2487,  2481,  2475,
+  2469,  2463,  2458,  2452,  2446,  2440,  2435,  2429,
+  2423,  2418,  2412,  2407,  2401,  2396,  2390,  2385,
+  2380,  2374,  2369,  2363,  2358,  2353,  2348,  2342,
+  2337,  2332,  2327,  2322,  2316,  2311,  2306,  2301,
+  2296,  2291,  2286,  2281,  2276,  2271,  2266,  2262,
+  2257,  2252,  2247,  2242,  2237,  2233,  2228,  2223,
+  2218,  2214,  2209,  2205,  2200,  2195,  2191,  2186,
+  2182,  2177,  2173,  2168,  2164,  2159,  2155,  2150,
+  2146,  2142,  2137,  2133,  2128,  2124,  2120,  2116,
+  2111,  2107,  2103,  2099,  2094,  2090,  2086,  2082,
+  2078,  2074,  2070,  2066,  2062,  2058,  2053,  2049,
+  2045,  2041,  2038,  2034,  2030,  2026,  2022,  2018,
+  2014,  2010,  2006,  2003,  1999,  1995,  1991,  1987,
+  1984,  1980,  1976,  1972,  1969,  1965,  1961,  1958,
+  1954,  1950,  1947,  1943,  1940,  1936,  1932,  1929,
+  1925,  1922,  1918,  1915,  1911,  1908,  1904,  1901,
+  1897,  1894,  1891,  1887,  1884,  1880,  1877,  1874,
+  1870,  1867,  1864,  1860,  1857,  1854,  1851,  1847,
+  1844,  1841,  1838,  1834,  1831,  1828,  1825,  1822,
+  1819,  1815,  1812,  1809,  1806,  1803,  1800,  1797,
+  1794,  1791,  1788,  1785,  1781,  1778,  1775,  1772,
+  1769,  1766,  1764,  1761,  1758,  1755,  1752,  1749,
+  1746,  1743,  1740,  1737,  1734,  1731,  1729,  1726,
+  1723,  1720,  1717,  1715,  1712,  1709,  1706,  1703,
+  1701,  1698,  1695,  1692,  1690,  1687,  1684,  1682,
+  1679,  1676,  1673,  1671,  1668,  1666,  1663,  1660,
+  1658,  1655,  1652,  1650,  1647,  1645,  1642,  1639,
+  1637,  1634,  1632,  1629,  1627,  1624,  1622,  1619,
+  1617,  1614,  1612,  1609,  1607,  1604,  1602,  1599,
+  1597,  1595,  1592,  1590,  1587,  1585,  1583,  1580,
+  1578,  1575,  1573,  1571,  1568,  1566,  1564,  1561,
+  1559,  1557,  1554,  1552,  1550,  1548,  1545,  1543,
+  1541,  1538,  1536,  1534,  1532,  1530,  1527,  1525,
+  1523,  1521,  1518,  1516,  1514,  1512,  1510,  1508,
+  1505,  1503,  1501,  1499,  1497,  1495,  1493,  1490,
+  1488,  1486,  1484,  1482,  1480,  1478,  1476,  1474,
+  1472,  1470,  1467,  1465,  1463,  1461,  1459,  1457,
+  1455,  1453,  1451,  1449,  1447,  1445,  1443,  1441,
+  1439,  1437,  1435,  1433,  1431,  1429,  1428,  1426,
+  1424,  1422,  1420,  1418,  1416,  1414,  1412,  1410,
+  1408,  1406,  1405,  1403,  1401,  1399,  1397,  1395,
+  1393,  1392,  1390,  1388,  1386,  1384,  1382,  1381,
+  1379,  1377,  1375,  1373,  1372,  1370,  1368,  1366,
+  1364,  1363,  1361,  1359,  1357,  1356,  1354,  1352,
+  1350,  1349,  1347,  1345,  1343,  1342,  1340,  1338,
+  1337,  1335,  1333,  1331,  1330,  1328,  1326,  1325,
+  1323,  1321,  1320,  1318,  1316,  1315,  1313,  1311,
+  1310,  1308,  1307,  1305,  1303,  1302,  1300,  1298,
+  1297,  1295,  1294,  1292,  1290,  1289,  1287,  1286,
+  1284,  1283,  1281,  1279,  1278,  1276,  1275,  1273,
+  1272,  1270,  1269,  1267,  1266,  1264,  1263,  1261,
+  1260,  1258,  1256,  1255,  1253,  1252,  1250,  1249,
+  1248,  1246,  1245,  1243,  1242,  1240,  1239,  1237,
+  1236,  1234,  1233,  1231,  1230,  1229,  1227,  1226,
+  1224,  1223,  1221,  1220,  1219,  1217,  1216,  1214,
+  1213,  1211,  1210,  1209,  1207,  1206,  1205,  1203,
+  1202,  1200,  1199,  1198,  1196,  1195,  1194,  1192,
+  1191,  1190,  1188,  1187,  1185,  1184,  1183,  1181,
+  1180,  1179,  1177,  1176,  1175,  1174,  1172,  1171,
+  1170,  1168,  1167,  1166,  1164,  1163,  1162,  1161,
+  1159,  1158,  1157,  1155,  1154,  1153,  1152,  1150,
+  1149,  1148,  1147,  1145,  1144,  1143,  1142,  1140,
+  1139,  1138,  1137,  1135,  1134,  1133,  1132,  1131,
+  1129,  1128,  1127,  1126,  1124,  1123,  1122,  1121,
+  1120,  1118,  1117,  1116,  1115,  1114,  1113,  1111,
+  1110,  1109,  1108,  1107,  1105,  1104,  1103,  1102,
+  1101,  1100,  1099,  1097,  1096,  1095,  1094,  1093,
+  1092,  1091,  1089,  1088,  1087,  1086,  1085,  1084,
+  1083,  1082,  1080,  1079,  1078,  1077,  1076,  1075,
+  1074,  1073,  1072,  1071,  1069,  1068,  1067,  1066,
+  1065,  1064,  1063,  1062,  1061,  1060,  1059,  1058,
+  1056,  1055,  1054,  1053,  1052,  1051,  1050,  1049,
+  1048,  1047,  1046,  1045,  1044,  1043,  1042,  1041,
+  1040,  1039,  1038,  1037,  1036,  1035,  1034,  1033,
+  1032,  1031,  1030,  1029
+};
+static WEBP_INLINE int LinearToGammaWeighted(const uint8_t* src,
+                                             const uint8_t* a_ptr,
+                                             int total_a, int step,
+                                             int rgb_stride) {
+  const int sum =
+      a_ptr[0] * GammaToLinear(src[0]) +
+      a_ptr[step] * GammaToLinear(src[step]) +
+      a_ptr[rgb_stride] * GammaToLinear(src[rgb_stride]) +
+      a_ptr[rgb_stride + step] * GammaToLinear(src[rgb_stride + step]);
+  assert(total_a >= 0 && total_a <= 4 * 0xff);
+  // equivalent to: return LinearToGamma(4 * sum / total_a, 0);
+  return LinearToGamma((sum * kInvAlpha[total_a]) >> kAlphaFix, 0);
+}
+
 static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
                                       const uint8_t* const g_ptr,
                                       const uint8_t* const b_ptr,
@@ -593,6 +743,51 @@ static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
   }
 }
 
+static WEBP_INLINE void ConvertRowsToUVWithAlpha(const uint8_t* const r_ptr,
+                                                 const uint8_t* const g_ptr,
+                                                 const uint8_t* const b_ptr,
+                                                 const uint8_t* const a_ptr,
+                                                 int step, int rgb_stride,
+                                                 uint8_t* const dst_u,
+                                                 uint8_t* const dst_v,
+                                                 int width,
+                                                 VP8Random* const rg) {
+  int i, j;
+  for (i = 0, j = 0; i < (width >> 1); ++i, j += 2 * step) {
+    const int a = SUM4A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM4(r_ptr + j);
+      g = SUM4(g_ptr + j);
+      b = SUM4(b_ptr + j);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, step, rgb_stride);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, step, rgb_stride);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, step, rgb_stride);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+  if (width & 1) {
+    const int a = 2 * SUM2A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM2V(r_ptr + j);
+      g = SUM2V(g_ptr + j);
+      b = SUM2V(b_ptr + j);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, step, 0);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, step, 0);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, step, 0);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+}
 static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
                                         const uint8_t* const g_ptr,
                                         const uint8_t* const b_ptr,
@@ -616,6 +811,18 @@ static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
     dst_u[i] = RGBToU(r, g, b, rg);
     dst_v[i] = RGBToV(r, g, b, rg);
   }
+}
+
+// Returns true if there's only trivial 0xff alpha values.
+static int ImportAlphaRow(const uint8_t* src, uint8_t* dst,
+                          int width, int step) {
+  int alphas = 0xff;
+  int i;
+  for (i = 0; i < width; ++i) {
+    dst[i] = src[i * step];
+    alphas &= dst[i];
+  }
+  return (alphas == 0xff);
 }
 
 static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
@@ -654,6 +861,7 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
     uint8_t* dst_y = picture->y;
     uint8_t* dst_u = picture->u;
     uint8_t* dst_v = picture->v;
+    uint8_t* dst_a = picture->a;
 
     VP8Random base_rg;
     VP8Random* rg = NULL;
@@ -666,6 +874,7 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
 
     // Downsample Y/U/V planes, two rows at a time
     for (y = 0; y < (height >> 1); ++y) {
+      int trivial_alpha = !has_alpha;
       const int off1 = (2 * y + 0) * rgb_stride;
       const int off2 = (2 * y + 1) * rgb_stride;
       ConvertRowToY(r_ptr + off1, g_ptr + off1, b_ptr + off1, step,
@@ -673,28 +882,38 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
       ConvertRowToY(r_ptr + off2, g_ptr + off2, b_ptr + off2, step,
                     dst_y + picture->y_stride, width, rg);
       dst_y += 2 * picture->y_stride;
-      ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
-                      step, rgb_stride, dst_u, dst_v, width, rg);
+      if (!trivial_alpha) {
+        assert(step >= 4);
+        trivial_alpha |= ImportAlphaRow(a_ptr + off1, dst_a, width, step);
+        dst_a += picture->a_stride;
+        trivial_alpha |= ImportAlphaRow(a_ptr + off2, dst_a, width, step);
+        dst_a += picture->a_stride;
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                        step, rgb_stride, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                                 a_ptr + off1, step, rgb_stride, dst_u, dst_v,
+                                 width, rg);
+      }
       dst_u += picture->uv_stride;
       dst_v += picture->uv_stride;
     }
     if (height & 1) {    // extra last row
       const int off = 2 * y * rgb_stride;
+      int trivial_alpha = !has_alpha;
       ConvertRowToY(r_ptr + off, g_ptr + off, b_ptr + off, step,
                     dst_y, width, rg);
-      ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
-                      step, 0, dst_u, dst_v, width, rg);
-    }
-  }
-
-  if (has_alpha) {
-    assert(step >= 4);
-    assert(picture->a != NULL);
-    for (y = 0; y < height; ++y) {
-      int x;
-      for (x = 0; x < width; ++x) {
-        picture->a[x + y * picture->a_stride] =
-            a_ptr[step * x + y * rgb_stride];
+      if (!trivial_alpha) {
+        trivial_alpha |= ImportAlphaRow(a_ptr + off, dst_a, width, step);
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
+                        step, 0, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off, g_ptr + off, b_ptr + off,
+                                 a_ptr + off, step, 0, dst_u, dst_v, width, rg);
       }
     }
   }
