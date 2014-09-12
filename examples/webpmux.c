@@ -848,7 +848,8 @@ static int GetFrameFragment(const WebPMux* mux,
   if (num < 0) {
     ERROR_GOTO1("ERROR: Frame/Fragment index must be non-negative.\n", ErrGet);
   }
-  if (parse_error) goto ErrGet;
+  ok = !parse_error;
+  if (!ok) goto ErrGet;
 
   err = WebPMuxGetFrame(mux, num, &info);
   if (err == WEBP_MUX_OK && info.id != id) err = WEBP_MUX_NOT_FOUND;
@@ -946,7 +947,8 @@ static int Process(const WebPMuxConfig* config) {
                   ERROR_GOTO1("ERROR: Loop count must be in the range 0 to "
                               "65535.\n", Err2);
                 }
-                if (parse_error) goto Err2;
+                ok = !parse_error;
+                if (!ok) goto Err2;
                 params.loop_count = (int)loop_count;
                 break;
               }
