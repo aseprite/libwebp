@@ -23,6 +23,9 @@
 // Uncomment to disable gamma-compression during RGB->U/V averaging
 #define USE_GAMMA_COMPRESSION
 
+// If defined, use table to compute x / alpha.
+#define USE_INVERSE_ALPHA_TABLE
+
 static const union {
   uint32_t argb;
   uint8_t  bytes[4];
@@ -444,7 +447,6 @@ static int ConvertWRGBToYUV(const fixed_y_t* const best_y,
   return 1;
 }
 
-
 //------------------------------------------------------------------------------
 // Main function
 
@@ -571,14 +573,183 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
 //------------------------------------------------------------------------------
 // "Fast" regular RGB->YUV
 
-#define SUM4(ptr) LinearToGamma(                           \
+#define SUM4(ptr, step) LinearToGamma(                     \
     GammaToLinear((ptr)[0]) +                              \
-    GammaToLinear((ptr)[step]) +                           \
+    GammaToLinear((ptr)[(step)]) +                         \
     GammaToLinear((ptr)[rgb_stride]) +                     \
-    GammaToLinear((ptr)[rgb_stride + step]), 0)            \
+    GammaToLinear((ptr)[rgb_stride + (step)]), 0)          \
 
 #define SUM2V(ptr) \
     LinearToGamma(GammaToLinear((ptr)[0]) + GammaToLinear((ptr)[rgb_stride]), 1)
+
+#define SUM2A(ptr) ((ptr)[0] + (ptr)[rgb_stride])
+#define SUM4A(ptr) (SUM2A(ptr) + SUM2A((ptr) + 4))
+
+#if defined(USE_INVERSE_ALPHA_TABLE)
+
+static const int kAlphaFix = 18;
+// Following table is roughly (1 << kAlphaFix) / a, adjusted to give the same
+// exact result as v / a when using (v * kInvAlpha[a]) >> kAlphaFix.
+// Note that these constants are adjusted very tightly to fit 32b arithmetic.
+// In particular, they use the fact that the operands for 'v / a' are actually
+// derived as v = (a0.p0 + a1.p1 + a2.p2 + a3.p3) and a = a0 + a1 + a2 + a3
+// with ai in [0..255] and pi in [0..1<<kGammaFix). This imposes some bounds
+// on the range of v * kInvAlpha[a] compared to using any arbitrary values
+// for v and a (in which case the substitution wouldn't work) in 32bit.
+static const uint32_t kInvAlpha[4 * 0xff + 1] = {
+  0,  /* alpha = 0 */
+  262144, 131072, 87382, 65536, 52429, 43691, 37450, 32768,
+  29128, 26215, 23832, 21846, 20165, 18725, 17477, 16384,
+  15421, 14564, 13798, 13108, 12484, 11916, 11398, 10923,
+  10486, 10083,  9710,  9363,  9040,  8739,  8457,  8192,
+   7944,  7711,  7490,  7282,  7085,  6899,  6722,  6554,
+   6394,  6242,  6097,  5958,  5826,  5699,  5578,  5462,
+   5350,  5243,  5141,  5042,  4947,  4855,  4767,  4682,
+   4600,  4520,  4444,  4370,  4298,  4229,  4162,  4096,
+   4033,  3972,  3913,  3856,  3800,  3745,  3693,  3641,
+   3592,  3543,  3496,  3450,  3405,  3361,  3319,  3277,
+   3237,  3197,  3159,  3121,  3085,  3049,  3014,  2979,
+   2946,  2913,  2881,  2850,  2819,  2789,  2760,  2731,
+   2703,  2675,  2648,  2622,  2596,  2571,  2546,  2521,
+   2497,  2474,  2450,  2428,  2405,  2384,  2362,  2341,
+   2320,  2300,  2280,  2260,  2241,  2222,  2203,  2185,
+   2167,  2149,  2132,  2115,  2098,  2081,  2065,  2048,
+   2033,  2017,  2002,  1986,  1972,  1957,  1942,  1928,
+   1914,  1900,  1886,  1873,  1860,  1847,  1834,  1821,
+   1808,  1796,  1784,  1772,  1760,  1748,  1737,  1725,
+   1714,  1703,  1692,  1681,  1670,  1660,  1649,  1639,
+   1629,  1619,  1609,  1599,  1589,  1580,  1570,  1561,
+   1552,  1543,  1534,  1525,  1516,  1507,  1498,  1490,
+   1482,  1473,  1465,  1457,  1449,  1441,  1433,  1425,
+   1417,  1410,  1402,  1395,  1388,  1380,  1373,  1366,
+   1359,  1352,  1345,  1338,  1331,  1324,  1318,  1311,
+   1305,  1298,  1292,  1286,  1279,  1273,  1267,  1261,
+   1255,  1249,  1243,  1237,  1231,  1225,  1220,  1214,
+   1209,  1203,  1198,  1192,  1187,  1181,  1176,  1171,
+   1166,  1160,  1155,  1150,  1145,  1140,  1135,  1130,
+   1126,  1121,  1116,  1111,  1107,  1102,  1097,  1093,
+   1088,  1084,  1079,  1075,  1070,  1066,  1062,  1058,
+   1053,  1049,  1045,  1041,  1037,  1033,  1029,  1024,
+   1020,  1016,  1012,  1008,  1004,  1000,   996,   992,
+    989,   985,   981,   978,   974,   970,   967,   963,
+    960,   956,   953,   949,   946,   942,   939,   936,
+    932,   929,   926,   923,   919,   916,   913,   910,
+    907,   903,   900,   897,   894,   891,   888,   885,
+    882,   879,   876,   873,   870,   868,   865,   862,
+    859,   856,   853,   851,   848,   845,   842,   840,
+    837,   834,   832,   829,   826,   824,   821,   819,
+    816,   814,   811,   809,   806,   804,   801,   799,
+    796,   794,   791,   789,   787,   784,   782,   780,
+    777,   775,   773,   771,   768,   766,   764,   762,
+    759,   757,   755,   753,   751,   748,   746,   744,
+    742,   740,   738,   736,   734,   732,   730,   728,
+    726,   724,   722,   720,   718,   716,   714,   712,
+    710,   708,   706,   704,   702,   700,   699,   697,
+    695,   693,   691,   689,   688,   686,   684,   682,
+    680,   679,   677,   675,   673,   672,   670,   668,
+    667,   665,   663,   661,   660,   658,   657,   655,
+    653,   652,   650,   648,   647,   645,   644,   642,
+    640,   639,   637,   636,   634,   633,   631,   630,
+    628,   627,   625,   624,   622,   621,   619,   618,
+    616,   615,   613,   612,   611,   609,   608,   606,
+    605,   604,   602,   601,   599,   598,   597,   595,
+    594,   593,   591,   590,   589,   587,   586,   585,
+    583,   582,   581,   579,   578,   577,   576,   574,
+    573,   572,   571,   569,   568,   567,   566,   564,
+    563,   562,   561,   560,   558,   557,   556,   555,
+    554,   553,   551,   550,   549,   548,   547,   546,
+    544,   543,   542,   541,   540,   539,   538,   537,
+    536,   534,   533,   532,   531,   530,   529,   528,
+    527,   526,   525,   524,   523,   522,   521,   520,
+    519,   518,   517,   516,   515,   514,   513,   512,
+    511,   510,   509,   508,   507,   506,   505,   504,
+    503,   502,   501,   500,   499,   498,   497,   496,
+    495,   494,   493,   492,   491,   490,   489,   489,
+    488,   487,   486,   485,   484,   483,   482,   481,
+    480,   480,   479,   478,   477,   476,   475,   474,
+    474,   473,   472,   471,   470,   469,   468,   468,
+    467,   466,   465,   464,   463,   463,   462,   461,
+    460,   459,   459,   458,   457,   456,   455,   455,
+    454,   453,   452,   451,   451,   450,   449,   448,
+    448,   447,   446,   445,   445,   444,   443,   442,
+    442,   441,   440,   439,   439,   438,   437,   436,
+    436,   435,   434,   434,   433,   432,   431,   431,
+    430,   429,   429,   428,   427,   426,   426,   425,
+    424,   424,   423,   422,   422,   421,   420,   420,
+    419,   418,   418,   417,   416,   416,   415,   414,
+    414,   413,   412,   412,   411,   410,   410,   409,
+    408,   408,   407,   407,   406,   405,   405,   404,
+    403,   403,   402,   402,   401,   400,   400,   399,
+    399,   398,   397,   397,   396,   395,   395,   394,
+    394,   393,   393,   392,   391,   391,   390,   390,
+    389,   388,   388,   387,   387,   386,   386,   385,
+    384,   384,   383,   383,   382,   382,   381,   381,
+    380,   379,   379,   378,   378,   377,   377,   376,
+    376,   375,   375,   374,   373,   373,   372,   372,
+    371,   371,   370,   370,   369,   369,   368,   368,
+    367,   367,   366,   366,   365,   365,   364,   364,
+    363,   363,   362,   362,   361,   361,   360,   360,
+    359,   359,   358,   358,   357,   357,   356,   356,
+    355,   355,   354,   354,   353,   353,   352,   352,
+    351,   351,   350,   350,   349,   349,   349,   348,
+    348,   347,   347,   346,   346,   345,   345,   344,
+    344,   344,   343,   343,   342,   342,   341,   341,
+    340,   340,   340,   339,   339,   338,   338,   337,
+    337,   336,   336,   336,   335,   335,   334,   334,
+    333,   333,   333,   332,   332,   331,   331,   330,
+    330,   330,   329,   329,   328,   328,   328,   327,
+    327,   326,   326,   326,   325,   325,   324,   324,
+    324,   323,   323,   322,   322,   322,   321,   321,
+    320,   320,   320,   319,   319,   318,   318,   318,
+    317,   317,   316,   316,   316,   315,   315,   315,
+    314,   314,   313,   313,   313,   312,   312,   312,
+    311,   311,   310,   310,   310,   309,   309,   309,
+    308,   308,   308,   307,   307,   306,   306,   306,
+    305,   305,   305,   304,   304,   304,   303,   303,
+    303,   302,   302,   302,   301,   301,   300,   300,
+    300,   299,   299,   299,   298,   298,   298,   297,
+    297,   297,   296,   296,   296,   295,   295,   295,
+    294,   294,   294,   293,   293,   293,   292,   292,
+    292,   291,   291,   291,   290,   290,   290,   289,
+    289,   289,   289,   288,   288,   288,   287,   287,
+    287,   286,   286,   286,   285,   285,   285,   284,
+    284,   284,   284,   283,   283,   283,   282,   282,
+    282,   281,   281,   281,   280,   280,   280,   280,
+    279,   279,   279,   278,   278,   278,   277,   277,
+    277,   277,   276,   276,   276,   275,   275,   275,
+    275,   274,   274,   274,   273,   273,   273,   273,
+    272,   272,   272,   271,   271,   271,   271,   270,
+    270,   270,   269,   269,   269,   269,   268,   268,
+    268,   268,   267,   267,   267,   266,   266,   266,
+    266,   265,   265,   265,   265,   264,   264,   264,
+    263,   263,   263,   263,   262,   262,   262,   262,
+    261,   261,   261,   261,   260,   260,   260,   260,
+    259,   259,   259,   259,   258,   258,   258,   258,
+    257,   257,   257,   257
+};
+#define DIVIDE_BY_ALPHA(sum, a)  (((sum) * kInvAlpha[(a)]) >> kAlphaFix)
+
+#else
+
+#define DIVIDE_BY_ALPHA(sum, a) ((sum) / (4 * (a)))
+
+#endif  // USE_INVERSE_ALPHA_TABLE
+
+static WEBP_INLINE int LinearToGammaWeighted(const uint8_t* src,
+                                             const uint8_t* a_ptr,
+                                             int total_a, int step,
+                                             int rgb_stride) {
+  const uint32_t sum =
+      a_ptr[0] * GammaToLinear(src[0]) +
+      a_ptr[step] * GammaToLinear(src[step]) +
+      a_ptr[rgb_stride] * GammaToLinear(src[rgb_stride]) +
+      a_ptr[rgb_stride + step] * GammaToLinear(src[rgb_stride + step]);
+  assert(total_a > 0 && total_a <= 4 * 0xff);
+#if defined(USE_INVERSE_ALPHA_TABLE)
+  assert((uint64_t)sum * kInvAlpha[total_a] < ((uint64_t)1 << 32));
+#endif
+  return LinearToGamma(DIVIDE_BY_ALPHA(sum, total_a), 2);
+}
 
 static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
                                       const uint8_t* const g_ptr,
@@ -593,6 +764,51 @@ static WEBP_INLINE void ConvertRowToY(const uint8_t* const r_ptr,
   }
 }
 
+static WEBP_INLINE void ConvertRowsToUVWithAlpha(const uint8_t* const r_ptr,
+                                                 const uint8_t* const g_ptr,
+                                                 const uint8_t* const b_ptr,
+                                                 const uint8_t* const a_ptr,
+                                                 int rgb_stride,
+                                                 uint8_t* const dst_u,
+                                                 uint8_t* const dst_v,
+                                                 int width,
+                                                 VP8Random* const rg) {
+  int i, j;
+  for (i = 0, j = 0; i < (width >> 1); ++i, j += 2 * 4) {
+    const int a = SUM4A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM4(r_ptr + j, 4);
+      g = SUM4(g_ptr + j, 4);
+      b = SUM4(b_ptr + j, 4);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, 4, rgb_stride);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, 4, rgb_stride);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, 4, rgb_stride);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+  if (width & 1) {
+    const int a = 2 * SUM2A(a_ptr + j);
+    int r, g, b;
+    if (a == 4 * 0xff) {
+      r = SUM2V(r_ptr + j);
+      g = SUM2V(g_ptr + j);
+      b = SUM2V(b_ptr + j);
+    } else if (a == 0) {
+      r = g = b = 0;
+    } else {
+      r = LinearToGammaWeighted(r_ptr + j, a_ptr + j, a, 0, rgb_stride);
+      g = LinearToGammaWeighted(g_ptr + j, a_ptr + j, a, 0, rgb_stride);
+      b = LinearToGammaWeighted(b_ptr + j, a_ptr + j, a, 0, rgb_stride);
+    }
+    dst_u[i] = RGBToU(r, g, b, rg);
+    dst_v[i] = RGBToV(r, g, b, rg);
+  }
+}
 static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
                                         const uint8_t* const g_ptr,
                                         const uint8_t* const b_ptr,
@@ -603,9 +819,9 @@ static WEBP_INLINE void ConvertRowsToUV(const uint8_t* const r_ptr,
                                         VP8Random* const rg) {
   int i, j;
   for (i = 0, j = 0; i < (width >> 1); ++i, j += 2 * step) {
-    const int r = SUM4(r_ptr + j);
-    const int g = SUM4(g_ptr + j);
-    const int b = SUM4(b_ptr + j);
+    const int r = SUM4(r_ptr + j, step);
+    const int g = SUM4(g_ptr + j, step);
+    const int b = SUM4(b_ptr + j, step);
     dst_u[i] = RGBToU(r, g, b, rg);
     dst_v[i] = RGBToV(r, g, b, rg);
   }
@@ -644,16 +860,26 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
   if (!WebPPictureAllocYUVA(picture, width, height)) {
     return 0;
   }
+  if (has_alpha) {
+    WebPInitAlphaProcessing();
+    assert(step == 4);
+    assert(kAlphaFix + kGammaFix <= 30);
+  }
 
   if (use_iterative_conversion) {
     InitGammaTablesF();
     if (!PreprocessARGB(r_ptr, g_ptr, b_ptr, step, rgb_stride, picture)) {
       return 0;
     }
+    if (has_alpha) {
+      WebPExtractAlpha(a_ptr, rgb_stride, width, height,
+                       picture->a, picture->a_stride);
+    }
   } else {
     uint8_t* dst_y = picture->y;
     uint8_t* dst_u = picture->u;
     uint8_t* dst_v = picture->v;
+    uint8_t* dst_a = picture->a;
 
     VP8Random base_rg;
     VP8Random* rg = NULL;
@@ -666,6 +892,7 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
 
     // Downsample Y/U/V planes, two rows at a time
     for (y = 0; y < (height >> 1); ++y) {
+      int trivial_alpha = !has_alpha;
       const int off1 = (2 * y + 0) * rgb_stride;
       const int off2 = (2 * y + 1) * rgb_stride;
       ConvertRowToY(r_ptr + off1, g_ptr + off1, b_ptr + off1, step,
@@ -673,28 +900,37 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
       ConvertRowToY(r_ptr + off2, g_ptr + off2, b_ptr + off2, step,
                     dst_y + picture->y_stride, width, rg);
       dst_y += 2 * picture->y_stride;
-      ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
-                      step, rgb_stride, dst_u, dst_v, width, rg);
+      if (has_alpha) {
+        trivial_alpha |= WebPExtractAlpha(a_ptr + off1, rgb_stride,
+                                          width, 2, dst_a, picture->a_stride);
+        dst_a += 2 * picture->a_stride;
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                        step, rgb_stride, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off1, g_ptr + off1, b_ptr + off1,
+                                 a_ptr + off1, rgb_stride,
+                                 dst_u, dst_v, width, rg);
+      }
       dst_u += picture->uv_stride;
       dst_v += picture->uv_stride;
     }
     if (height & 1) {    // extra last row
       const int off = 2 * y * rgb_stride;
+      int trivial_alpha = !has_alpha;
       ConvertRowToY(r_ptr + off, g_ptr + off, b_ptr + off, step,
                     dst_y, width, rg);
-      ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
-                      step, 0, dst_u, dst_v, width, rg);
-    }
-  }
-
-  if (has_alpha) {
-    assert(step >= 4);
-    assert(picture->a != NULL);
-    for (y = 0; y < height; ++y) {
-      int x;
-      for (x = 0; x < width; ++x) {
-        picture->a[x + y * picture->a_stride] =
-            a_ptr[step * x + y * rgb_stride];
+      if (has_alpha) {
+        trivial_alpha |= WebPExtractAlpha(a_ptr + off, 0, width, 1, dst_a, 0);
+      }
+      if (trivial_alpha) {
+        ConvertRowsToUV(r_ptr + off, g_ptr + off, b_ptr + off,
+                        step, 0, dst_u, dst_v, width, rg);
+      } else {
+        ConvertRowsToUVWithAlpha(r_ptr + off, g_ptr + off, b_ptr + off,
+                                 a_ptr + off, 0,
+                                 dst_u, dst_v, width, rg);
       }
     }
   }
@@ -703,9 +939,8 @@ static int ImportYUVAFromRGBA(const uint8_t* const r_ptr,
 
 #undef SUM4
 #undef SUM2V
-#undef SUM2H
-#undef SUM1
-#undef RGB_TO_UV
+#undef SUM2A
+#undef SUM4A
 
 //------------------------------------------------------------------------------
 // call for ARGB->YUVA conversion
