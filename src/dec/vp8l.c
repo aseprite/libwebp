@@ -1505,34 +1505,36 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
   // Sanity checks.
   if (dec == NULL) return 0;
 
-  assert(dec->hdr_.huffman_tables_ != NULL);
-  assert(dec->hdr_.htree_groups_ != NULL);
-  assert(dec->hdr_.num_htree_groups_ > 0);
-
-  io = dec->io_;
-  assert(io != NULL);
-  params = (WebPDecParams*)io->opaque;
-  assert(params != NULL);
-  dec->output_ = params->output;
-  assert(dec->output_ != NULL);
-
   // Initialization.
-  if (!WebPIoInitFromOptions(params->options, io, MODE_BGRA)) {
-    dec->status_ = VP8_STATUS_INVALID_PARAM;
-    goto Err;
-  }
+  if (dec->action_ != READ_DATA) {
+    assert(dec->hdr_.huffman_tables_ != NULL);
+    assert(dec->hdr_.htree_groups_ != NULL);
+    assert(dec->hdr_.num_htree_groups_ > 0);
 
-  if (!AllocateInternalBuffers32b(dec, io->width)) goto Err;
+    io = dec->io_;
+    assert(io != NULL);
+    params = (WebPDecParams*)io->opaque;
+    assert(params != NULL);
+    dec->output_ = params->output;
+    assert(dec->output_ != NULL);
 
-  if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) goto Err;
+    if (!WebPIoInitFromOptions(params->options, io, MODE_BGRA)) {
+      dec->status_ = VP8_STATUS_INVALID_PARAM;
+      goto Err;
+    }
 
-  if (io->use_scaling || WebPIsPremultipliedMode(dec->output_->colorspace)) {
-    // need the alpha-multiply functions for premultiplied output or rescaling
-    WebPInitAlphaProcessing();
+    if (!AllocateInternalBuffers32b(dec, io->width)) goto Err;
+
+    if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) goto Err;
+
+    if (io->use_scaling || WebPIsPremultipliedMode(dec->output_->colorspace)) {
+      // need the alpha-multiply functions for premultiplied output or rescaling
+      WebPInitAlphaProcessing();
+    }
+    dec->action_ = READ_DATA;
   }
 
   // Decode.
-  dec->action_ = READ_DATA;
   if (!DecodeImageData(dec, dec->pixels_, dec->width_, dec->height_,
                        dec->height_, ProcessRows)) {
     goto Err;
@@ -1540,7 +1542,6 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
 
   // Cleanup.
   params->last_y = dec->last_out_row_;
-  VP8LClear(dec);
   return 1;
 
  Err:
