@@ -258,6 +258,7 @@ static int ReadHuffmanCodeLengths(
 static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
                            int* const code_lengths, HuffmanCode* const table) {
   int ok = 0;
+  int size = 0;
   VP8LBitReader* const br = &dec->br_;
   const int simple_code = VP8LReadBits(br, 1);
 
@@ -292,12 +293,15 @@ static int ReadHuffmanCode(int alphabet_size, VP8LDecoder* const dec,
   }
 
   ok = ok && !br->eos_;
-  if (!ok) {
+  if (ok) {
+    size = VP8LBuildHuffmanTable(table, HUFFMAN_TABLE_BITS,
+                                 code_lengths, alphabet_size);
+  }
+  if (!ok || size == 0) {
     dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
     return 0;
   }
-  return VP8LBuildHuffmanTable(table, HUFFMAN_TABLE_BITS,
-                               code_lengths, alphabet_size);
+  return size;
 }
 
 static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
@@ -701,6 +705,7 @@ static void ProcessRows(VP8LDecoder* const dec, int row) {
   if (num_rows <= 0) return;  // Nothing to be done.
   ApplyInverseTransforms(dec, num_rows, rows);
 
+
   // Emit output.
   {
     VP8Io* const io = dec->io_;
@@ -962,10 +967,29 @@ static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
   return ok;
 }
 
+static void SaveState(VP8LDecoder* const dec, int last_pixel) {
+  assert(dec->incremental_);
+  dec->saved_br_ = dec->br_;
+  dec->saved_last_pixel_ = last_pixel;
+  if (dec->hdr_.color_cache_size_ > 0) {
+    VP8LColorCacheCopy(&dec->hdr_.color_cache_, &dec->hdr_.saved_color_cache_);
+  }
+}
+
+static void RestoreState(VP8LDecoder* const dec) {
+  assert(dec->br_.eos_);
+  dec->status_ = VP8_STATUS_SUSPENDED;
+  dec->br_ = dec->saved_br_;
+  dec->last_pixel_ = dec->saved_last_pixel_;
+  if (dec->hdr_.color_cache_size_ > 0) {
+    VP8LColorCacheCopy(&dec->hdr_.saved_color_cache_, &dec->hdr_.color_cache_);
+  }
+}
+
+#define SYNC_EVERY_N_ROWS 8 // minimum number of rows between check-points
 static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
                            int width, int height, int last_row,
                            ProcessRowsFunc process_func) {
-  int ok = 1;
   int row = dec->last_pixel_ / width;
   int col = dec->last_pixel_ % width;
   VP8LBitReader* const br = &dec->br_;
@@ -977,6 +1001,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
   uint32_t* const src_last = data + width * last_row;  // Last pixel to decode
   const int len_code_limit = NUM_LITERAL_CODES + NUM_LENGTH_CODES;
   const int color_cache_limit = len_code_limit + hdr->color_cache_size_;
+  int next_sync_row = 1 << 24;  // <= something big = off by default
   VP8LColorCache* const color_cache =
       (hdr->color_cache_size_ > 0) ? &hdr->color_cache_ : NULL;
   const int mask = hdr->huffman_mask_;
@@ -984,7 +1009,12 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
   assert(src < src_end);
   assert(src_last <= src_end);
 
-  while (!br->eos_ && src < src_last) {
+  if (dec->incremental_) {
+    SaveState(dec, dec->last_pixel_);
+    next_sync_row = row + SYNC_EVERY_N_ROWS;
+  }
+
+  while (src < src_last) {
     int code;
     // Only update when changing tile. Note we could use this test:
     // if "((((prev_col ^ col) | prev_row ^ row)) > mask)" -> tile changed
@@ -994,6 +1024,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
     }
     VP8LFillBitWindow(br);
     code = ReadSymbol(htree_group->htrees[GREEN], br);
+    if (br->eos_) break;  // early out
     if (code < NUM_LITERAL_CODES) {  // Literal
       if (htree_group->is_trivial_literal) {
         *src = htree_group->literal_arb | (code << 8);
@@ -1003,6 +1034,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
         VP8LFillBitWindow(br);
         blue = ReadSymbol(htree_group->htrees[BLUE], br);
         alpha = ReadSymbol(htree_group->htrees[ALPHA], br);
+        if (br->eos_) break;
         *src = ((uint32_t)alpha << 24) | (red << 16) | (code << 8) | blue;
       }
     AdvanceByOne:
@@ -1019,6 +1051,10 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
             VP8LColorCacheInsert(color_cache, *last_cached++);
           }
         }
+        if (row >= next_sync_row) {
+          SaveState(dec, (int)(src - data));
+          next_sync_row = row + SYNC_EVERY_N_ROWS;
+        }
       }
     } else if (code < len_code_limit) {  // Backward reference
       int dist_code, dist;
@@ -1028,9 +1064,9 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       VP8LFillBitWindow(br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(width, dist_code);
+      if (br->eos_) break;
       if (src - data < (ptrdiff_t)dist || src_end - src < (ptrdiff_t)length) {
-        ok = 0;
-        goto End;
+        goto Error;
       } else {
         CopyBlock32b(src, dist, length);
       }
@@ -1050,6 +1086,10 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
             VP8LColorCacheInsert(color_cache, *last_cached++);
           }
         }
+        if (row >= next_sync_row) {
+          SaveState(dec, (int)(src - data));
+          next_sync_row = row + SYNC_EVERY_N_ROWS;
+        }
       }
     } else if (code < color_cache_limit) {  // Color cache
       const int key = code - len_code_limit;
@@ -1060,23 +1100,30 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       *src = VP8LColorCacheLookup(color_cache, key);
       goto AdvanceByOne;
     } else {  // Not reached
-      ok = 0;
-      goto End;
+      goto Error;
     }
     assert(br->eos_ == VP8LIsEndOfStream(br));
   }
-  // Process the remaining rows corresponding to last row-block.
-  if (process_func != NULL) process_func(dec, row);
 
- End:
-  if (!ok || (br->eos_ && src < src_end)) {
-    ok = 0;
-    dec->status_ = br->eos_ ? VP8_STATUS_SUSPENDED
-                            : VP8_STATUS_BITSTREAM_ERROR;
+  if (dec->incremental_ && br->eos_ && src < src_end) {
+    RestoreState(dec);
+  } else if (!br->eos_) {
+    // Process the remaining rows corresponding to last row-block.
+    if (process_func != NULL) {
+      process_func(dec, row);
+    }
+    dec->status_ = VP8_STATUS_OK;
+    dec->last_pixel_ = (int)(src - data);  // end-of-scan marker
   } else {
-    dec->last_pixel_ = (int)(src - data);
+    // if not incremental, and we are past the end of buffer (eos_=1), then this
+    // is a real bitstream error.
+    goto Error;
   }
-  return ok;
+  return 1;
+
+ Error:
+  dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
+  return 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -1181,6 +1228,7 @@ static void ClearMetadata(VP8LMetadata* const hdr) {
   WebPSafeFree(hdr->huffman_tables_);
   VP8LHtreeGroupsFree(hdr->htree_groups_);
   VP8LColorCacheClear(&hdr->color_cache_);
+  VP8LColorCacheClear(&hdr->saved_color_cache_);
   InitMetadata(hdr);
 }
 
@@ -1308,12 +1356,6 @@ static int DecodeImageStream(int xsize, int ysize,
   if (!ok) {
     WebPSafeFree(data);
     ClearMetadata(hdr);
-    // Check status coherency.
-    if (dec->br_.eos_) {
-      assert(dec->status_ == VP8_STATUS_SUSPENDED);
-    } else {
-      assert(dec->status_ == VP8_STATUS_BITSTREAM_ERROR);
-    }
   } else {
     if (decoded_data != NULL) {
       *decoded_data = data;

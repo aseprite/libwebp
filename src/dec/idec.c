@@ -502,7 +502,12 @@ static VP8StatusCode DecodeVP8LHeader(WebPIDecoder* const idec) {
     dec->status_ = VP8_STATUS_SUSPENDED;
     return ErrorStatusLossless(idec, dec->status_);
   }
+
   if (!VP8LDecodeHeader(dec, io)) {
+    if (dec->status_ == VP8_STATUS_BITSTREAM_ERROR &&
+        curr_size < idec->chunk_size_) {
+      dec->status_ = VP8_STATUS_SUSPENDED;
+    }
     return ErrorStatusLossless(idec, dec->status_);
   }
   // Allocate/verify output buffer now.
@@ -521,23 +526,26 @@ static VP8StatusCode DecodeVP8LData(WebPIDecoder* const idec) {
   const size_t curr_size = MemDataSize(&idec->mem_);
   assert(idec->is_lossless_);
 
-  // At present Lossless decoder can't decode image incrementally. So wait till
-  // all the image data is aggregated before image can be decoded.
+  dec->incremental_ = 0;
+  // Switch to incremental decoding if we don't have all the bytes available.
   if (curr_size < idec->chunk_size_) {
-    return VP8_STATUS_SUSPENDED;
+    if (dec->hdr_.color_cache_size_ > 0 &&
+        dec->hdr_.saved_color_cache_.colors_ == NULL) {
+      if (!VP8LColorCacheInit(&dec->hdr_.saved_color_cache_,
+                              dec->hdr_.color_cache_.hash_bits_)) {
+        dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+        return ErrorStatusLossless(idec, dec->status_);
+      }
+    }
+    dec->incremental_ = 1;
   }
 
   if (!VP8LDecodeImage(dec)) {
-    // The decoding is called after all the data-bytes are aggregated. Change
-    // the error to VP8_BITSTREAM_ERROR in case lossless decoder fails to decode
-    // all the pixels (VP8_STATUS_SUSPENDED).
-    if (dec->status_ == VP8_STATUS_SUSPENDED) {
-      dec->status_ = VP8_STATUS_BITSTREAM_ERROR;
-    }
     return ErrorStatusLossless(idec, dec->status_);
   }
-
-  return FinishDecoding(idec);
+  assert(dec->status_ == VP8_STATUS_OK || dec->status_ == VP8_STATUS_SUSPENDED);
+  return (dec->status_ == VP8_STATUS_SUSPENDED) ? dec->status_
+                                                : FinishDecoding(idec);
 }
 
   // Main decoding loop
@@ -853,4 +861,3 @@ int WebPISetIOHooks(WebPIDecoder* const idec,
 
   return 1;
 }
-
