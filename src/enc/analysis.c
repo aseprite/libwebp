@@ -141,7 +141,8 @@ static void MergeHistograms(const VP8Histogram* const in,
 
 static void AssignSegments(VP8Encoder* const enc,
                            const int alphas[MAX_ALPHA + 1]) {
-  const int nb = enc->segment_hdr_.num_segments_;
+  const int nb = (enc->segment_hdr_.num_segments_ <= NUM_MB_SEGMENTS) ?
+                 enc->segment_hdr_.num_segments_ : NUM_MB_SEGMENTS;
   int centers[NUM_MB_SEGMENTS];
   int weighted_average = 0;
   int map[MAX_ALPHA + 1];
