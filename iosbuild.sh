@@ -47,7 +47,17 @@ rm -rf ${TARGETDIR}
 mkdir -p ${BUILDDIR}
 mkdir -p ${TARGETDIR}/Headers/
 
-[[ -e ${SRCDIR}/configure ]] || (cd ${SRCDIR} && sh autogen.sh)
+if [[ ! -e ${SRCDIR}/configure ]]; then
+  if ! (cd ${SRCDIR} && sh autogen.sh); then
+    cat <<EOT
+Error creating configure script!
+This script requires the autoconf/automake and libtool to build. MacPorts can
+be used to obtain these:
+http://www.macports.org/install.php
+EOT
+    exit 1
+  fi
+fi
 
 for PLATFORM in ${PLATFORMS}; do
   ARCH2=""
@@ -84,15 +94,14 @@ for PLATFORM in ${PLATFORMS}; do
     LDFLAGS+=" -miphoneos-version-min=6.0"
   fi
 
-  export CFLAGS
-  export LDFLAGS
-  export CXXFLAGS=${CFLAGS}
+  set -x
   export PATH="${DEVROOT}/usr/bin:${OLDPATH}"
-
   ${SRCDIR}/configure --host=${ARCH}-apple-darwin --prefix=${ROOTDIR} \
     --build=$(${SRCDIR}/config.guess) \
     --disable-shared --enable-static \
-    --enable-libwebpdecoder --enable-swap-16bit-csp
+    --enable-libwebpdecoder --enable-swap-16bit-csp \
+    CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}"
+  set +x
 
   # run make only in the src/ directory to create libwebpdecoder.a
   cd src/
