@@ -30,7 +30,7 @@
 #define MAX_COLORS_FOR_GRAPH      64
 
 // -----------------------------------------------------------------------------
-// Palette
+// Palette optimization
 
 static int CompareColors(const void* p1, const void* p2) {
   const uint32_t a = *(const uint32_t*)p1;
@@ -38,6 +38,78 @@ static int CompareColors(const void* p1, const void* p2) {
   assert(a != b);
   return (a < b) ? -1 : 1;
 }
+
+static void MapToPalette(const uint32_t palette[], int num_colors,
+                         uint32_t* const last_pix, int* const last_idx,
+                         const uint32_t* src, uint8_t* dst, int width) {
+  int x;
+  int prev_idx = *last_idx;
+  uint32_t prev_pix = *last_pix;
+  for (x = 0; x < width; ++x) {
+    const uint32_t pix = src[x];
+    if (pix != prev_pix) {
+      int i;
+      for (i = 0; i < num_colors; ++i) {
+        if (pix == palette[i]) {
+          prev_idx = i;
+          prev_pix = pix;
+          break;
+        }
+      }
+    }
+    dst[x] = prev_idx;
+  }
+  *last_idx = prev_idx;
+  *last_pix = prev_pix;
+}
+
+static WEBP_INLINE int Distance(int a, int b) {
+  return abs(a - b);
+}
+
+static int ColorDistance(uint32_t col1, uint32_t col2) {
+  int score = 0;
+  // we favor grouping green channel in the palette
+  score += Distance((col1 >>  0) & 0xff, (col2 >>  0) & 0xff) * 5;
+  score += Distance((col1 >>  8) & 0xff, (col2 >>  8) & 0xff) * 8;
+  score += Distance((col1 >> 16) & 0xff, (col2 >> 16) & 0xff) * 5;
+  score += Distance((col1 >> 24) & 0xff, (col2 >> 24) & 0xff) * 1;
+  return score;
+}
+
+static void SwapColor(uint32_t* const col1, uint32_t* const col2) {
+  const uint32_t tmp = *col1;
+  *col1 = *col2;
+  *col2 = tmp;
+}
+
+static void OptimizePalette(uint32_t palette[], int num_colors) {
+  int i;
+  // Pick the lowest color first.
+  for (i = 1; i < num_colors; ++i) {
+    if (CompareColors(&palette[0], &palette[i]) > 0) {
+      SwapColor(&palette[0], &palette[i]);
+    }
+  }
+  // Then reorder subsequent palette colors by shortest distance.
+  for (i = 1; i < num_colors; ++i) {
+    int j;
+    int best_col = -1;
+    int best_score = 0;
+    const uint32_t prev_color = palette[i - 1];
+    for (j = i; j < num_colors; ++j) {
+      const int score = ColorDistance(palette[j], prev_color);
+      if (best_col < 0 || score < best_score) {
+        best_col = j;
+        best_score = score;
+      }
+    }
+    SwapColor(&palette[best_col], &palette[i]);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Palette
 
 // If number of colors in the image is less than or equal to MAX_PALETTE_SIZE,
 // creates a palette and returns true, else returns false.
@@ -52,6 +124,7 @@ static int AnalyzeAndCreatePalette(const WebPPicture* const pic,
   const uint32_t* argb = pic->argb;
   const int width = pic->width;
   const int height = pic->height;
+  uint32_t all_color_bits;
   uint32_t last_pix = ~argb[0];   // so we're sure that last_pix != argb[0]
 
   for (y = 0; y < height; ++y) {
@@ -86,15 +159,24 @@ static int AnalyzeAndCreatePalette(const WebPPicture* const pic,
 
   // TODO(skal): could we reuse in_use[] to speed up EncodePalette()?
   num_colors = 0;
+  all_color_bits = 0x00000000;
   for (i = 0; i < (int)(sizeof(in_use) / sizeof(in_use[0])); ++i) {
     if (in_use[i]) {
       palette[num_colors] = colors[i];
+      all_color_bits |= colors[i];
       ++num_colors;
     }
   }
 
-  qsort(palette, num_colors, sizeof(*palette), CompareColors);
   *palette_size = num_colors;
+  // OptimizePalette() is not useful for single-channel (like alpha, e.g.).
+  if ((all_color_bits & ~0x000000ffu) != 0 &&   // all red?
+      (all_color_bits & ~0x0000ff00u) != 0 &&   // all green/alpha?
+      (all_color_bits & ~0x00ff0000u) != 0) {   // all blue?
+    OptimizePalette(palette, num_colors);
+  } else {
+    qsort(palette, num_colors, sizeof(*palette), CompareColors);
+  }
   return 1;
 }
 
@@ -914,19 +996,8 @@ static void ApplyPalette(uint32_t* src, uint32_t* dst,
     uint32_t last_pix = palette[0];
     int last_idx = 0;
     for (y = 0; y < height; ++y) {
-      for (x = 0; x < width; ++x) {
-        const uint32_t pix = src[x];
-        if (pix != last_pix) {
-          for (i = 0; i < palette_size; ++i) {
-            if (pix == palette[i]) {
-              last_idx = i;
-              last_pix = pix;
-              break;
-            }
-          }
-        }
-        row[x] = last_idx;
-      }
+      MapToPalette(palette, palette_size, &last_pix, &last_idx,
+                   src, row, width);
       VP8LBundleColorMap(row, width, xbits, dst);
       src += src_stride;
       dst += dst_stride;
@@ -938,7 +1009,7 @@ static void ApplyPalette(uint32_t* src, uint32_t* dst,
 // Also, "enc->palette_" will be modified after this call and should not be used
 // later.
 static WebPEncodingError EncodePalette(VP8LBitWriter* const bw,
-                                       VP8LEncoder* const enc, int quality) {
+                                       VP8LEncoder* const enc) {
   WebPEncodingError err = VP8_ENC_OK;
   int i;
   const WebPPicture* const pic = enc->pic_;
@@ -978,8 +1049,7 @@ static WebPEncodingError EncodePalette(VP8LBitWriter* const bw,
     palette[i] = VP8LSubPixels(palette[i], palette[i - 1]);
   }
   err = EncodeImageNoHuffman(bw, palette, &enc->hash_chain_, enc->refs_,
-                             palette_size, 1, quality);
-
+                             palette_size, 1, 100);
  Error:
   WebPSafeFree(row);
   return err;
@@ -1080,7 +1150,7 @@ WebPEncodingError VP8LEncodeStream(const WebPConfig* const config,
   FinishEncParams(enc);
 
   if (enc->use_palette_) {
-    err = EncodePalette(bw, enc, quality);
+    err = EncodePalette(bw, enc);
     if (err != VP8_ENC_OK) goto Error;
     // Color cache is disabled for palette.
     enc->cache_bits_ = 0;
