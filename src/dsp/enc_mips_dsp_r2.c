@@ -152,5 +152,5 @@ extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void);
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
   VP8ITransform = ITransform;
-#endif  // WEBP_USE_MIPS32
+#endif  // WEBP_USE_MIPS_DSP_R2
 }
