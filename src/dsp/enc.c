@@ -746,6 +746,11 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInit(void) {
       VP8EncDspInitMIPS32();
     }
 #endif
+#if defined(WEBP_USE_MIPS_DSP_R2)
+    if (VP8GetCPUInfo(kMIPSdspR2)) {
+      VP8EncDspInitMIPSdspR2();
+    }
+#endif
   }
 }
 

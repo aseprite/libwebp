@@ -36,6 +36,7 @@ COMMON_SOURCES += yuv_mips_dsp_r2.c
 ENC_SOURCES =
 ENC_SOURCES += enc.c
 ENC_SOURCES += enc_mips32.c
+ENC_SOURCES += enc_mips_dsp_r2.c
 ENC_SOURCES += enc_neon.c
 
 libwebpdsp_avx2_la_SOURCES =
