@@ -1277,6 +1277,26 @@ static void VE4(uint8_t* dst) {    // vertical
   }
 }
 
+static void LD4(uint8_t* dst) {    // Down-left
+  const uint8x8_t one = vdup_n_u8(1);
+  const uint8x8_t ABCDEFGH = vld1_u8(dst - BPS + 0);
+  const uint8x8_t BCDEFGH0 = vld1_u8(dst - BPS + 1);
+  const uint8x8_t CDEFGH00 = vld1_u8(dst - BPS + 2);
+  const uint8x8_t CDEFGHH0 = vset_lane_u8(dst[-BPS + 7], CDEFGH00, 6);
+  const uint8x8_t avg1 = vrhadd_u8(ABCDEFGH, CDEFGHH0);
+  const uint8x8_t lsb = vand_u8(veor_u8(ABCDEFGH, CDEFGHH0), one);
+  const uint8x8_t avg2 = vsub_u8(avg1, lsb);
+  const uint8x8_t abcdefg = vrhadd_u8(avg2, BCDEFGH0);
+  const uint64x1_t abcdefg_u64 = vreinterpret_u64_u8(abcdefg);
+  vst1_lane_u32((uint32_t*)(dst + 0 * BPS), vreinterpret_u32_u8(abcdefg), 0);
+  vst1_lane_u32((uint32_t*)(dst + 1 * BPS),
+                vreinterpret_u32_u64(vshr_n_u64(abcdefg_u64, 8)), 0);
+  vst1_lane_u32((uint32_t*)(dst + 2 * BPS),
+                vreinterpret_u32_u64(vshr_n_u64(abcdefg_u64, 16)), 0);
+  vst1_lane_u32((uint32_t*)(dst + 3 * BPS),
+                vreinterpret_u32_u64(vshr_n_u64(abcdefg_u64, 24)), 0);
+}
+
 #endif   // WEBP_USE_NEON
 
 //------------------------------------------------------------------------------
@@ -1309,5 +1329,6 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8DspInitNEON(void) {
   VP8SimpleHFilter16i = SimpleHFilter16i;
 
   VP8PredLuma4[2] = VE4;
+  VP8PredLuma4[6] = LD4;
 #endif   // WEBP_USE_NEON
 }
