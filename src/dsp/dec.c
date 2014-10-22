@@ -284,12 +284,12 @@ static void RD4(uint8_t *dst) {   // Down-right
   const int C = dst[2 - BPS];
   const int D = dst[3 - BPS];
   DST(0, 3)                                     = AVG3(J, K, L);
-  DST(0, 2) = DST(1, 3)                         = AVG3(I, J, K);
-  DST(0, 1) = DST(1, 2) = DST(2, 3)             = AVG3(X, I, J);
-  DST(0, 0) = DST(1, 1) = DST(2, 2) = DST(3, 3) = AVG3(A, X, I);
-  DST(1, 0) = DST(2, 1) = DST(3, 2)             = AVG3(B, A, X);
-  DST(2, 0) = DST(3, 1)                         = AVG3(C, B, A);
-  DST(3, 0)                                     = AVG3(D, C, B);
+  DST(1, 3) = DST(0, 2)                         = AVG3(I, J, K);
+  DST(2, 3) = DST(1, 2) = DST(0, 1)             = AVG3(X, I, J);
+  DST(3, 3) = DST(2, 2) = DST(1, 1) = DST(0, 0) = AVG3(A, X, I);
+              DST(3, 2) = DST(2, 1) = DST(1, 0) = AVG3(B, A, X);
+                          DST(3, 1) = DST(2, 0) = AVG3(C, B, A);
+                                      DST(3, 0) = AVG3(D, C, B);
 }
 
 static void LD4(uint8_t *dst) {   // Down-Left
@@ -305,9 +305,9 @@ static void LD4(uint8_t *dst) {   // Down-Left
   DST(1, 0) = DST(0, 1)                         = AVG3(B, C, D);
   DST(2, 0) = DST(1, 1) = DST(0, 2)             = AVG3(C, D, E);
   DST(3, 0) = DST(2, 1) = DST(1, 2) = DST(0, 3) = AVG3(D, E, F);
-  DST(3, 1) = DST(2, 2) = DST(1, 3)             = AVG3(E, F, G);
-  DST(3, 2) = DST(2, 3)                         = AVG3(F, G, H);
-  DST(3, 3)                                     = AVG3(G, H, H);
+              DST(3, 1) = DST(2, 2) = DST(1, 3) = AVG3(E, F, G);
+                          DST(3, 2) = DST(2, 3) = AVG3(F, G, H);
+                                      DST(3, 3) = AVG3(G, H, H);
 }
 
 static void VR4(uint8_t *dst) {   // Vertical-Right
@@ -456,9 +456,7 @@ static void DC8uvNoTopLeft(uint8_t *dst) {    // DC with nothing
 //------------------------------------------------------------------------------
 // default C implementations
 
-const VP8PredFunc VP8PredLuma4[NUM_BMODES] = {
-  DC4, TM4, VE4, HE4, RD4, VR4, LD4, VL4, HD4, HU4
-};
+VP8PredFunc VP8PredLuma4[NUM_BMODES];
 
 const VP8PredFunc VP8PredLuma16[NUM_B_DC_MODES] = {
   DC16, TM16, VE16, HE16,
@@ -711,6 +709,17 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8DspInit(void) {
   VP8SimpleHFilter16 = SimpleHFilter16;
   VP8SimpleVFilter16i = SimpleVFilter16i;
   VP8SimpleHFilter16i = SimpleHFilter16i;
+
+  VP8PredLuma4[0] = DC4;
+  VP8PredLuma4[1] = TM4;
+  VP8PredLuma4[2] = VE4;
+  VP8PredLuma4[3] = HE4;
+  VP8PredLuma4[4] = RD4;
+  VP8PredLuma4[5] = VR4;
+  VP8PredLuma4[6] = LD4;
+  VP8PredLuma4[7] = VL4;
+  VP8PredLuma4[8] = HD4;
+  VP8PredLuma4[9] = HU4;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
