@@ -90,6 +90,32 @@ MAP_COLOR_FUNCS(MapAlpha, uint8_t, VP8GetAlphaIndex, VP8GetAlphaValue)
 
 #undef MAP_COLOR_FUNCS
 
+static WEBP_INLINE uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1,
+                                                   uint32_t c2) {
+  int temp1, temp2, temp3, temp4, temp5, temp6;
+  __asm__ volatile (
+    "preceu.ph.qbr   %[temp1],   %[c0]                 \n\t"
+    "preceu.ph.qbl   %[temp2],   %[c0]                 \n\t"
+    "preceu.ph.qbr   %[temp3],   %[c1]                 \n\t"
+    "preceu.ph.qbl   %[temp4],   %[c1]                 \n\t"
+    "preceu.ph.qbr   %[temp5],   %[c2]                 \n\t"
+    "preceu.ph.qbl   %[temp6],   %[c2]                 \n\t"
+    "subq.ph         %[temp3],   %[temp3],   %[temp5]  \n\t"
+    "subq.ph         %[temp4],   %[temp4],   %[temp6]  \n\t"
+    "addq.ph         %[temp1],   %[temp1],   %[temp3]  \n\t"
+    "addq.ph         %[temp2],   %[temp2],   %[temp4]  \n\t"
+    "shll_s.ph       %[temp1],   %[temp1],   7         \n\t"
+    "shll_s.ph       %[temp2],   %[temp2],   7         \n\t"
+    "precrqu_s.qb.ph %[temp2],   %[temp2],   %[temp1]  \n\t"
+    : [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
+      [temp3]"=&r"(temp3), [temp4]"=&r"(temp4),
+      [temp5]"=&r"(temp5), [temp6]"=r"(temp6)
+    : [c0]"r"(c0), [c1]"r"(c1), [c2]"r"(c2)
+    : "memory"
+  );
+  return temp2;
+}
+
 static WEBP_INLINE uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1,
                                                    uint32_t c2) {
   int tmp1, tmp2, tmp3, tmp4, tmp5, tmp6;
@@ -120,6 +146,10 @@ static WEBP_INLINE uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1,
   return tmp1;
 }
 
+static uint32_t Predictor12(uint32_t left, const uint32_t* const top) {
+  return ClampedAddSubtractFull(left, top[0], top[-1]);
+}
+
 static uint32_t Predictor13(uint32_t left, const uint32_t* const top) {
   return ClampedAddSubtractHalf(left, top[0], top[-1]);
 }
@@ -134,6 +164,7 @@ void VP8LDspInitMIPSdspR2(void) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
   VP8LMapColor32b = MapARGB;
   VP8LMapColor8b = MapAlpha;
+  VP8LPredictors[12] = Predictor12;
   VP8LPredictors[13] = Predictor13;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
