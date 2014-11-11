@@ -41,6 +41,14 @@ static void HistogramClear(VP8LHistogram* const p) {
   p->literal_ = literal;
 }
 
+// Returns the original histogram (*dst) being replaced by src.
+static VP8LHistogram* HistogramReplace(VP8LHistogram* const src,
+                                       VP8LHistogram** const dst) {
+  VP8LHistogram* const tmp = *dst;
+  *dst = src;
+  return tmp;
+}
+
 static void HistogramCopy(const VP8LHistogram* const src,
                           VP8LHistogram* const dst) {
   uint32_t* const dst_literal = dst->literal_;
@@ -542,7 +550,7 @@ static void HistogramCompactBins(VP8LHistogramSet* const image_histo) {
     if (start < end) {
       assert(histograms[start] != NULL);
       assert(histograms[end] != NULL);
-      HistogramCopy(histograms[end], histograms[start]);
+      histograms[start] = histograms[end];
       histograms[end] = NULL;
       --end;
     }
@@ -584,7 +592,7 @@ static void HistogramCombineEntropyBin(VP8LHistogramSet* const image_histo,
                (histograms[idx2]->trivial_symbol_== NON_TRIVIAL_SYM));
           const int max_combine_failures = 32;
           if (try_combine || (num_combine_failures >= max_combine_failures)) {
-            HistogramCopy(cur_combo, histograms[idx1]);
+            cur_combo = HistogramReplace(cur_combo, &histograms[idx1]);
             histograms[idx2]->bit_cost_ = 0.;
           } else {
             ++num_combine_failures;
@@ -817,7 +825,7 @@ static int HistogramCombineGreedy(VP8LHistogramSet* const image_histo,
   // Move remaining histograms to the beginning of the array.
   for (i = 0; i < image_histo_size; ++i) {
     if (i != clusters[i]) {
-      HistogramCopy(histograms[clusters[i]], histograms[i]);
+      HistogramReplace(histograms[clusters[i]], &histograms[i]);
     }
   }
 
@@ -884,11 +892,11 @@ static void HistogramCombineStochastic(VP8LHistogramSet* const image_histo,
     }
 
     if (best_idx1 >= 0) {
-      HistogramCopy(best_combo, histograms[best_idx1]);
+      best_combo = HistogramReplace(best_combo, &histograms[best_idx1]);
       // swap best_idx2 slot with last one (which is now unused)
       --image_histo_size;
       if (best_idx2 != image_histo_size) {
-        HistogramCopy(histograms[image_histo_size], histograms[best_idx2]);
+        HistogramReplace(histograms[image_histo_size], &histograms[best_idx2]);
         histograms[image_histo_size] = NULL;
       }
       tries_with_no_success = 0;
