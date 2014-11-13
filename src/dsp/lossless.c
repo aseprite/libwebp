@@ -1044,9 +1044,9 @@ static WEBP_INLINE uint8_t TransformColorRed(uint8_t green_to_red,
   return (new_red & 0xff);
 }
 
-static WEBP_INLINE uint8_t TransformColorBlue(uint8_t green_to_blue,
-                                              uint8_t red_to_blue,
-                                              uint32_t argb) {
+static uint8_t VP8LTransformColorBlue_C(uint8_t green_to_blue,
+                                        uint8_t red_to_blue,
+                                        uint32_t argb) {
   const uint32_t green = argb >> 8;
   const uint32_t red = argb >> 16;
   uint8_t new_blue = argb;
@@ -1142,7 +1142,7 @@ static float GetPredictionCostCrossColorBlue(
     int all_x;
     int ix = all_y * xsize + tile_x_offset;
     for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-      ++histo[TransformColorBlue(green_to_blue, red_to_blue, argb[ix])];
+      ++histo[VP8LTransformColorBlue(green_to_blue, red_to_blue, argb[ix])];
     }
   }
   cur_diff = PredictionCostCrossColor(accumulated_blue_histo, histo);
@@ -1717,6 +1717,8 @@ VP8LPredictorFunc VP8LPredictors[16];
 VP8LTransformColorFunc VP8LTransformColor;
 VP8LTransformColorFunc VP8LTransformColorInverse;
 
+VP8LTransformColorBlueFunc VP8LTransformColorBlue;
+
 VP8LConvertFunc VP8LConvertBGRAToRGB;
 VP8LConvertFunc VP8LConvertBGRAToRGBA;
 VP8LConvertFunc VP8LConvertBGRAToRGBA4444;
@@ -1750,6 +1752,8 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8LDspInit(void) {
 
   VP8LTransformColor = VP8LTransformColor_C;
   VP8LTransformColorInverse = VP8LTransformColorInverse_C;
+
+  VP8LTransformColorBlue = VP8LTransformColorBlue_C;
 
   VP8LConvertBGRAToRGB = VP8LConvertBGRAToRGB_C;
   VP8LConvertBGRAToRGBA = VP8LConvertBGRAToRGBA_C;

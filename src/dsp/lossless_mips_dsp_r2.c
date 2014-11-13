@@ -236,6 +236,32 @@ static uint32_t Predictor13(uint32_t left, const uint32_t* const top) {
   return ClampedAddSubtractHalf(left, top[0], top[-1]);
 }
 
+static uint8_t TransformColorBlue(uint8_t green_to_blue,
+                                  uint8_t red_to_blue,
+                                  uint32_t argb) {
+  int temp0, temp1, temp2;
+  __asm__ volatile(
+    "sra            %[temp0], %[argb],  8         \n\t"
+    "preceu.ph.qbr  %[temp0], %[temp0]            \n\t"
+    "precr.qb.ph    %[temp2], %[r_t_b], %[g_t_b]  \n\t"
+    "shll.ph        %[temp0], %[temp0], 8         \n\t"
+    "shll.ph        %[temp2], %[temp2], 8         \n\t"
+    "shra.ph        %[temp0], %[temp0], 8         \n\t"
+    "shra.ph        %[temp2], %[temp2], 8         \n\t"
+    "mul.ph         %[temp1], %[temp0], %[temp2]  \n\t"
+    "shra.ph        %[temp1], %[temp1], 5         \n\t"
+    "subu.qb        %[temp2], %[argb],  %[temp1]  \n\t"
+    "srl            %[temp1], %[temp1], 16        \n\t"
+    "subu.qb        %[temp2], %[temp2], %[temp1]  \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),
+      [temp2]"=&r"(temp2)
+    : [r_t_b]"r"(red_to_blue), [g_t_b]"r"(green_to_blue),
+      [argb]"r"(argb)
+    : "hi", "lo"
+  );
+  return temp2;
+}
+
 #endif  // WEBP_USE_MIPS_DSP_R2
 
 //------------------------------------------------------------------------------
@@ -250,6 +276,7 @@ void VP8LDspInitMIPSdspR2(void) {
   VP8LPredictors[12] = Predictor12;
   VP8LPredictors[13] = Predictor13;
   VP8LSubtractGreenFromBlueAndRed = SubtractGreenFromBlueAndRed;
+  VP8LTransformColorBlue = TransformColorBlue;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
 
