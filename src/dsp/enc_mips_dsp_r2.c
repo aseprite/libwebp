@@ -304,6 +304,211 @@ static int Disto16x16(const uint8_t* const a, const uint8_t* const b,
   return D;
 }
 
+//------------------------------------------------------------------------------
+// Intra predictions
+
+static WEBP_INLINE uint8_t clip_8b(int v) {
+  return (!(v & ~0xff)) ? v : (v < 0) ? 0 : 255;
+}
+
+static uint8_t clip1[255 + 510 + 1];    // clips [-255,510] to [0,255]
+
+static volatile int tables_ok = 0;
+
+static void InitTables(void) {
+  if (!tables_ok) {
+    int i;
+    for (i = -255; i <= 255 + 255; ++i) {
+      clip1[255 + i] = clip_8b(i);
+    }
+    tables_ok = 1;
+  }
+}
+
+static WEBP_INLINE void Fill(uint8_t* dst, int value, int size) {
+  int j;
+  for (j = 0; j < size; ++j) {
+    memset(dst + j * BPS, value, size);
+  }
+}
+
+static WEBP_INLINE void VerticalPred(uint8_t* dst,
+                                     const uint8_t* top, int size) {
+  int j;
+  if (top) {
+    for (j = 0; j < size; ++j) memcpy(dst + j * BPS, top, size);
+  } else {
+    Fill(dst, 127, size);
+  }
+}
+
+static WEBP_INLINE void HorizontalPred(uint8_t* dst,
+                                       const uint8_t* left, int size) {
+  if (left) {
+    int j;
+    for (j = 0; j < size; ++j) {
+      memset(dst + j * BPS, left[j], size);
+    }
+  } else {
+    Fill(dst, 129, size);
+  }
+}
+
+static WEBP_INLINE void TrueMotion(uint8_t* dst, const uint8_t* left,
+                                   const uint8_t* top, int size) {
+  int y;
+  if (left) {
+    if (top) {
+      const uint8_t* const clip = clip1 + 255 - left[-1];
+      for (y = 0; y < size; ++y) {
+        const uint8_t* const clip_table = clip + left[y];
+        int x;
+        for (x = 0; x < size; ++x) {
+          dst[x] = clip_table[top[x]];
+        }
+        dst += BPS;
+      }
+    } else {
+      HorizontalPred(dst, left, size);
+    }
+  } else {
+    // true motion without left samples (hence: with default 129 value)
+    // is equivalent to VE prediction where you just copy the top samples.
+    // Note that if top samples are not available, the default value is
+    // then 129, and not 127 as in the VerticalPred case.
+    if (top) {
+      VerticalPred(dst, top, size);
+    } else {
+      Fill(dst, 129, size);
+    }
+  }
+}
+
+static WEBP_INLINE void DCMode(uint8_t* dst, const uint8_t* left,
+                               const uint8_t* top, int size) {
+  int DC, DC1;
+  int temp0, temp1, temp2, temp3;
+  if(size == 16) {
+    __asm__ volatile(
+      "beqz        %[top],   2f                  \n\t"
+      LOAD_WITH_OFFSET_X4(temp0, temp1, temp2, temp3,
+                          top, 0, 4, 8, 12)
+      "raddu.w.qb  %[temp0], %[temp0]            \n\t"
+      "raddu.w.qb  %[temp1], %[temp1]            \n\t"
+      "raddu.w.qb  %[temp2], %[temp2]            \n\t"
+      "raddu.w.qb  %[temp3], %[temp3]            \n\t"
+      "addu        %[temp0], %[temp0], %[temp1]  \n\t"
+      "addu        %[temp2], %[temp2], %[temp3]  \n\t"
+      "addu        %[DC],    %[temp0], %[temp2]  \n\t"
+      "move        %[DC1],   %[DC]               \n\t"
+      "beqz        %[left],  1f                  \n\t"
+      LOAD_WITH_OFFSET_X4(temp0, temp1, temp2, temp3,
+                          left, 0, 4, 8, 12)
+      "raddu.w.qb  %[temp0], %[temp0]            \n\t"
+      "raddu.w.qb  %[temp1], %[temp1]            \n\t"
+      "raddu.w.qb  %[temp2], %[temp2]            \n\t"
+      "raddu.w.qb  %[temp3], %[temp3]            \n\t"
+      "addu        %[temp0], %[temp0], %[temp1]  \n\t"
+      "addu        %[temp2], %[temp2], %[temp3]  \n\t"
+      "addu        %[DC1],   %[temp0], %[temp2]  \n\t"
+    "1:                                          \n\t"
+      "addu        %[DC],   %[DC],     %[DC1]    \n\t"
+      "j           3f                            \n\t"
+    "2:                                          \n\t"
+      "beqz        %[left],  4f                  \n\t"
+      LOAD_WITH_OFFSET_X4(temp0, temp1, temp2, temp3,
+                          left, 0, 4, 8, 12)
+      "raddu.w.qb  %[temp0], %[temp0]            \n\t"
+      "raddu.w.qb  %[temp1], %[temp1]            \n\t"
+      "raddu.w.qb  %[temp2], %[temp2]            \n\t"
+      "raddu.w.qb  %[temp3], %[temp3]            \n\t"
+      "addu        %[temp0], %[temp0], %[temp1]  \n\t"
+      "addu        %[temp2], %[temp2], %[temp3]  \n\t"
+      "addu        %[DC],    %[temp0], %[temp2]  \n\t"
+      "addu        %[DC],    %[DC],    %[DC]     \n\t"
+    "3:                                          \n\t"
+      "shra_r.w    %[DC],    %[DC],    5         \n\t"
+      "j           5f                            \n\t"
+    "4:                                          \n\t"
+      "li          %[DC],    0x80                \n\t"
+    "5:                                          \n\t"
+      : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [DC]"=&r"(DC),
+        [temp2]"=&r"(temp2), [temp3]"=&r"(temp3), [DC1]"=&r"(DC1)
+      : [size]"r"(size), [left]"r"(left), [top]"r"(top)
+      : "memory"
+    );
+  } else {
+    __asm__ volatile(
+      "beqz        %[top],   2f                  \n\t"
+      "ulw         %[temp0], 0(%[top])           \n\t"
+      "ulw         %[temp1], 4(%[top])           \n\t"
+      "raddu.w.qb  %[temp0], %[temp0]            \n\t"
+      "raddu.w.qb  %[temp1], %[temp1]            \n\t"
+      "addu        %[DC],    %[temp0], %[temp1]  \n\t"
+      "move        %[DC1],   %[DC]               \n\t"
+      "beqz        %[left],  1f                  \n\t"
+      "ulw         %[temp2], 0(%[left])          \n\t"
+      "ulw         %[temp3], 4(%[left])          \n\t"
+      "raddu.w.qb  %[temp2], %[temp2]            \n\t"
+      "raddu.w.qb  %[temp3], %[temp3]            \n\t"
+      "addu        %[DC1],   %[temp2], %[temp3]  \n\t"
+    "1:                                          \n\t"
+      "addu        %[DC],    %[DC],    %[DC1]    \n\t"
+      "j           3f                            \n\t"
+    "2:                                          \n\t"
+      "beqz        %[left],  4f                  \n\t"
+      "ulw         %[temp2], 0(%[left])          \n\t"
+      "ulw         %[temp3], 4(%[left])          \n\t"
+      "raddu.w.qb  %[temp2], %[temp2]            \n\t"
+      "raddu.w.qb  %[temp3], %[temp3]            \n\t"
+      "addu        %[DC],    %[temp2], %[temp3]  \n\t"
+      "addu        %[DC],    %[DC],    %[DC]     \n\t"
+    "3:                                          \n\t"
+      "shra_r.w    %[DC], %[DC], 4               \n\t"
+      "j           5f                            \n\t"
+    "4:                                          \n\t"
+      "li          %[DC], 0x80                   \n\t"
+    "5:                                          \n\t"
+      : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [DC]"=&r"(DC),
+        [temp2]"=&r"(temp2), [temp3]"=&r"(temp3), [DC1]"=&r"(DC1)
+      : [size]"r"(size), [left]"r"(left), [top]"r"(top)
+      : "memory"
+    );
+  }
+  Fill(dst, DC, size);
+}
+
+//------------------------------------------------------------------------------
+// Chroma 8x8 prediction (paragraph 12.2)
+
+static void IntraChromaPreds(uint8_t* dst, const uint8_t* left,
+                             const uint8_t* top) {
+  // U block
+  DCMode(C8DC8 + dst, left, top, 8);
+  VerticalPred(C8VE8 + dst, top, 8);
+  HorizontalPred(C8HE8 + dst, left, 8);
+  TrueMotion(C8TM8 + dst, left, top, 8);
+  // V block
+  dst += 8;
+  if (top) top += 8;
+  if (left) left += 16;
+  DCMode(C8DC8 + dst, left, top, 8);
+  VerticalPred(C8VE8 + dst, top, 8);
+  HorizontalPred(C8HE8 + dst, left, 8);
+  TrueMotion(C8TM8 + dst, left, top, 8);
+}
+
+//------------------------------------------------------------------------------
+// luma 16x16 prediction (paragraph 12.3)
+
+static void Intra16Preds(uint8_t* dst,
+                         const uint8_t* left, const uint8_t* top) {
+  DCMode(I16DC16 + dst, left, top, 16);
+  VerticalPred(I16VE16 + dst, top, 16);
+  HorizontalPred(I16HE16 + dst, left, 16);
+  TrueMotion(I16TM16 + dst, left, top, 16);
+}
+
 #undef OUTPUT_EARLY_CLOBBER_REGS_17
 #undef MUL_HALF
 #undef ABS_X8
@@ -318,9 +523,12 @@ extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
+  InitTables();
   VP8FTransform = FTransform;
   VP8ITransform = ITransform;
   VP8TDisto4x4 = Disto4x4;
   VP8TDisto16x16 = Disto16x16;
+  VP8EncPredLuma16 = Intra16Preds;
+  VP8EncPredChroma8 = IntraChromaPreds;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
