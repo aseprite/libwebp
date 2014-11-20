@@ -32,9 +32,22 @@ static const union {
 } test_endian = { 0xff000000u };
 #define ALPHA_IS_LAST (test_endian.bytes[3] == 0xff)
 
+#if defined(WEBP_USE_MIPS_DSP_R2)
+static WEBP_INLINE uint32_t MakeARGB32(int a, int r, int g, int b) {
+  __asm__ volatile(
+    "ins            %[r],    %[a],     16,    16     \n\t"
+    "ins            %[b],    %[g],     16,    16     \n\t"
+    "precr.qb.ph    %[r],    %[r],     %[b]          \n\t"
+    : [r]"+&r"(r), [b]"+r"(b)
+    : [a]"r"(a), [g]"r"(g)
+  );
+  return r;
+}
+#else
 static WEBP_INLINE uint32_t MakeARGB32(int a, int r, int g, int b) {
   return (((uint32_t)a << 24) | (r << 16) | (g << 8) | b);
 }
+#endif
 
 //------------------------------------------------------------------------------
 // Detection of non-trivial transparency
