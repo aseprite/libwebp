@@ -18,6 +18,7 @@
 #include "./vp8enci.h"
 #include "../utils/random.h"
 #include "../utils/utils.h"
+#include "../dsp/argb.h"
 #include "../dsp/yuv.h"
 
 // Uncomment to disable gamma-compression during RGB->U/V averaging
@@ -31,10 +32,6 @@ static const union {
   uint8_t  bytes[4];
 } test_endian = { 0xff000000u };
 #define ALPHA_IS_LAST (test_endian.bytes[3] == 0xff)
-
-static WEBP_INLINE uint32_t MakeARGB32(int a, int r, int g, int b) {
-  return (((uint32_t)a << 24) | (r << 16) | (g << 8) | b);
-}
 
 //------------------------------------------------------------------------------
 // Detection of non-trivial transparency
@@ -1065,13 +1062,15 @@ static int Import(WebPPicture* const picture,
   if (!WebPPictureAlloc(picture)) return 0;
 
   assert(step >= (import_alpha ? 4 : 3));
-  for (y = 0; y < height; ++y) {
-    uint32_t* const dst = &picture->argb[y * picture->argb_stride];
-    int x;
-    for (x = 0; x < width; ++x) {
-      const int offset = step * x + y * rgb_stride;
-      dst[x] = MakeARGB32(import_alpha ? a_ptr[offset] : 0xff,
-                          r_ptr[offset], g_ptr[offset], b_ptr[offset]);
+  if (import_alpha) {
+    for (y = 0; y < height; ++y) {
+      uint32_t* const dst = &picture->argb[y * picture->argb_stride];
+      VP8PackARGB(a_ptr, r_ptr, g_ptr, b_ptr, width, step, y * rgb_stride, dst);
+    }
+  } else {
+    for (y = 0; y < height; ++y) {
+      uint32_t* const dst = &picture->argb[y * picture->argb_stride];
+      VP8PackRGB(r_ptr, g_ptr, b_ptr, width, step, y * rgb_stride, dst);
     }
   }
   return 1;
