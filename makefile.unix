@@ -110,6 +110,8 @@ DSP_DEC_OBJS = \
     src/dsp/alpha_processing.o \
     src/dsp/alpha_processing_mips_dsp_r2.o \
     src/dsp/alpha_processing_sse2.o \
+    src/dsp/argb.o \
+    src/dsp/argb_mips_dsp_r2.o \
     src/dsp/cpu.o \
     src/dsp/dec.o \
     src/dsp/dec_clip_tables.o \
@@ -217,6 +219,7 @@ HDRS = \
     src/dec/vp8i.h \
     src/dec/vp8li.h \
     src/dec/webpi.h \
+    src/dsp/argb.h \
     src/dsp/dsp.h \
     src/dsp/lossless.h \
     src/dsp/mips_macro.h \

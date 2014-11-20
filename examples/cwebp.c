@@ -31,6 +31,7 @@
 #include "./tiffdec.h"
 #include "./webpdec.h"
 #include "./wicdec.h"
+#include "../dsp/argb.h"
 
 #ifndef WEBP_DLL
 #ifdef __cplusplus
@@ -965,6 +966,9 @@ int main(int argc, const char *argv[]) {
   if (verbose) {
     StopwatchReset(&stop_watch);
   }
+
+  VP8EncDspARGBInit();
+
   if (!ReadPicture(in_file, &picture, keep_alpha,
                    (keep_metadata == 0) ? NULL : &metadata)) {
     fprintf(stderr, "Error! Cannot read input picture file '%s'\n", in_file);

@@ -23,6 +23,8 @@ endif
 
 LOCAL_SRC_FILES := \
     src/dec/alpha.c \
+    src/dec/argb.c \
+    src/dec/argb_mips_dsp_r2.c \
     src/dec/buffer.c \
     src/dec/frame.c \
     src/dec/idec.c \
@@ -35,6 +37,8 @@ LOCAL_SRC_FILES := \
     src/dsp/alpha_processing.c \
     src/dsp/alpha_processing_mips_dsp_r2.c \
     src/dsp/alpha_processing_sse2.c \
+    src/dsp/argb.c \
+    src/dsp/argb_mips_dsp_r2.c \
     src/dsp/cpu.c \
     src/dsp/dec.c \
     src/dsp/dec_clip_tables.c \
