@@ -236,6 +236,99 @@ static uint32_t Predictor13(uint32_t left, const uint32_t* const top) {
   return ClampedAddSubtractHalf(left, top[0], top[-1]);
 }
 
+static void TransformColor(const VP8LMultipliers* const m, uint32_t* data,
+                           int num_pixels) {
+  int temp0, temp1, temp2, temp3, temp4, temp5;
+  uint32_t argb, argb1, new_red, new_red1;
+  uint32_t G_to_R = m->green_to_red_;
+  const uint32_t G_to_B = m->green_to_blue_;
+  uint32_t R_to_B = m->red_to_blue_;
+  uint32_t* const p_loop_end = data + (num_pixels & ~1);
+  const uint32_t rest = num_pixels & 1;
+  __asm__ volatile (
+    ".set            push                                    \n\t"
+    ".set            noreorder                               \n\t"
+    "beq             %[data],      %[p_loop_end],  1f        \n\t"
+    " nop                                                    \n\t"
+    "replv.ph        %[temp0],     %[G_to_R]                 \n\t"
+    "replv.ph        %[temp1],     %[G_to_B]                 \n\t"
+    "replv.ph        %[temp2],     %[R_to_B]                 \n\t"
+    "shll.ph         %[temp0],     %[temp0],       8         \n\t"
+    "shll.ph         %[temp1],     %[temp1],       8         \n\t"
+    "shll.ph         %[temp2],     %[temp2],       8         \n\t"
+    "shra.ph         %[temp0],     %[temp0],       8         \n\t"
+    "shra.ph         %[temp1],     %[temp1],       8         \n\t"
+    "shra.ph         %[temp2],     %[temp2],       8         \n\t"
+  "0:                                                        \n\t"
+    "lw              %[argb],      0(%[data])                \n\t"
+    "lw              %[argb1],     4(%[data])                \n\t"
+    "lhu             %[new_red],   2(%[data])                \n\t"
+    "lhu             %[new_red1],  6(%[data])                \n\t"
+    "precrq.qb.ph    %[temp3],     %[argb],        %[argb1]  \n\t"
+    "precr.qb.ph     %[temp4],     %[argb],        %[argb1]  \n\t"
+    "preceu.ph.qbra  %[temp3],     %[temp3]                  \n\t"
+    "preceu.ph.qbla  %[temp4],     %[temp4]                  \n\t"
+    "shll.ph         %[temp3],     %[temp3],       8         \n\t"
+    "shll.ph         %[temp4],     %[temp4],       8         \n\t"
+    "shra.ph         %[temp3],     %[temp3],       8         \n\t"
+    "shra.ph         %[temp4],     %[temp4],       8         \n\t"
+    "mul.ph          %[temp5],     %[temp3],       %[temp0]  \n\t"
+    "mul.ph          %[temp3],     %[temp3],       %[temp1]  \n\t"
+    "mul.ph          %[temp4],     %[temp4],       %[temp2]  \n\t"
+    "addiu           %[data],      %[data],        8         \n\t"
+    "ins             %[new_red1],  %[new_red],     16,   16  \n\t"
+    "ins             %[argb1],     %[argb],        16,   16  \n\t"
+    "shra.ph         %[temp5],     %[temp5],       5         \n\t"
+    "shra.ph         %[temp3],     %[temp3],       5         \n\t"
+    "shra.ph         %[temp4],     %[temp4],       5         \n\t"
+    "subu.ph         %[new_red1],  %[new_red1],    %[temp5]  \n\t"
+    "subu.ph         %[argb1],     %[argb1],       %[temp3]  \n\t"
+    "preceu.ph.qbra  %[temp5],     %[new_red1]               \n\t"
+    "subu.ph         %[argb1],     %[argb1],       %[temp4]  \n\t"
+    "preceu.ph.qbra  %[temp3],     %[argb1]                  \n\t"
+    "sb              %[temp5],     -2(%[data])               \n\t"
+    "sb              %[temp3],     -4(%[data])               \n\t"
+    "sra             %[temp5],     %[temp5],       16        \n\t"
+    "sra             %[temp3],     %[temp3],       16        \n\t"
+    "sb              %[temp5],     -6(%[data])               \n\t"
+    "bne             %[data],      %[p_loop_end],  0b        \n\t"
+    " sb             %[temp3],     -8(%[data])               \n\t"
+  "1:                                                        \n\t"
+    "beqz            %[rest],      2f                        \n\t"
+    " nop                                                    \n\t"
+    "lw              %[argb],      0(%[data])                \n\t"
+    "lhu             %[new_red],   2(%[data])                \n\t"
+    "lb              %[temp3],     1(%[data])                \n\t"
+    "ins             %[G_to_R],    %[G_to_B],      16,   16  \n\t"
+    "replv.ph        %[temp3],     %[temp3]                  \n\t"
+    "lb              %[temp0],     2(%[data])                \n\t"
+    "shll.ph         %[G_to_R],    %[G_to_R],      8         \n\t"
+    "shra.ph         %[G_to_R],    %[G_to_R],      8         \n\t"
+    "shll.ph         %[R_to_B],    %[R_to_B],      8         \n\t"
+    "shra.ph         %[R_to_B],    %[R_to_B],      8         \n\t"
+    "mul.ph          %[temp5],     %[temp3],       %[G_to_R] \n\t"
+    "mul.ph          %[temp0],     %[temp0],       %[R_to_B] \n\t"
+    "ins             %[new_red],   %[argb],        16,   16  \n\t"
+    "shra.ph         %[temp5],     %[temp5],       5         \n\t"
+    "shra.ph         %[temp0],     %[temp0],       5         \n\t"
+    "subu.ph         %[temp4],     %[new_red],     %[temp5]  \n\t"
+    "sra             %[temp5],     %[temp4],       16        \n\t"
+    "subu.ph         %[temp5],     %[temp5],       %[temp0]  \n\t"
+    "sb              %[temp4],     2(%[data])                \n\t"
+    "sb              %[temp5],     0(%[data])                \n\t"
+  "2:                                                        \n\t"
+    ".set            pop                                     \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
+      [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
+      [new_red1]"=&r"(new_red1), [new_red]"=&r"(new_red),
+      [argb]"=&r"(argb), [argb1]"=&r"(argb1), [data]"+&r"(data),
+      [G_to_R]"+r"(G_to_R), [R_to_B]"+r"(R_to_B)
+    : [G_to_B]"r"(G_to_B), [p_loop_end]"r"(p_loop_end),
+      [rest]"r"(rest)
+    : "memory", "hi", "lo"
+  );
+}
+
 #endif  // WEBP_USE_MIPS_DSP_R2
 
 //------------------------------------------------------------------------------
@@ -250,6 +343,7 @@ void VP8LDspInitMIPSdspR2(void) {
   VP8LPredictors[12] = Predictor12;
   VP8LPredictors[13] = Predictor13;
   VP8LSubtractGreenFromBlueAndRed = SubtractGreenFromBlueAndRed;
+  VP8LTransformColor = TransformColor;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
 
