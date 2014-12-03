@@ -148,6 +148,8 @@ extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
-  VP8ITransform = ITransform;
+  // TODO(djordje): fix these to use generic BPS instead of hardcoded value
+  (void)ITransform;
+  //  VP8ITransform = ITransform;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
