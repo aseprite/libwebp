@@ -659,26 +659,26 @@ static int SSE16x16(const uint8_t* a, const uint8_t* b) {
   int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
 
   __asm__ volatile(
-     "mult   $zero,    $zero                            \n\t"
+    "mult   $zero,    $zero                            \n\t"
 
-     GET_SSE(  0,   4,   8,  12)
-     GET_SSE( 16,  20,  24,  28)
-     GET_SSE( 32,  36,  40,  44)
-     GET_SSE( 48,  52,  56,  60)
-     GET_SSE( 64,  68,  72,  76)
-     GET_SSE( 80,  84,  88,  92)
-     GET_SSE( 96, 100, 104, 108)
-     GET_SSE(112, 116, 120, 124)
-     GET_SSE(128, 132, 136, 140)
-     GET_SSE(144, 148, 152, 156)
-     GET_SSE(160, 164, 168, 172)
-     GET_SSE(176, 180, 184, 188)
-     GET_SSE(192, 196, 200, 204)
-     GET_SSE(208, 212, 216, 220)
-     GET_SSE(224, 228, 232, 236)
-     GET_SSE(240, 244, 248, 252)
+    GET_SSE(  0,   4,   8,  12)
+    GET_SSE( 16,  20,  24,  28)
+    GET_SSE( 32,  36,  40,  44)
+    GET_SSE( 48,  52,  56,  60)
+    GET_SSE( 64,  68,  72,  76)
+    GET_SSE( 80,  84,  88,  92)
+    GET_SSE( 96, 100, 104, 108)
+    GET_SSE(112, 116, 120, 124)
+    GET_SSE(128, 132, 136, 140)
+    GET_SSE(144, 148, 152, 156)
+    GET_SSE(160, 164, 168, 172)
+    GET_SSE(176, 180, 184, 188)
+    GET_SSE(192, 196, 200, 204)
+    GET_SSE(208, 212, 216, 220)
+    GET_SSE(224, 228, 232, 236)
+    GET_SSE(240, 244, 248, 252)
 
-    "mflo    %[count]                                   \n\t"
+    "mflo    %[count]                                  \n\t"
     : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
       [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
       [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [count]"=&r"(count)
@@ -693,18 +693,18 @@ static int SSE16x8(const uint8_t* a, const uint8_t* b) {
   int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
 
   __asm__ volatile(
-     "mult   $zero,    $zero                            \n\t"
+    "mult   $zero,    $zero                            \n\t"
 
-     GET_SSE(  0,   4,   8,  12)
-     GET_SSE( 16,  20,  24,  28)
-     GET_SSE( 32,  36,  40,  44)
-     GET_SSE( 48,  52,  56,  60)
-     GET_SSE( 64,  68,  72,  76)
-     GET_SSE( 80,  84,  88,  92)
-     GET_SSE( 96, 100, 104, 108)
-     GET_SSE(112, 116, 120, 124)
+    GET_SSE(  0,   4,   8,  12)
+    GET_SSE( 16,  20,  24,  28)
+    GET_SSE( 32,  36,  40,  44)
+    GET_SSE( 48,  52,  56,  60)
+    GET_SSE( 64,  68,  72,  76)
+    GET_SSE( 80,  84,  88,  92)
+    GET_SSE( 96, 100, 104, 108)
+    GET_SSE(112, 116, 120, 124)
 
-    "mflo    %[count]                                   \n\t"
+    "mflo    %[count]                                  \n\t"
     : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
       [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
       [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [count]"=&r"(count)
@@ -719,14 +719,14 @@ static int SSE8x8(const uint8_t* a, const uint8_t* b) {
   int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
 
   __asm__ volatile(
-     "mult   $zero,    $zero                            \n\t"
+    "mult   $zero,    $zero                            \n\t"
 
-     GET_SSE( 0,   4,  16,  20)
-     GET_SSE(32,  36,  48,  52)
-     GET_SSE(64,  68,  80,  84)
-     GET_SSE(96, 100, 112, 116)
+    GET_SSE( 0,   4,  16,  20)
+    GET_SSE(32,  36,  48,  52)
+    GET_SSE(64,  68,  80,  84)
+    GET_SSE(96, 100, 112, 116)
 
-    "mflo    %[count]                                   \n\t"
+    "mflo    %[count]                                  \n\t"
     : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
       [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
       [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [count]"=&r"(count)
@@ -741,11 +741,11 @@ static int SSE4x4(const uint8_t* a, const uint8_t* b) {
   int temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7;
 
   __asm__ volatile(
-     "mult   $zero,    $zero                            \n\t"
+    "mult   $zero,    $zero                            \n\t"
 
-     GET_SSE(0, 16, 32, 48)
+    GET_SSE(0, 16, 32, 48)
 
-    "mflo    %[count]                                   \n\t"
+    "mflo    %[count]                                  \n\t"
     : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
       [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
       [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [count]"=&r"(count)
@@ -769,17 +769,26 @@ extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPS32(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPS32(void) {
 #if defined(WEBP_USE_MIPS32)
-  VP8ITransform = ITransform;
+  // TODO(djordje): fix these to use generic BPS instead of hardcoded value 16
+  (void)ITransform;
+  (void)FTransform;
+  (void)Disto4x4;
+  (void)Disto16x16;
+//  VP8ITransform = ITransform;
+//  VP8FTransform = FTransform;
   VP8EncQuantizeBlock = QuantizeBlock;
   VP8EncQuantize2Blocks = Quantize2Blocks;
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
-  VP8FTransform = FTransform;
+//  VP8TDisto4x4 = Disto4x4;
+//  VP8TDisto16x16 = Disto16x16;
 #if !defined(WORK_AROUND_GCC)
-  VP8SSE16x16 = SSE16x16;
-  VP8SSE8x8 = SSE8x8;
-  VP8SSE16x8 = SSE16x8;
-  VP8SSE4x4 = SSE4x4;
+  (void)SSE16x16;
+  (void)SSE8x8;
+  (void)SSE16x8;
+  (void)SSE4x4;
+//  VP8SSE16x16 = SSE16x16;
+//  VP8SSE8x8 = SSE8x8;
+//  VP8SSE16x8 = SSE16x8;
+//  VP8SSE4x4 = SSE4x4;
 #endif
 #endif  // WEBP_USE_MIPS32
 }
