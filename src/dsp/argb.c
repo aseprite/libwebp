@@ -18,11 +18,10 @@ static WEBP_INLINE uint32_t MakeARGB32(int a, int r, int g, int b) {
 }
 
 static void PackARGB(const uint8_t* a, const uint8_t* r, const uint8_t* g,
-                     const uint8_t* b, int len, int step, uint32_t* out) {
-  int i, offset = 0;
+                     const uint8_t* b, int len, uint32_t* out) {
+  int i;
   for (i = 0; i < len; ++i) {
-    out[i] = MakeARGB32(a[offset], r[offset], g[offset], b[offset]);
-    offset += step;
+    out[i] = MakeARGB32(a[4 * i], r[4 * i], g[4 * i], b[4 * i]);
   }
 }
 
@@ -36,11 +35,12 @@ static void PackRGB(const uint8_t* r, const uint8_t* g, const uint8_t* b,
 }
 
 void (*VP8PackARGB)(const uint8_t*, const uint8_t*, const uint8_t*,
-                    const uint8_t*, int, int, uint32_t*);
+                    const uint8_t*, int, uint32_t*);
 void (*VP8PackRGB)(const uint8_t*, const uint8_t*, const uint8_t*,
                    int, int, uint32_t*);
 
 extern void VP8EncDspARGBInitMIPSdspR2(void);
+extern void VP8EncDspARGBInitSSE2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspARGBInit(void) {
   VP8PackARGB = PackARGB;
@@ -48,6 +48,11 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspARGBInit(void) {
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
+#if defined(WEBP_USE_SSE2)
+    if (VP8GetCPUInfo(kSSE2)) {
+      VP8EncDspARGBInitSSE2();
+    }
+#endif
 #if defined(WEBP_USE_MIPS_DSP_R2)
     if (VP8GetCPUInfo(kMIPSdspR2)) {
       VP8EncDspARGBInitMIPSdspR2();
