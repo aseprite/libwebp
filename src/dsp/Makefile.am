@@ -49,6 +49,7 @@ libwebpdsp_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2_FLAGS)
 
 libwebpdspdecode_sse2_la_SOURCES =
 libwebpdspdecode_sse2_la_SOURCES += alpha_processing_sse2.c
+libwebpdspdecode_sse2_la_SOURCES += argb_sse2.c
 libwebpdspdecode_sse2_la_SOURCES += dec_sse2.c
 libwebpdspdecode_sse2_la_SOURCES += lossless_sse2.c
 libwebpdspdecode_sse2_la_SOURCES += upsampling_sse2.c

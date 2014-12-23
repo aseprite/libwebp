@@ -1062,15 +1062,18 @@ static int Import(WebPPicture* const picture,
 
   VP8EncDspARGBInit();
 
-  assert(step >= (import_alpha ? 4 : 3));
+  VP8EncDspARGBInit();
+
   if (import_alpha) {
+    assert(step == 4);
     for (y = 0; y < height; ++y) {
       uint32_t* const dst = &picture->argb[y * picture->argb_stride];
       const int offset = y * rgb_stride;
       VP8PackARGB(a_ptr + offset, r_ptr + offset, g_ptr + offset,
-                  b_ptr + offset, width, step, dst);
+                  b_ptr + offset, width, dst);
     }
   } else {
+    assert(step >= 3);
     for (y = 0; y < height; ++y) {
       uint32_t* const dst = &picture->argb[y * picture->argb_stride];
       const int offset = y * rgb_stride;
