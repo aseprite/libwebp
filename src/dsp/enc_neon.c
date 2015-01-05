@@ -904,25 +904,27 @@ static int Quantize2Blocks(int16_t in[32], int16_t out[32],
 //------------------------------------------------------------------------------
 // Entry point
 
-extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitNEON(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitNEON, funcs);
 
-WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitNEON(void) {
+VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitNEON, funcs) {
 #if defined(WEBP_USE_NEON)
-  VP8ITransform = ITransform;
-  VP8FTransform = FTransform;
+  funcs->ITransform = ITransform;
+  funcs->FTransform = FTransform;
 
-  VP8FTransformWHT = FTransformWHT;
+  funcs->FTransformWHT = FTransformWHT;
 
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
-  VP8CollectHistogram = CollectHistogram;
-  VP8SSE16x16 = SSE16x16;
-  VP8SSE16x8 = SSE16x8;
-  VP8SSE8x8 = SSE8x8;
-  VP8SSE4x4 = SSE4x4;
+  funcs->TDisto4x4 = Disto4x4;
+  funcs->TDisto16x16 = Disto16x16;
+  funcs->CollectHistogram = CollectHistogram;
+  funcs->SSE16x16 = SSE16x16;
+  funcs->SSE16x8 = SSE16x8;
+  funcs->SSE8x8 = SSE8x8;
+  funcs->SSE4x4 = SSE4x4;
 #if !defined(WORK_AROUND_GCC)
-  VP8EncQuantizeBlock = QuantizeBlock;
-  VP8EncQuantize2Blocks = Quantize2Blocks;
+  funcs->QuantizeBlock = QuantizeBlock;
+  funcs->Quantize2Blocks = Quantize2Blocks;
 #endif
+#else
+  (void)funcs;
 #endif   // WEBP_USE_NEON
 }

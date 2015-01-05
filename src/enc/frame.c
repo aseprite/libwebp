@@ -476,9 +476,9 @@ static void StoreSSE(const VP8EncIterator* const it) {
   const uint8_t* const in = it->yuv_in_;
   const uint8_t* const out = it->yuv_out_;
   // Note: not totally accurate at boundary. And doesn't include in-loop filter.
-  enc->sse_[0] += VP8SSE16x16(in + Y_OFF, out + Y_OFF);
-  enc->sse_[1] += VP8SSE8x8(in + U_OFF, out + U_OFF);
-  enc->sse_[2] += VP8SSE8x8(in + V_OFF, out + V_OFF);
+  enc->sse_[0] += VP8EncF.SSE16x16(in + Y_OFF, out + Y_OFF);
+  enc->sse_[1] += VP8EncF.SSE8x8(in + U_OFF, out + U_OFF);
+  enc->sse_[2] += VP8EncF.SSE8x8(in + V_OFF, out + V_OFF);
   enc->sse_count_ += 16 * 16;
 }
 

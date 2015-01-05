@@ -248,9 +248,9 @@ static int MBAnalyzeBestIntra16Mode(VP8EncIterator* const it) {
     VP8Histogram histo = { { 0 } };
     int alpha;
 
-    VP8CollectHistogram(it->yuv_in_ + Y_OFF,
-                        it->yuv_p_ + VP8I16ModeOffsets[mode],
-                        0, 16, &histo);
+    VP8EncF.CollectHistogram(it->yuv_in_ + Y_OFF,
+                             it->yuv_p_ + VP8I16ModeOffsets[mode],
+                             0, 16, &histo);
     alpha = GetAlpha(&histo);
     if (IS_BETTER_ALPHA(alpha, best_alpha)) {
       best_alpha = alpha;
@@ -281,8 +281,8 @@ static int MBAnalyzeBestIntra4Mode(VP8EncIterator* const it,
       int alpha;
 
       memset(&histos[cur_histo], 0, sizeof(histos[cur_histo]));
-      VP8CollectHistogram(src, it->yuv_p_ + VP8I4ModeOffsets[mode],
-                          0, 1, &histos[cur_histo]);
+      VP8EncF.CollectHistogram(src, it->yuv_p_ + VP8I4ModeOffsets[mode],
+                               0, 1, &histos[cur_histo]);
       alpha = GetAlpha(&histos[cur_histo]);
       if (IS_BETTER_ALPHA(alpha, best_mode_alpha)) {
         best_mode_alpha = alpha;
@@ -313,9 +313,9 @@ static int MBAnalyzeBestUVMode(VP8EncIterator* const it) {
   for (mode = 0; mode < max_mode; ++mode) {
     VP8Histogram histo = { { 0 } };
     int alpha;
-    VP8CollectHistogram(it->yuv_in_ + U_OFF,
-                        it->yuv_p_ + VP8UVModeOffsets[mode],
-                        16, 16 + 4 + 4, &histo);
+    VP8EncF.CollectHistogram(it->yuv_in_ + U_OFF,
+                             it->yuv_p_ + VP8UVModeOffsets[mode],
+                             16, 16 + 4 + 4, &histo);
     alpha = GetAlpha(&histo);
     if (IS_BETTER_ALPHA(alpha, best_alpha)) {
       best_alpha = alpha;
