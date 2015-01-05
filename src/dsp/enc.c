@@ -48,7 +48,7 @@ static void CollectHistogram(const uint8_t* ref, const uint8_t* pred,
     int k;
     int16_t out[16];
 
-    VP8FTransform(ref + VP8DspScan[j], pred + VP8DspScan[j], out);
+    VP8EncF.FTransform(ref + VP8DspScan[j], pred + VP8DspScan[j], out);
 
     // Convert coefficients to bin.
     for (k = 0; k < 16; ++k) {
@@ -628,8 +628,8 @@ static int QuantizeBlock(int16_t in[16], int16_t out[16],
 static int Quantize2Blocks(int16_t in[32], int16_t out[32],
                            const VP8Matrix* const mtx) {
   int nz;
-  nz  = VP8EncQuantizeBlock(in + 0 * 16, out + 0 * 16, mtx) << 0;
-  nz |= VP8EncQuantizeBlock(in + 1 * 16, out + 1 * 16, mtx) << 1;
+  nz  = VP8EncF.QuantizeBlock(in + 0 * 16, out + 0 * 16, mtx) << 0;
+  nz |= VP8EncF.QuantizeBlock(in + 1 * 16, out + 1 * 16, mtx) << 1;
   return nz;
 }
 
@@ -684,81 +684,71 @@ static void Copy16x8(const uint8_t* src, uint8_t* dst) {
 
 // Speed-critical function pointers. We have to initialize them to the default
 // implementations within VP8EncDspInit().
-VP8CHisto VP8CollectHistogram;
-VP8Idct VP8ITransform;
-VP8Fdct VP8FTransform;
-VP8WHT VP8FTransformWHT;
-VP8Intra4Preds VP8EncPredLuma4;
-VP8IntraPreds VP8EncPredLuma16;
-VP8IntraPreds VP8EncPredChroma8;
-VP8Metric VP8SSE16x16;
-VP8Metric VP8SSE8x8;
-VP8Metric VP8SSE16x8;
-VP8Metric VP8SSE4x4;
-VP8WMetric VP8TDisto4x4;
-VP8WMetric VP8TDisto16x16;
-VP8QuantizeBlock VP8EncQuantizeBlock;
-VP8Quantize2Blocks VP8EncQuantize2Blocks;
-VP8QuantizeBlockWHT VP8EncQuantizeBlockWHT;
-VP8BlockCopy VP8Copy4x4;
-VP8BlockCopy VP8Copy16x8;
+VP8EncFuncGroup VP8EncF;
 
-extern void VP8EncDspInitSSE2(void);
-extern void VP8EncDspInitAVX2(void);
-extern void VP8EncDspInitNEON(void);
-extern void VP8EncDspInitMIPS32(void);
-extern void VP8EncDspInitMIPSdspR2(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitSSE2, funcs);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitAVX2, funcs);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitNEON, funcs);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPS32, funcs);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPSdspR2, funcs);
+
+// default C implementations
+static VP8_DSP_ENC_INIT_FUNC(InitDefaultC, funcs) {
+  VP8DspInit();  // common inverse transforms (required too)
+  funcs->CollectHistogram = CollectHistogram;
+  funcs->ITransform = ITransform;
+  funcs->FTransform = FTransform;
+  funcs->FTransformWHT = FTransformWHT;
+  funcs->PredLuma4 = Intra4Preds;
+  funcs->PredLuma16 = Intra16Preds;
+  funcs->PredChroma8 = IntraChromaPreds;
+  funcs->SSE16x16 = SSE16x16;
+  funcs->SSE8x8 = SSE8x8;
+  funcs->SSE16x8 = SSE16x8;
+  funcs->SSE4x4 = SSE4x4;
+  funcs->TDisto4x4 = Disto4x4;
+  funcs->TDisto16x16 = Disto16x16;
+  funcs->QuantizeBlock = QuantizeBlock;
+  funcs->Quantize2Blocks = Quantize2Blocks;
+  funcs->QuantizeBlockWHT = QuantizeBlockWHT;
+  funcs->Copy4x4 = Copy4x4;
+  funcs->Copy16x8 = Copy16x8;
+}
 
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInit(void) {
-  VP8DspInit();  // common inverse transforms
-  InitTables();
+  VP8EncFuncGroup funcs;
 
-  // default C implementations
-  VP8CollectHistogram = CollectHistogram;
-  VP8ITransform = ITransform;
-  VP8FTransform = FTransform;
-  VP8FTransformWHT = FTransformWHT;
-  VP8EncPredLuma4 = Intra4Preds;
-  VP8EncPredLuma16 = Intra16Preds;
-  VP8EncPredChroma8 = IntraChromaPreds;
-  VP8SSE16x16 = SSE16x16;
-  VP8SSE8x8 = SSE8x8;
-  VP8SSE16x8 = SSE16x8;
-  VP8SSE4x4 = SSE4x4;
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
-  VP8EncQuantizeBlock = QuantizeBlock;
-  VP8EncQuantize2Blocks = Quantize2Blocks;
-  VP8EncQuantizeBlockWHT = QuantizeBlockWHT;
-  VP8Copy4x4 = Copy4x4;
-  VP8Copy16x8 = Copy16x8;
+  InitDefaultC(&funcs);
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
 #if defined(WEBP_USE_SSE2)
     if (VP8GetCPUInfo(kSSE2)) {
-      VP8EncDspInitSSE2();
+      VP8EncDspInitSSE2(&funcs);
     }
 #endif
 #if defined(WEBP_USE_AVX2)
     if (VP8GetCPUInfo(kAVX2)) {
-      VP8EncDspInitAVX2();
+      VP8EncDspInitAVX2(&funcs);
     }
 #endif
 #if defined(WEBP_USE_NEON)
     if (VP8GetCPUInfo(kNEON)) {
-      VP8EncDspInitNEON();
+      VP8EncDspInitNEON(&funcs);
     }
 #endif
 #if defined(WEBP_USE_MIPS32)
     if (VP8GetCPUInfo(kMIPS32)) {
-      VP8EncDspInitMIPS32();
+      VP8EncDspInitMIPS32(&funcs);
     }
 #endif
 #if defined(WEBP_USE_MIPS_DSP_R2)
     if (VP8GetCPUInfo(kMIPSdspR2)) {
-      VP8EncDspInitMIPSdspR2();
+      VP8EncDspInitMIPSdspR2(&funcs);
     }
 #endif
   }
+  VP8EncF = funcs;
+
+  InitTables();
 }

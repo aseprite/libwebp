@@ -766,21 +766,23 @@ static int SSE4x4(const uint8_t* a, const uint8_t* b) {
 //------------------------------------------------------------------------------
 // Entry point
 
-extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPS32(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPS32, funcs);
 
-WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPS32(void) {
+VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPS32, funcs) {
 #if defined(WEBP_USE_MIPS32)
-  VP8ITransform = ITransform;
-  VP8FTransform = FTransform;
-  VP8EncQuantizeBlock = QuantizeBlock;
-  VP8EncQuantize2Blocks = Quantize2Blocks;
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
+  funcs->ITransform = ITransform;
+  funcs->FTransform = FTransform;
+  funcs->QuantizeBlock = QuantizeBlock;
+  funcs->Quantize2Blocks = Quantize2Blocks;
+  funcs->TDisto4x4 = Disto4x4;
+  funcs->TDisto16x16 = Disto16x16;
 #if !defined(WORK_AROUND_GCC)
-  VP8SSE16x16 = SSE16x16;
-  VP8SSE8x8 = SSE8x8;
-  VP8SSE16x8 = SSE16x8;
-  VP8SSE4x4 = SSE4x4;
+  funcs->SSE16x16 = SSE16x16;
+  funcs->SSE8x8 = SSE8x8;
+  funcs->SSE16x8 = SSE16x8;
+  funcs->SSE4x4 = SSE4x4;
 #endif
+#else
+  (void)funcs;
 #endif  // WEBP_USE_MIPS32
 }

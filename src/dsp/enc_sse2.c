@@ -63,7 +63,7 @@ static void CollectHistogram(const uint8_t* ref, const uint8_t* pred,
     int16_t out[16];
     int k;
 
-    VP8FTransform(ref + VP8DspScan[j], pred + VP8DspScan[j], out);
+    VP8EncF.FTransform(ref + VP8DspScan[j], pred + VP8DspScan[j], out);
 
     // Convert coefficients to bin (within out[]).
     {
@@ -944,23 +944,24 @@ void VP8SetResidualCoeffsSSE2(const int16_t* const coeffs,
 //------------------------------------------------------------------------------
 // Entry point
 
-extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitSSE2(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitSSE2, funcs);
 
-WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitSSE2(void) {
+VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitSSE2, funcs) {
 #if defined(WEBP_USE_SSE2)
-  VP8CollectHistogram = CollectHistogram;
-  VP8EncQuantizeBlock = QuantizeBlock;
-  VP8EncQuantize2Blocks = Quantize2Blocks;
-  VP8EncQuantizeBlockWHT = QuantizeBlockWHT;
-  VP8ITransform = ITransform;
-  VP8FTransform = FTransform;
-  VP8FTransformWHT = FTransformWHT;
-  VP8SSE16x16 = SSE16x16;
-  VP8SSE16x8 = SSE16x8;
-  VP8SSE8x8 = SSE8x8;
-  VP8SSE4x4 = SSE4x4;
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
+  funcs->CollectHistogram = CollectHistogram;
+  funcs->QuantizeBlock = QuantizeBlock;
+  funcs->Quantize2Blocks = Quantize2Blocks;
+  funcs->QuantizeBlockWHT = QuantizeBlockWHT;
+  funcs->ITransform = ITransform;
+  funcs->FTransform = FTransform;
+  funcs->FTransformWHT = FTransformWHT;
+  funcs->SSE16x16 = SSE16x16;
+  funcs->SSE16x8 = SSE16x8;
+  funcs->SSE8x8 = SSE8x8;
+  funcs->SSE4x4 = SSE4x4;
+  funcs->TDisto4x4 = Disto4x4;
+  funcs->TDisto16x16 = Disto16x16;
+#else
+  (void)funcs;
 #endif   // WEBP_USE_SSE2
 }
-

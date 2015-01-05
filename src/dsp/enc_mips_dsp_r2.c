@@ -335,13 +335,15 @@ static int Disto16x16(const uint8_t* const a, const uint8_t* const b,
 //------------------------------------------------------------------------------
 // Entry point
 
-extern WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPSdspR2, funcs);
 
-WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInitMIPSdspR2(void) {
+VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitMIPSdspR2, funcs) {
 #if defined(WEBP_USE_MIPS_DSP_R2)
-  VP8FTransform = FTransform;
-  VP8ITransform = ITransform;
-  VP8TDisto4x4 = Disto4x4;
-  VP8TDisto16x16 = Disto16x16;
+  funcs->FTransform = FTransform;
+  funcs->ITransform = ITransform;
+  funcs->TDisto4x4 = Disto4x4;
+  funcs->TDisto16x16 = Disto16x16;
+#else
+  (void)funcs;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }

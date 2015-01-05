@@ -104,6 +104,10 @@ typedef enum {
 typedef int (*VP8CPUInfo)(CPUFeature feature);
 WEBP_EXTERN(VP8CPUInfo) VP8GetCPUInfo;
 
+// useful declaration macro
+#define VP8_DSP_ENC_INIT_FUNC(F_NAME, PARAM_NAME) \
+  WEBP_TSAN_IGNORE_FUNCTION void F_NAME(VP8EncFuncGroup* const PARAM_NAME)
+
 //------------------------------------------------------------------------------
 // Encoding
 
@@ -114,27 +118,19 @@ typedef void (*VP8Idct)(const uint8_t* ref, const int16_t* in, uint8_t* dst,
                         int do_two);
 typedef void (*VP8Fdct)(const uint8_t* src, const uint8_t* ref, int16_t* out);
 typedef void (*VP8WHT)(const int16_t* in, int16_t* out);
-extern VP8Idct VP8ITransform;
-extern VP8Fdct VP8FTransform;
-extern VP8WHT VP8FTransformWHT;
+
 // Predictions
 // *dst is the destination block. *top and *left can be NULL.
 typedef void (*VP8IntraPreds)(uint8_t *dst, const uint8_t* left,
                               const uint8_t* top);
 typedef void (*VP8Intra4Preds)(uint8_t *dst, const uint8_t* top);
-extern VP8Intra4Preds VP8EncPredLuma4;
-extern VP8IntraPreds VP8EncPredLuma16;
-extern VP8IntraPreds VP8EncPredChroma8;
 
 typedef int (*VP8Metric)(const uint8_t* pix, const uint8_t* ref);
-extern VP8Metric VP8SSE16x16, VP8SSE16x8, VP8SSE8x8, VP8SSE4x4;
 typedef int (*VP8WMetric)(const uint8_t* pix, const uint8_t* ref,
                           const uint16_t* const weights);
-extern VP8WMetric VP8TDisto4x4, VP8TDisto16x16;
 
 typedef void (*VP8BlockCopy)(const uint8_t* src, uint8_t* dst);
-extern VP8BlockCopy VP8Copy4x4;
-extern VP8BlockCopy VP8Copy16x8;
+
 // Quantization
 struct VP8Matrix;   // forward declaration
 typedef int (*VP8QuantizeBlock)(int16_t in[16], int16_t out[16],
@@ -143,13 +139,9 @@ typedef int (*VP8QuantizeBlock)(int16_t in[16], int16_t out[16],
 typedef int (*VP8Quantize2Blocks)(int16_t in[32], int16_t out[32],
                                   const struct VP8Matrix* const mtx);
 
-extern VP8QuantizeBlock VP8EncQuantizeBlock;
-extern VP8Quantize2Blocks VP8EncQuantize2Blocks;
-
 // specific to 2nd transform:
 typedef int (*VP8QuantizeBlockWHT)(int16_t in[16], int16_t out[16],
                                    const struct VP8Matrix* const mtx);
-extern VP8QuantizeBlockWHT VP8EncQuantizeBlockWHT;
 
 // Collect histogram for susceptibility calculation and accumulate in histo[].
 struct VP8Histogram;
@@ -157,9 +149,31 @@ typedef void (*VP8CHisto)(const uint8_t* ref, const uint8_t* pred,
                           int start_block, int end_block,
                           struct VP8Histogram* const histo);
 extern const int VP8DspScan[16 + 4 + 4];
-extern VP8CHisto VP8CollectHistogram;
 
-// must be called before using any of the above
+typedef struct {
+  VP8CHisto           CollectHistogram;
+  VP8Idct             ITransform;
+  VP8Fdct             FTransform;
+  VP8WHT              FTransformWHT;
+  VP8Intra4Preds      PredLuma4;
+  VP8IntraPreds       PredLuma16;
+  VP8IntraPreds       PredChroma8;
+  VP8Metric           SSE16x16;
+  VP8Metric           SSE8x8;
+  VP8Metric           SSE16x8;
+  VP8Metric           SSE4x4;
+  VP8WMetric          TDisto4x4;
+  VP8WMetric          TDisto16x16;
+  VP8QuantizeBlock    QuantizeBlock;
+  VP8Quantize2Blocks  Quantize2Blocks;
+  VP8QuantizeBlockWHT QuantizeBlockWHT;
+  VP8BlockCopy        Copy4x4;
+  VP8BlockCopy        Copy16x8;
+} VP8EncFuncGroup;
+
+extern VP8EncFuncGroup VP8EncF;  // global collection of functions
+
+// must be called before using VP8EncF.
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInit(void);
 
 //------------------------------------------------------------------------------

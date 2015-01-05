@@ -18,7 +18,8 @@
 //------------------------------------------------------------------------------
 // Entry point
 
-extern void VP8EncDspInitAVX2(void);
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitAVX2, funcs);
 
-void VP8EncDspInitAVX2(void) {
+extern VP8_DSP_ENC_INIT_FUNC(VP8EncDspInitAVX2, funcs) {
+  (void)funcs;
 }

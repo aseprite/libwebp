@@ -427,17 +427,17 @@ const int VP8I4ModeOffsets[NUM_BMODES] = {
 void VP8MakeLuma16Preds(const VP8EncIterator* const it) {
   const uint8_t* const left = it->x_ ? it->y_left_ : NULL;
   const uint8_t* const top = it->y_ ? it->y_top_ : NULL;
-  VP8EncPredLuma16(it->yuv_p_, left, top);
+  VP8EncF.PredLuma16(it->yuv_p_, left, top);
 }
 
 void VP8MakeChroma8Preds(const VP8EncIterator* const it) {
   const uint8_t* const left = it->x_ ? it->u_left_ : NULL;
   const uint8_t* const top = it->y_ ? it->uv_top_ : NULL;
-  VP8EncPredChroma8(it->yuv_p_, left, top);
+  VP8EncF.PredChroma8(it->yuv_p_, left, top);
 }
 
 void VP8MakeIntra4Preds(const VP8EncIterator* const it) {
-  VP8EncPredLuma4(it->yuv_p_, it->i4_top_);
+  VP8EncF.PredLuma4(it->yuv_p_, it->i4_top_);
 }
 
 //------------------------------------------------------------------------------
@@ -723,10 +723,10 @@ static int ReconstructIntra16(VP8EncIterator* const it,
   int16_t tmp[16][16], dc_tmp[16];
 
   for (n = 0; n < 16; ++n) {
-    VP8FTransform(src + VP8Scan[n], ref + VP8Scan[n], tmp[n]);
+    VP8EncF.FTransform(src + VP8Scan[n], ref + VP8Scan[n], tmp[n]);
   }
-  VP8FTransformWHT(tmp[0], dc_tmp);
-  nz |= VP8EncQuantizeBlockWHT(dc_tmp, rd->y_dc_levels, &dqm->y2_) << 24;
+  VP8EncF.FTransformWHT(tmp[0], dc_tmp);
+  nz |= VP8EncF.QuantizeBlockWHT(dc_tmp, rd->y_dc_levels, &dqm->y2_) << 24;
 
   if (DO_TRELLIS_I16 && it->do_trellis_) {
     int x, y;
@@ -747,16 +747,16 @@ static int ReconstructIntra16(VP8EncIterator* const it,
       // Zero-out the first coeff, so that: a) nz is correct below, and
       // b) finding 'last' non-zero coeffs in SetResidualCoeffs() is simplified.
       tmp[n][0] = tmp[n + 1][0] = 0;
-      nz |= VP8EncQuantize2Blocks(tmp[n], rd->y_ac_levels[n], &dqm->y1_) << n;
+      nz |= VP8EncF.Quantize2Blocks(tmp[n], rd->y_ac_levels[n], &dqm->y1_) << n;
       assert(rd->y_ac_levels[n + 0][0] == 0);
       assert(rd->y_ac_levels[n + 1][0] == 0);
     }
   }
 
   // Transform back
-  VP8TransformWHT(dc_tmp, tmp[0]);
+  VP8EncF.FTransformWHT(dc_tmp, tmp[0]);
   for (n = 0; n < 16; n += 2) {
-    VP8ITransform(ref + VP8Scan[n], tmp[n], yuv_out + VP8Scan[n], 1);
+    VP8EncF.ITransform(ref + VP8Scan[n], tmp[n], yuv_out + VP8Scan[n], 1);
   }
 
   return nz;
@@ -773,16 +773,16 @@ static int ReconstructIntra4(VP8EncIterator* const it,
   int nz = 0;
   int16_t tmp[16];
 
-  VP8FTransform(src, ref, tmp);
+  VP8EncF.FTransform(src, ref, tmp);
   if (DO_TRELLIS_I4 && it->do_trellis_) {
     const int x = it->i4_ & 3, y = it->i4_ >> 2;
     const int ctx = it->top_nz_[x] + it->left_nz_[y];
     nz = TrellisQuantizeBlock(enc, tmp, levels, ctx, 3, &dqm->y1_,
                               dqm->lambda_trellis_i4_);
   } else {
-    nz = VP8EncQuantizeBlock(tmp, levels, &dqm->y1_);
+    nz = VP8EncF.QuantizeBlock(tmp, levels, &dqm->y1_);
   }
-  VP8ITransform(ref, tmp, yuv_out, 0);
+  VP8EncF.ITransform(ref, tmp, yuv_out, 0);
   return nz;
 }
 
@@ -797,7 +797,7 @@ static int ReconstructUV(VP8EncIterator* const it, VP8ModeScore* const rd,
   int16_t tmp[8][16];
 
   for (n = 0; n < 8; ++n) {
-    VP8FTransform(src + VP8ScanUV[n], ref + VP8ScanUV[n], tmp[n]);
+    VP8EncF.FTransform(src + VP8ScanUV[n], ref + VP8ScanUV[n], tmp[n]);
   }
   if (DO_TRELLIS_UV && it->do_trellis_) {
     int ch, x, y;
@@ -815,12 +815,12 @@ static int ReconstructUV(VP8EncIterator* const it, VP8ModeScore* const rd,
     }
   } else {
     for (n = 0; n < 8; n += 2) {
-      nz |= VP8EncQuantize2Blocks(tmp[n], rd->uv_levels[n], &dqm->uv_) << n;
+      nz |= VP8EncF.Quantize2Blocks(tmp[n], rd->uv_levels[n], &dqm->uv_) << n;
     }
   }
 
   for (n = 0; n < 8; n += 2) {
-    VP8ITransform(ref + VP8ScanUV[n], tmp[n], yuv_out + VP8ScanUV[n], 1);
+    VP8EncF.ITransform(ref + VP8ScanUV[n], tmp[n], yuv_out + VP8ScanUV[n], 1);
   }
   return (nz << 16);
 }
@@ -889,9 +889,10 @@ static void PickBestIntra16(VP8EncIterator* const it, VP8ModeScore* rd) {
     rd_cur->nz = ReconstructIntra16(it, rd_cur, tmp_dst, mode);
 
     // Measure RD-score
-    rd_cur->D = VP8SSE16x16(src, tmp_dst);
+    rd_cur->D = VP8EncF.SSE16x16(src, tmp_dst);
     rd_cur->SD =
-        tlambda ? MULT_8B(tlambda, VP8TDisto16x16(src, tmp_dst, kWeightY)) : 0;
+        tlambda ? MULT_8B(tlambda, VP8EncF.TDisto16x16(src, tmp_dst, kWeightY))
+                : 0;
     rd_cur->H = VP8FixedCostsI16[mode];
     rd_cur->R = VP8GetCostLuma16(it, rd_cur);
     if (mode > 0 &&
@@ -972,9 +973,9 @@ static int PickBestIntra4(VP8EncIterator* const it, VP8ModeScore* const rd) {
           ReconstructIntra4(it, tmp_levels, src, tmp_dst, mode) << it->i4_;
 
       // Compute RD-score
-      rd_tmp.D = VP8SSE4x4(src, tmp_dst);
+      rd_tmp.D = VP8EncF.SSE4x4(src, tmp_dst);
       rd_tmp.SD =
-          tlambda ? MULT_8B(tlambda, VP8TDisto4x4(src, tmp_dst, kWeightY))
+          tlambda ? MULT_8B(tlambda, VP8EncF.TDisto4x4(src, tmp_dst, kWeightY))
                   : 0;
       rd_tmp.H = mode_costs[mode];
 
@@ -1012,7 +1013,7 @@ static int PickBestIntra4(VP8EncIterator* const it, VP8ModeScore* const rd) {
     }
     // Copy selected samples if not in the right place already.
     if (best_block != best_blocks + VP8Scan[it->i4_]) {
-      VP8Copy4x4(best_block, best_blocks + VP8Scan[it->i4_]);
+      VP8EncF.Copy4x4(best_block, best_blocks + VP8Scan[it->i4_]);
     }
     rd->modes_i4[it->i4_] = best_mode;
     it->top_nz_[it->i4_ & 3] = it->left_nz_[it->i4_ >> 2] = (rd_i4.nz ? 1 : 0);
@@ -1048,7 +1049,7 @@ static void PickBestUV(VP8EncIterator* const it, VP8ModeScore* const rd) {
     rd_uv.nz = ReconstructUV(it, &rd_uv, tmp_dst, mode);
 
     // Compute RD-score
-    rd_uv.D  = VP8SSE16x8(src, tmp_dst);
+    rd_uv.D  = VP8EncF.SSE16x8(src, tmp_dst);
     rd_uv.SD = 0;    // TODO: should we call TDisto? it tends to flatten areas.
     rd_uv.H  = VP8FixedCostsUV[mode];
     rd_uv.R  = VP8GetCostUV(it, &rd_uv);
@@ -1067,7 +1068,7 @@ static void PickBestUV(VP8EncIterator* const it, VP8ModeScore* const rd) {
   VP8SetIntraUVMode(it, rd->mode_uv);
   AddScore(rd, &rd_best);
   if (dst != dst0) {   // copy 16x8 block if needed
-    VP8Copy16x8(dst, dst0);
+    VP8EncF.Copy16x8(dst, dst0);
   }
 }
 
@@ -1109,7 +1110,7 @@ static void DistoRefine(VP8EncIterator* const it, int try_both_i4_i16) {
     for (mode = 0; mode < NUM_PRED_MODES; ++mode) {
       const uint8_t* const ref = it->yuv_p_ + VP8I16ModeOffsets[mode];
       const uint8_t* const src = it->yuv_in_ + Y_OFF;
-      const score_t score = VP8SSE16x16(src, ref);
+      const score_t score = VP8EncF.SSE16x16(src, ref);
       if (score < best_score) {
         best_mode = mode;
         best_score = score;
@@ -1135,7 +1136,7 @@ static void DistoRefine(VP8EncIterator* const it, int try_both_i4_i16) {
       VP8MakeIntra4Preds(it);
       for (mode = 0; mode < NUM_BMODES; ++mode) {
         const uint8_t* const ref = it->yuv_p_ + VP8I4ModeOffsets[mode];
-        const score_t score = VP8SSE4x4(src, ref);
+        const score_t score = VP8EncF.SSE4x4(src, ref);
         if (score < best_sub_score) {
           best_sub_mode = mode;
           best_sub_score = score;
@@ -1187,4 +1188,3 @@ int VP8Decimate(VP8EncIterator* const it, VP8ModeScore* const rd,
   VP8SetSkip(it, is_skipped);
   return is_skipped;
 }
-
