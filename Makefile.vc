@@ -193,6 +193,8 @@ DSP_DEC_OBJS = \
     $(DIROBJ)\dsp\lossless_mips_dsp_r2.obj \
     $(DIROBJ)\dsp\lossless_neon.obj \
     $(DIROBJ)\dsp\lossless_sse2.obj \
+    $(DIROBJ)\dsp\rescaler_mips32.obj \
+    $(DIROBJ)\dsp\rescaler_mips_dsp_r2.obj \
     $(DIROBJ)\dsp\upsampling.obj \
     $(DIROBJ)\dsp\upsampling_mips_dsp_r2.obj \
     $(DIROBJ)\dsp\upsampling_neon.obj \
@@ -212,6 +214,8 @@ DSP_ENC_OBJS = \
     $(DIROBJ)\dsp\enc_mips_dsp_r2.obj \
     $(DIROBJ)\dsp\enc_neon.obj \
     $(DIROBJ)\dsp\enc_sse2.obj \
+    $(DIROBJ)\dsp\rescaler_mips32.obj \
+    $(DIROBJ)\dsp\rescaler_mips_dsp_r2.obj \
 
 EX_FORMAT_DEC_OBJS = \
     $(DIROBJ)\examples\jpegdec.obj \
