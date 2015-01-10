@@ -114,21 +114,18 @@ static void ImportRow(WebPRescaler* const wrk,
   }
 }
 
-#define RFIX 30
-#define MULT_FIX(x, y) (((int64_t)(x) * (y) + (1 << (RFIX - 1))) >> RFIX)
-
-static void ExportRow(WebPRescaler* const wrk, int x_out) {
-  if (wrk->y_accum <= 0) {
-    uint8_t* const dst = wrk->dst;
-    int32_t* const irow = wrk->irow;
-    const int32_t* const frow = wrk->frow;
-    const int yscale = wrk->fy_scale * (-wrk->y_accum);
-    const int x_out_max = wrk->dst_width * wrk->num_channels;
-    // if wrk->fxy_scale can fit into 32 bits use optimized code,
+static void ExportRow(WebPRescaler* const work, int x_out) {
+  if (work->y_accum <= 0) {
+    uint8_t* const dst = work->dst;
+    int32_t* const irow = work->irow;
+    const int32_t* const frow = work->frow;
+    const int yscale = work->fy_scale * (-work->y_accum);
+    const int x_out_max = work->dst_width * work->num_channels;
+    // if work->fxy_scale can fit into 32 bits use optimized code,
     // otherwise use C code
-    if ((wrk->fxy_scale >> 32) == 0) {
+    if ((work->fxy_scale >> 32) == 0) {
       int temp0, temp1, temp3, temp4, temp5, temp6, temp7, loop_end;
-      const int temp2 = (int)(wrk->fxy_scale);
+      const int temp2 = (int)(work->fxy_scale);
       const int temp8 = x_out_max << 2;
       uint8_t* dst_t = (uint8_t*)dst;
       int32_t* irow_t = (int32_t*)irow;
@@ -172,21 +169,13 @@ static void ExportRow(WebPRescaler* const wrk, int x_out) {
         : [temp2]"r"(temp2), [yscale]"r"(yscale), [temp8]"r"(temp8)
         : "memory", "hi", "lo"
       );
+      work->y_accum += work->y_add;
+      work->dst += work->dst_stride;
     } else {
-      for (; x_out < x_out_max; ++x_out) {
-        const int frac = (int)MULT_FIX(frow[x_out], yscale);
-        const int v = (int)MULT_FIX(irow[x_out] - frac, wrk->fxy_scale);
-        dst[x_out] = (!(v & ~0xff)) ? v : (v < 0) ? 0 : 255;
-        irow[x_out] = frac;   // new fractional start
-      }
+      WebPRescalerExportRowC(work, x_out);
     }
-    wrk->y_accum += wrk->y_add;
-    wrk->dst += wrk->dst_stride;
   }
 }
-
-#undef MULT_FIX
-#undef RFIX
 
 #endif  // WEBP_USE_MIPS32
 
