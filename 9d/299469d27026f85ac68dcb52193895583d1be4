@@ -1,0 +1,8 @@
+Verified+1: WebmJenkinsRoleAccount
+Code-Review+2: Pascal Massimino <skal@google.com>
+Verified+1: Pascal Massimino <skal@google.com>
+Submitted-by: Pascal Massimino <skal@google.com>
+Submitted-at: Tue, 13 Jan 2015 14:14:38 -0800
+Reviewed-on: https://gerrit.chromium.org/gerrit/73465
+Project: webm/libwebp
+Branch: refs/heads/master
