@@ -18,6 +18,7 @@ include $(CLEAR_VARS)
 # minor modification to their Android.mk files.
 LOCAL_SRC_FILES := \
     cwebp.c \
+    gifdec.c \
     jpegdec.c \
     metadata.c \
     pngdec.c \
