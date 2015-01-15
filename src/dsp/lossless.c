@@ -1133,17 +1133,16 @@ static void GetBestGreenToRed(
   best_tx->green_to_red_ = green_to_red;
 }
 
-static void CollectColorBlueTransforms(
-    int tile_x_offset, int tile_y_offset, int all_x_max, int all_y_max,
-    int xsize, int green_to_blue, int red_to_blue, int* histo,
-    const uint32_t* const argb) {
-  int all_y;
-  for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
-    int all_x;
-    int ix = all_y * xsize + tile_x_offset;
-    for (all_x = tile_x_offset; all_x < all_x_max; ++all_x, ++ix) {
-      ++histo[TransformColorBlue(green_to_blue, red_to_blue, argb[ix])];
+static void CollectColorBlueTransforms(const uint32_t* argb, int stride,
+                                       int tile_width, int tile_height,
+                                       int green_to_blue, int red_to_blue,
+                                       int histo[]) {
+  while (tile_height-- > 0) {
+    int x;
+    for (x = 0; x < tile_width; ++x) {
+      ++histo[TransformColorBlue(green_to_blue, red_to_blue, argb[x])];
     }
+    argb += stride;
   }
 }
 
@@ -1155,9 +1154,11 @@ static float GetPredictionCostCrossColorBlue(
   int histo[256] = { 0 };
   float cur_diff;
 
-  VP8LCollectColorBlueTransforms(tile_x_offset, tile_y_offset, all_x_max,
-                                 all_y_max, xsize, green_to_blue, red_to_blue,
-                                 histo, argb);
+  VP8LCollectColorBlueTransforms(argb + tile_y_offset * xsize + tile_x_offset,
+                                 xsize,
+                                 all_x_max - tile_x_offset,
+                                 all_y_max - tile_y_offset,
+                                 green_to_blue, red_to_blue, histo);
 
   cur_diff = PredictionCostCrossColor(accumulated_blue_histo, histo);
   if ((uint8_t)green_to_blue == prev_x.green_to_blue_) {
