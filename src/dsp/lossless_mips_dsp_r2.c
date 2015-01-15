@@ -378,21 +378,18 @@ static WEBP_INLINE uint8_t TransformColorBlue(uint8_t green_to_blue,
   return (new_blue & 0xff);
 }
 
-static void CollectColorBlueTransforms(
-    int tile_x_offset, int tile_y_offset, int all_x_max, int all_y_max,
-    int xsize, int green_to_blue, int red_to_blue, int* histo,
-    const uint32_t* const argb) {
+static void CollectColorBlueTransforms(const uint32_t* argb, int stride,
+                                       int tile_width, int tile_height,
+                                       int green_to_blue, int red_to_blue,
+                                       int histo[]) {
   const int rtb = (red_to_blue << 16) | (red_to_blue & 0xffff);
   const int gtb = (green_to_blue << 16) | (green_to_blue & 0xffff);
   const uint32_t mask = 0xff00ffu;
-  int ix = tile_y_offset * xsize + tile_x_offset;
-  int all_y;
-  for (all_y = tile_y_offset; all_y < all_y_max; ++all_y) {
-    uint32_t* p_argb = (uint32_t*)&argb[ix];
-    const int loop_cnt = all_x_max - tile_x_offset;
-    int all_x;
-    ix += xsize;
-    for (all_x = 0; all_x < (loop_cnt >> 1); ++all_x) {
+  while (tile_height-- > 0) {
+    int x;
+    const uint32_t* p_argb = argb;
+    argb += stride;
+    for (x = 0; x < (tile_width >> 1); ++x) {
       int temp0, temp1, temp2, temp3, temp4, temp5, temp6;
       __asm__ volatile (
         "lw           %[temp0],  0(%[p_argb])             \n\t"
@@ -418,8 +415,50 @@ static void CollectColorBlueTransforms(
       ++histo[(uint8_t)(temp2 >> 16)];
       ++histo[(uint8_t)temp2];
     }
-    if (loop_cnt & 1) {
+    if (tile_width & 1) {
       ++histo[TransformColorBlue(green_to_blue, red_to_blue, *p_argb)];
+    }
+  }
+}
+
+static WEBP_INLINE uint8_t TransformColorRed(uint8_t green_to_red,
+                                             uint32_t argb) {
+  const uint32_t green = argb >> 8;
+  uint32_t new_red = argb >> 16;
+  new_red -= ColorTransformDelta(green_to_red, green);
+  return (new_red & 0xff);
+}
+
+static void CollectColorRedTransforms(const uint32_t* argb, int stride,
+                                      int tile_width, int tile_height,
+                                      int green_to_red, int histo[]) {
+  const int gtr = (green_to_red << 16) | (green_to_red & 0xffff);
+  while (tile_height-- > 0) {
+    int x;
+    const uint32_t* p_argb = argb;
+    argb += stride;
+    for (x = 0; x < (tile_width >> 1); ++x) {
+      int temp0, temp1, temp2, temp3, temp4;
+      __asm__ volatile (
+        "lw           %[temp0],  0(%[p_argb])             \n\t"
+        "lw           %[temp1],  4(%[p_argb])             \n\t"
+        "precrq.ph.w  %[temp4],  %[temp0],  %[temp1]      \n\t"
+        "ins          %[temp1],  %[temp0],  16,    16     \n\t"
+        "shra.ph      %[temp3],  %[temp1],  8             \n\t"
+        "mul.ph       %[temp2],  %[temp3],  %[gtr]        \n\t"
+        "addiu        %[p_argb], %[p_argb], 8             \n\t"
+        "shra.ph      %[temp2],  %[temp2],  5             \n\t"
+        "subu.qb      %[temp2],  %[temp4],  %[temp2]      \n\t"
+        : [p_argb]"+&r"(p_argb), [temp0]"=&r"(temp0), [temp1]"=&r"(temp1),
+          [temp2]"=&r"(temp2), [temp3]"=&r"(temp3), [temp4]"=&r"(temp4)
+        : [gtr]"r"(gtr)
+        : "memory", "hi", "lo"
+      );
+      ++histo[(uint8_t)(temp2 >> 16)];
+      ++histo[(uint8_t)temp2];
+    }
+    if (tile_width & 1) {
+      ++histo[TransformColorRed(green_to_red, *p_argb)];
     }
   }
 }
@@ -446,6 +485,7 @@ void VP8LDspInitMIPSdspR2(void) {
   VP8LSubtractGreenFromBlueAndRed = SubtractGreenFromBlueAndRed;
   VP8LTransformColor = TransformColor;
   VP8LCollectColorBlueTransforms = CollectColorBlueTransforms;
+  VP8LCollectColorRedTransforms = CollectColorRedTransforms;
 #endif  // WEBP_USE_MIPS_DSP_R2
 }
 
