@@ -193,8 +193,8 @@ static int WritePNG(FILE* out_file, const WebPDecBuffer* const buffer) {
   uint8_t* const rgb = buffer->u.RGBA.rgba;
   const int stride = buffer->u.RGBA.stride;
   const int has_alpha = (buffer->colorspace == MODE_RGBA);
-  png_structp png;
-  png_infop info;
+  volatile png_structp png;
+  volatile png_infop info;
   png_uint_32 y;
 
   png = png_create_write_struct(PNG_LIBPNG_VER_STRING,
