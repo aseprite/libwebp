@@ -187,9 +187,7 @@ int VP8LBackwardRefsCopy(const VP8LBackwardRefs* const src,
 static void HashChainReset(VP8LHashChain* const p) {
   int i;
   assert(p != NULL);
-  for (i = 0; i < p->size_; ++i) {
-    p->chain_[i] = -1;
-  }
+  memset(p->chain_, 0, p->size_ * sizeof(*p->chain_));
   for (i = 0; i < HASH_SIZE; ++i) {
     p->hash_to_first_index_[i] = -1;
   }
@@ -199,7 +197,7 @@ int VP8LHashChainInit(VP8LHashChain* const p, int size) {
   assert(p->size_ == 0);
   assert(p->chain_ == NULL);
   assert(size > 0);
-  p->chain_ = (int*)WebPSafeMalloc(size, sizeof(*p->chain_));
+  p->chain_ = (uint32_t*)WebPSafeMalloc(size, sizeof(*p->chain_));
   if (p->chain_ == NULL) return 0;
   p->size_ = size;
   HashChainReset(p);
@@ -209,8 +207,8 @@ int VP8LHashChainInit(VP8LHashChain* const p, int size) {
 void VP8LHashChainClear(VP8LHashChain* const p) {
   assert(p != NULL);
   WebPSafeFree(p->chain_);
-  p->size_ = 0;
   p->chain_ = NULL;
+  p->size_ = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -225,7 +223,8 @@ static WEBP_INLINE uint64_t GetPixPairHash64(const uint32_t* const argb) {
 static void HashChainInsert(VP8LHashChain* const p,
                             const uint32_t* const argb, int pos) {
   const uint64_t hash_code = GetPixPairHash64(argb);
-  p->chain_[pos] = p->hash_to_first_index_[hash_code];
+  assert(pos > p->hash_to_first_index_[hash_code]);
+  p->chain_[pos] = pos - p->hash_to_first_index_[hash_code];
   p->hash_to_first_index_[hash_code] = pos;
 }
 
@@ -262,7 +261,7 @@ static void HashChainFindOffset(const VP8LHashChain* const p, int base_position,
   assert(len <= MAX_LENGTH);
   for (pos = p->hash_to_first_index_[GetPixPairHash64(argb_start)];
        pos >= min_pos;
-       pos = p->chain_[pos]) {
+       pos -= p->chain_[pos]) {
     const int curr_length =
         FindMatchLength(argb + pos, argb_start, len - 1, len);
     if (curr_length == len) break;
@@ -288,7 +287,7 @@ static int HashChainFindCopy(const VP8LHashChain* const p,
   assert(xsize > 0);
   for (pos = p->hash_to_first_index_[GetPixPairHash64(argb_start)];
        pos >= min_pos;
-       pos = p->chain_[pos]) {
+       pos -= p->chain_[pos]) {
     int curr_length;
     int distance;
     if (iter > 8) {

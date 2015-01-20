@@ -115,11 +115,12 @@ static WEBP_INLINE uint32_t PixOrCopyDistance(const PixOrCopy* const p) {
 
 typedef struct VP8LHashChain VP8LHashChain;
 struct VP8LHashChain {
-  // Stores the most recently added position with the given hash value.
+  // Stores the most recently added position with the given hash value (or -1
+  // if none have been seen yet).
   int32_t hash_to_first_index_[HASH_SIZE];
-  // chain_[pos] stores the previous position with the same hash value
+  // chain_[pos] stores the delta to previous position with the same hash value
   // for every pixel in the image.
-  int32_t* chain_;
+  uint32_t* chain_;
   // This is the maximum size of the hash_chain that can be constructed.
   // Typically this is the pixel count (width x height) for a given image.
   int size_;
