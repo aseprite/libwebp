@@ -780,7 +780,9 @@ static WebPEncodingError EncodeImageInternal(VP8LBitWriter* const bw,
     goto Error;
   }
 
-  *cache_bits = MAX_COLOR_CACHE_BITS;
+  *cache_bits = 0;   // BUG! disable color cache for now (issue #239)!
+                     // should be: *cache_bits = MAX_COLOR_CACHE_BITS;
+                     // TODO(skal): fix!
   // 'best_refs' is the reference to the best backward refs and points to one
   // of refs_array[0] or refs_array[1].
   // Calculate backward references from ARGB image.
