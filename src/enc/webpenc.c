@@ -225,8 +225,7 @@ static VP8Encoder* InitVP8Encoder(const WebPConfig* const config,
   ResetSegmentHeader(enc);
   ResetFilterHeader(enc);
   ResetBoundaryPredictions(enc);
-  VP8GetResidualCostInit();
-  VP8SetResidualCoeffsInit();
+  VP8EncDspCostInit();
   VP8EncInitAlpha(enc);
 
   // lower quality means smaller output -> we modulate a little the page
