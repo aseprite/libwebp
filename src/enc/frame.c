@@ -15,7 +15,7 @@
 #include <math.h>
 
 #include "./vp8enci.h"
-#include "./cost.h"
+#include "../dsp/cost.h"
 #include "../webp/format_constants.h"  // RIFF constants
 
 #define SEGMENT_VISU 0
