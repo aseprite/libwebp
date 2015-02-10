@@ -64,11 +64,54 @@ static void SetResidualCoeffs(const int16_t* const coeffs,
   res->coeffs = coeffs;
 }
 
+static int VariableLevelCost(int level, const uint8_t probas[NUM_PROBAS]) {
+  int pattern = VP8LevelCodes[level - 1][0];
+  int bits = VP8LevelCodes[level - 1][1];
+  int cost = 0;
+  int i;
+  for (i = 2; pattern; ++i) {
+    if (pattern & 1) {
+      cost += VP8BitCost(bits & 1, probas[i]);
+    }
+    bits >>= 1;
+    pattern >>= 1;
+  }
+  return cost;
+}
+
+//------------------------------------------------------------------------------
+// Pre-calc level costs once for all
+
+static void CalculateLevelCosts(VP8Proba* const proba) {
+  int ctype, band, ctx;
+
+  if (!proba->dirty_) return;  // nothing to do.
+
+  for (ctype = 0; ctype < NUM_TYPES; ++ctype) {
+    for (band = 0; band < NUM_BANDS; ++band) {
+      for (ctx = 0; ctx < NUM_CTX; ++ctx) {
+        const uint8_t* const p = proba->coeffs_[ctype][band][ctx];
+        uint16_t* const table = proba->level_cost_[ctype][band][ctx];
+        const int cost0 = (ctx > 0) ? VP8BitCost(1, p[0]) : 0;
+        const int cost_base = VP8BitCost(1, p[1]) + cost0;
+        int v;
+        table[0] = VP8BitCost(0, p[1]) + cost0;
+        for (v = 1; v <= MAX_VARIABLE_LEVEL; ++v) {
+          table[v] = cost_base + VariableLevelCost(v, p);
+        }
+        // Starting at level 67 and up, the variable part of the cost is
+        // actually constant.
+      }
+    }
+  }
+  proba->dirty_ = 0;
+}
 //------------------------------------------------------------------------------
 // init function
 
 VP8GetResidualCostFunc VP8GetResidualCost;
 VP8SetResidualCoeffsFunc VP8SetResidualCoeffs;
+VP8CalculateLevelCostsFunc VP8CalculateLevelCosts;
 
 extern void VP8EncDspCostInitMIPS32(void);
 extern void VP8EncDspCostInitMIPSdspR2(void);
@@ -86,6 +129,7 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspCostInit(void) {
 
   VP8GetResidualCost = GetResidualCost;
   VP8SetResidualCoeffs = SetResidualCoeffs;
+  VP8CalculateLevelCosts = CalculateLevelCosts;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {

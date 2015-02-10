@@ -189,6 +189,10 @@ typedef int (*VP8GetResidualCostFunc)(int ctx0,
                                       const struct VP8Residual* const res);
 extern VP8GetResidualCostFunc VP8GetResidualCost;
 
+struct VP8Proba;
+typedef void (*VP8CalculateLevelCostsFunc)(struct VP8Proba* const proba);
+extern VP8CalculateLevelCostsFunc VP8CalculateLevelCosts;
+
 // must be called before anything using the above
 WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspCostInit(void);
 

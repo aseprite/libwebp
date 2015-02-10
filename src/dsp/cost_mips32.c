@@ -166,6 +166,56 @@ static void SetResidualCoeffs(const int16_t* const coeffs,
   res->coeffs = coeffs;
 }
 
+//------------------------------------------------------------------------------
+// Pre-calc level costs once for all
+
+static void CalculateLevelCosts(VP8Proba* const proba) {
+  int ctype, band, ctx;
+  if (!proba->dirty_) return;  // nothing to do.
+
+  for (ctype = 0; ctype < NUM_TYPES; ++ctype) {
+    for (band = 0; band < NUM_BANDS; ++band) {
+      for (ctx = 0; ctx < NUM_CTX; ++ctx) {
+        const uint8_t* const p = proba->coeffs_[ctype][band][ctx];
+        uint16_t* const table = proba->level_cost_[ctype][band][ctx];
+        const int cost0 = (ctx > 0) ? VP8BitCost(1, p[0]) : 0;
+        const int cost_base = VP8BitCost(1, p[1]) + cost0;
+        const uint16_t* VP8EntropyCost255 = &VP8EntropyCost[255];
+        int cost1, cost2;
+        int v;
+        table[0] = VP8BitCost(0, p[1]) + cost0;
+        cost1 = VP8EntropyCost255[-p[2]] + VP8EntropyCost255[-p[3]] +
+                VP8EntropyCost255[-p[6]];
+        cost2 = cost1 + VP8EntropyCost[p[8]] + VP8EntropyCost255[-p[9]];
+        cost1 = cost1 + VP8EntropyCost255[-p[8]] + VP8EntropyCost[p[10]];
+        for (v = 1; v <= MAX_VARIABLE_LEVEL; ++v) {
+          int pattern = VP8LevelCodes[v - 1][0];
+          int bits = VP8LevelCodes[v - 1][1];
+          int cost;
+          int i;
+          if (pattern == 0x153 && bits == 0x53) {
+            cost = cost1;
+          } else if (pattern == 0xd3 && bits == 0x93) {
+            cost = cost2;
+          } else {
+            cost = 0;
+            for (i = 2; pattern; ++i) {
+              if (pattern & 1) {
+                cost += VP8BitCost(bits & 1, p[i]);
+              }
+              bits >>= 1;
+              pattern >>= 1;
+            }
+          }
+          table[v] = cost_base + cost;
+        }
+        // Starting at level 67 and up, the variable part of the cost is
+        // actually constant.
+      }
+    }
+  }
+  proba->dirty_ = 0;
+}
 #endif  // WEBP_USE_MIPS32
 
 //------------------------------------------------------------------------------
@@ -177,6 +227,7 @@ void WEBP_TSAN_IGNORE_FUNCTION VP8EncDspCostInitMIPS32(void) {
 #if defined(WEBP_USE_MIPS32)
   VP8GetResidualCost = GetResidualCost;
   VP8SetResidualCoeffs = SetResidualCoeffs;
+  VP8CalculateLevelCosts = CalculateLevelCosts;
 #endif  // WEBP_USE_MIPS32
 }
 
