@@ -85,9 +85,9 @@ int WebPPictureHasTransparency(const WebPPicture* picture) {
 
 static int kLinearToGammaTab[kGammaTabSize + 1];
 static uint16_t kGammaToLinearTab[256];
-static int kGammaTablesOk = 0;
+static volatile int kGammaTablesOk = 0;
 
-static void InitGammaTables(void) {
+static WEBP_TSAN_IGNORE_FUNCTION void InitGammaTables(void) {
   if (!kGammaTablesOk) {
     int v;
     const double scale = (double)(1 << kGammaTabFix) / kGammaScale;
@@ -180,9 +180,9 @@ typedef uint16_t fixed_y_t;   // unsigned type with extra YFIX precision for W
 #define kGammaF 2.2
 static float kGammaToLinearTabF[MAX_Y_T + 1];   // size scales with Y_FIX
 static float kLinearToGammaTabF[kGammaTabSize + 2];
-static int kGammaTablesFOk = 0;
+static volatile int kGammaTablesFOk = 0;
 
-static void InitGammaTablesF(void) {
+static WEBP_TSAN_IGNORE_FUNCTION void InitGammaTablesF(void) {
   if (!kGammaTablesFOk) {
     int v;
     const double norm = 1. / MAX_Y_T;
