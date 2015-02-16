@@ -463,6 +463,14 @@ WEBP_EXTERN(int) WebPPictureYUVAToARGB(WebPPicture* picture);
 // width and height must be set prior to calling this function.
 WEBP_EXTERN(int) WebPImportGray(const uint8_t* gray, WebPPicture* picture);
 
+// Import rgb sample in RGB565 packed format into 'picture'. The 'picture'
+// width and height must be set prior to calling this function.
+WEBP_EXTERN(int) WebPImportRGB565(const uint8_t* rgb565, WebPPicture* pic);
+
+// Import rgb sample in RGB4444 packed format into 'picture'. The 'picture'
+// width and height must be set prior to calling this function.
+WEBP_EXTERN(int) WebPImportRGB4444(const uint8_t* rgb4444, WebPPicture* pic);
+
 // Helper function: given a width x height plane of RGBA or YUV(A) samples
 // clean-up the YUV or RGB samples under fully transparent area, to help
 // compressibility (no guarantee, though).
