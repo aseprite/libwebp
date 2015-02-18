@@ -767,6 +767,138 @@ static void LD4(uint8_t* dst) {   // Down-Left
   );
 }
 
+//------------------------------------------------------------------------------
+// Chroma
+
+static void DC8uv(uint8_t* dst) {     // DC
+  int temp0, temp1, temp2, temp3, temp4;
+  int temp5, temp6, temp7, temp8, temp9;
+  __asm__ volatile (
+    "ulw          %[temp0],   "XSTR(-BPS)"(%[dst])       \n\t"
+    "ulw          %[temp1],   4-"XSTR(BPS)"(%[dst])      \n\t"
+    "lbu          %[temp2],   -1+0*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp3],   -1+1*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp4],   -1+2*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp5],   -1+3*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp6],   -1+4*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp7],   -1+5*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp8],   -1+6*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp9],   -1+7*"XSTR(BPS)"(%[dst])   \n\t"
+    "raddu.w.qb   %[temp0],   %[temp0]                   \n\t"
+    "raddu.w.qb   %[temp1],   %[temp1]                   \n\t"
+    "addu         %[temp2],   %[temp2],    %[temp3]      \n\t"
+    "addu         %[temp4],   %[temp4],    %[temp5]      \n\t"
+    "addu         %[temp6],   %[temp6],    %[temp7]      \n\t"
+    "addu         %[temp8],   %[temp8],    %[temp9]      \n\t"
+    "addu         %[temp0],   %[temp0],    %[temp1]      \n\t"
+    "addu         %[temp2],   %[temp2],    %[temp4]      \n\t"
+    "addu         %[temp6],   %[temp6],    %[temp8]      \n\t"
+    "addu         %[temp0],   %[temp0],    %[temp2]      \n\t"
+    "addu         %[temp0],   %[temp0],    %[temp6]      \n\t"
+    "shra_r.w     %[temp0],   %[temp0],    4             \n\t"
+    "replv.qb     %[temp0],   %[temp0]                   \n\t"
+    "usw          %[temp0],   0*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+0*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   1*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+1*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   2*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+2*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   3*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+3*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   4*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+4*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   5*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+5*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   6*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+6*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   7*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+7*"XSTR(BPS)"(%[dst])    \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
+      [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [temp8]"=&r"(temp8),
+      [temp9]"=&r"(temp9)
+    : [dst]"r"(dst)
+    : "memory"
+  );
+}
+
+static void DC8uvNoLeft(uint8_t* dst) {   // DC with no left samples
+  int temp0, temp1;
+  __asm__ volatile (
+    "ulw          %[temp0],   "XSTR(-BPS)"(%[dst])       \n\t"
+    "ulw          %[temp1],   4-"XSTR(BPS)"(%[dst])      \n\t"
+    "raddu.w.qb   %[temp0],   %[temp0]                   \n\t"
+    "raddu.w.qb   %[temp1],   %[temp1]                   \n\t"
+    "addu         %[temp0],   %[temp0],    %[temp1]      \n\t"
+    "shra_r.w     %[temp0],   %[temp0],    3             \n\t"
+    "replv.qb     %[temp0],   %[temp0]                   \n\t"
+    "usw          %[temp0],   0*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+0*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   1*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+1*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   2*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+2*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   3*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+3*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   4*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+4*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   5*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+5*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   6*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+6*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   7*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+7*"XSTR(BPS)"(%[dst])    \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1)
+    : [dst]"r"(dst)
+    : "memory"
+  );
+}
+
+static void DC8uvNoTop(uint8_t* dst) {  // DC with no top samples
+  int temp0, temp1, temp2, temp3, temp4;
+  int temp5, temp6, temp7, temp8;
+  __asm__ volatile (
+    "lbu          %[temp2],   -1+0*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp3],   -1+1*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp4],   -1+2*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp5],   -1+3*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp6],   -1+4*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp7],   -1+5*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp8],   -1+6*"XSTR(BPS)"(%[dst])   \n\t"
+    "lbu          %[temp1],   -1+7*"XSTR(BPS)"(%[dst])   \n\t"
+    "addu         %[temp2],   %[temp2],    %[temp3]      \n\t"
+    "addu         %[temp4],   %[temp4],    %[temp5]      \n\t"
+    "addu         %[temp6],   %[temp6],    %[temp7]      \n\t"
+    "addu         %[temp8],   %[temp8],    %[temp1]      \n\t"
+    "addu         %[temp2],   %[temp2],    %[temp4]      \n\t"
+    "addu         %[temp6],   %[temp6],    %[temp8]      \n\t"
+    "addu         %[temp0],   %[temp6],    %[temp2]      \n\t"
+    "shra_r.w     %[temp0],   %[temp0],    3             \n\t"
+    "replv.qb     %[temp0],   %[temp0]                   \n\t"
+    "usw          %[temp0],   0*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+0*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   1*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+1*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   2*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+2*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   3*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+3*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   4*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+4*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   5*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+5*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   6*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+6*"XSTR(BPS)"(%[dst])    \n\t"
+    "usw          %[temp0],   7*"XSTR(BPS)"(%[dst])      \n\t"
+    "usw          %[temp0],   4+7*"XSTR(BPS)"(%[dst])    \n\t"
+    : [temp0]"=&r"(temp0), [temp1]"=&r"(temp1), [temp2]"=&r"(temp2),
+      [temp3]"=&r"(temp3), [temp4]"=&r"(temp4), [temp5]"=&r"(temp5),
+      [temp6]"=&r"(temp6), [temp7]"=&r"(temp7), [temp8]"=&r"(temp8)
+    : [dst]"r"(dst)
+    : "memory"
+  );
+}
+
 #endif  // WEBP_USE_MIPS_DSP_R2
 
 //------------------------------------------------------------------------------
@@ -779,6 +911,7 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8DspInitMIPSdspR2(void) {
   VP8TransformDC = TransformDC;
   VP8TransformAC3 = TransformAC3;
   VP8Transform = TransformTwo;
+
   VP8VFilter16 = VFilter16;
   VP8HFilter16 = HFilter16;
   VP8VFilter8 = VFilter8;
@@ -791,9 +924,14 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8DspInitMIPSdspR2(void) {
   VP8SimpleHFilter16 = SimpleHFilter16;
   VP8SimpleVFilter16i = SimpleVFilter16i;
   VP8SimpleHFilter16i = SimpleHFilter16i;
+
   VP8PredLuma4[0] = DC4;
   VP8PredLuma4[2] = VE4;
   VP8PredLuma4[4] = RD4;
   VP8PredLuma4[6] = LD4;
+
+  VP8PredChroma8[0] = DC8uv;
+  VP8PredChroma8[4] = DC8uvNoTop;
+  VP8PredChroma8[5] = DC8uvNoLeft;
 #endif
 }
