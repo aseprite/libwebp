@@ -277,14 +277,18 @@ static WEBP_INLINE void UpdateW(const fixed_y_t* src, fixed_y_t* dst, int len) {
   }
 }
 
-static WEBP_INLINE void UpdateChroma(const fixed_y_t* src1,
-                                     const fixed_y_t* src2,
-                                     fixed_t* dst, fixed_y_t* tmp, int len) {
+static uint32_t UpdateChroma(const fixed_y_t* src1,
+                             const fixed_y_t* src2,
+                             fixed_t* dst, fixed_y_t* tmp, int len) {
+  uint32_t diff = 0;
   while (len--> 0) {
     const int r = ScaleDown(src1[0], src1[3], src2[0], src2[3]);
     const int g = ScaleDown(src1[1], src1[4], src2[1], src2[4]);
     const int b = ScaleDown(src1[2], src1[5], src2[2], src2[5]);
     const int W = RGBToGray(r, g, b);
+    const int r_avg = (src1[0] + src1[3] + src2[0] + src2[3] + 2) >> 2;
+    const int g_avg = (src1[1] + src1[4] + src2[1] + src2[4] + 2) >> 2;
+    const int b_avg = (src1[2] + src1[5] + src2[2] + src2[5] + 2) >> 2;
     dst[0] = (fixed_t)FixedYToW(r - W);
     dst[1] = (fixed_t)FixedYToW(g - W);
     dst[2] = (fixed_t)FixedYToW(b - W);
@@ -292,10 +296,12 @@ static WEBP_INLINE void UpdateChroma(const fixed_y_t* src1,
     src1 += 6;
     src2 += 6;
     if (tmp != NULL) {
-      tmp[0] = tmp[1] = clip_y((int)(W + .5));
+      tmp[0] = tmp[1] = clip_y(W);
       tmp += 2;
     }
+    diff += abs(RGBToGray(r_avg, g_avg, b_avg) - W);
   }
+  return diff;
 }
 
 //------------------------------------------------------------------------------
@@ -454,6 +460,10 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
   fixed_t* const target_uv = SAFE_ALLOC(uv_w * 3, uv_h, fixed_t);
   fixed_t* const best_rgb_uv = SAFE_ALLOC(uv_w * 3, 1, fixed_t);
   int ok;
+  uint32_t diff_sum = 0;
+  const uint32_t first_diff_threshold = (uint32_t)(2.5 * w * h);
+  const uint32_t min_improvement = 5;   // stop if improvement is below this %
+  const uint32_t min_first_improvement = 80;
 
   if (best_y == NULL || best_uv == NULL ||
       target_y == NULL || target_uv == NULL ||
@@ -486,7 +496,7 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
     }
     UpdateW(src1, target_y + (j + 0) * w, w);
     UpdateW(src2, target_y + (j + 1) * w, w);
-    UpdateChroma(src1, src2, target_uv + uv_off, dst_y, uv_w);
+    diff_sum += UpdateChroma(src1, src2, target_uv + uv_off, dst_y, uv_w);
     memcpy(best_uv + uv_off, target_uv + uv_off, 3 * uv_w * sizeof(*best_uv));
     memcpy(dst_y + w, dst_y, w * sizeof(*dst_y));
   }
@@ -496,22 +506,17 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
     int k;
     const fixed_t* cur_uv = best_uv;
     const fixed_t* prev_uv = best_uv;
+    const uint32_t old_diff_sum = diff_sum;
+    diff_sum = 0;
     for (j = 0; j < h; j += 2) {
       fixed_y_t* const src1 = tmp_buffer;
       fixed_y_t* const src2 = tmp_buffer + 3 * w;
-
-      {
-        const fixed_t* const next_uv = cur_uv + ((j < h - 2) ? 3 * uv_w : 0);
-        InterpolateTwoRows(best_y + j * w, prev_uv, cur_uv, next_uv,
-                           w, src1, src2);
-        prev_uv = cur_uv;
-        cur_uv = next_uv;
-      }
-
+      const fixed_t* const next_uv = cur_uv + ((j < h - 2) ? 3 * uv_w : 0);
+      InterpolateTwoRows(best_y + j * w, prev_uv, cur_uv, next_uv,
+                         w, src1, src2);
       UpdateW(src1, best_rgb_y + 0 * w, w);
       UpdateW(src2, best_rgb_y + 1 * w, w);
-      UpdateChroma(src1, src2, best_rgb_uv, NULL, uv_w);
-
+      diff_sum += UpdateChroma(src1, src2, best_rgb_uv, NULL, uv_w);
       // update two rows of Y and one row of RGB
       for (i = 0; i < 2 * w; ++i) {
         const int off = i + j * w;
@@ -531,8 +536,22 @@ static int PreprocessARGB(const uint8_t* const r_ptr,
           best_uv[off + k] -= W;
         }
       }
+      prev_uv = cur_uv;
+      cur_uv = next_uv;
     }
-    // TODO(skal): add early-termination criterion
+    const uint32_t improvement =
+        100 * abs((int)diff_sum - old_diff_sum) / diff_sum;
+    if (improvement < min_improvement) {
+      break;
+    }
+    // Check if first iteration gave good result already, without a large
+    // jump of improvement (otherwise it means we need to try few extra
+    // iterations, just to be sure).
+    if (iter == 0 && diff_sum < first_diff_threshold &&
+        improvement < min_first_improvement) {
+      break;
+    }
+
   }
 
   // final reconstruction
