@@ -68,7 +68,9 @@ extern "C" {
 #define WEBP_ANDROID_NEON  // Android targets that might support NEON
 #endif
 
-#if defined(__ARM_NEON__) || defined(WEBP_ANDROID_NEON) || defined(__aarch64__)
+// The NEON assembly code has not yet been ported to Native Client
+#if (defined(__ARM_NEON__) || defined(WEBP_ANDROID_NEON) || \
+    defined(__aarch64__)) && !defined(__native_client__)
 #define WEBP_USE_NEON
 #endif
 
