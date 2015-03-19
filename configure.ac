@@ -97,6 +97,17 @@ AS_IF([test -n "$AVX2_FLAGS"], [
   CFLAGS=$SAVED_CFLAGS])
 AC_SUBST([AVX2_FLAGS])
 
+TEST_AND_ADD_CFLAGS([SSE4_1_FLAGS], [-msse4.1])
+AS_IF([test -n "$SSE4_1_FLAGS"], [
+  SAVED_CFLAGS=$CFLAGS
+  CFLAGS="$CFLAGS $SSE4_1_FLAGS"
+  AC_CHECK_HEADER([smmintrin.h],
+                  [AC_DEFINE(WEBP_HAVE_SSE41, [1],
+                   [Set to 1 if SSE4_1 is supported])],
+                  [SSE4_1_FLAGS=""])
+  CFLAGS=$SAVED_CFLAGS])
+AC_SUBST([SSE4_1_FLAGS])
+
 TEST_AND_ADD_CFLAGS([SSE2_FLAGS], [-msse2])
 AS_IF([test -n "$SSE2_FLAGS"], [
   SAVED_CFLAGS=$CFLAGS
