@@ -125,7 +125,7 @@ static void MultARGBRow(uint32_t* const ptr, int width, int inverse) {
 }
 
 //------------------------------------------------------------------------------
-// Init function
+// Entry point
 
 extern void WebPInitAlphaProcessingMIPSdspR2(void);
 
