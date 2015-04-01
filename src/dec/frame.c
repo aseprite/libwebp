@@ -282,7 +282,6 @@ static void PrecomputeFilterStrengths(VP8Decoder* const dec) {
         VP8FInfo* const info = &dec->fstrengths_[s][i4x4];
         int level = base_level;
         if (hdr->use_lf_delta_) {
-          // TODO(skal): only CURRENT is handled for now.
           level += hdr->ref_lf_delta_[0];
           if (i4x4) {
             level += hdr->mode_lf_delta_[0];
