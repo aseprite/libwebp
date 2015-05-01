@@ -11,6 +11,7 @@ m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
 AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
+AC_PROG_CXX
 
 dnl === Enable less verbose output when building.
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -437,10 +438,27 @@ AS_IF([test "x$enable_gif" != "xno"], [
   LIBCHECK_EPILOGUE([GIF])
 
   if test "$gif_support" = "yes" -a \
+          "$enable_libwebpdemux" = "yes"; then
+    dnl === Enable C++ compiler for .cc sources, if available.
+    AC_LANG_PUSH([C++])
+    AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM([#include <iostream>],
+                       [std::cout << "a";])],
+      [cxx_support=yes],
+      [AC_MSG_WARN([C++ compiler absent: compilation of C++ sources disabled.])
+       cxx_support=no])
+    AC_LANG_POP([C++])
+    if test "$cxx_support" = "yes"; then
+      build_animdiff=yes
+    fi
+  fi
+
+  if test "$gif_support" = "yes" -a \
           "$enable_libwebpmux" = "yes"; then
     build_gif2webp=yes
   fi
 ])
+AM_CONDITIONAL([BUILD_ANIMDIFF], [test "${build_animdiff}" = "yes"])
 AM_CONDITIONAL([BUILD_GIF2WEBP], [test "${build_gif2webp}" = "yes"])
 
 dnl === check for WIC support ===
@@ -609,6 +627,7 @@ dwebp : yes
   PNG  : ${png_support-no}
   WIC  : ${wic_support-no}
 GIF support : ${gif_support-no}
+anim_diff   : ${build_animdiff-no}
 gif2webp    : ${build_gif2webp-no}
 webpmux     : ${enable_libwebpmux-no}
 vwebp       : ${build_vwebp-no}
