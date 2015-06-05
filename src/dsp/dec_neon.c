@@ -481,7 +481,8 @@ static int8x16_t GetBaseDelta0(const int8x16_t p0, const int8x16_t q0) {
 
 static void ApplyFilter2(const int8x16_t p0s, const int8x16_t q0s,
                          const int8x16_t delta,
-                         uint8x16_t* const op0, uint8x16_t* const oq0) {
+                         uint8x16_t* const op0, uint8x16_t* const oq0,
+                         int flip_sign) {
   const int8x16_t kCst3 = vdupq_n_s8(0x03);
   const int8x16_t kCst4 = vdupq_n_s8(0x04);
   const int8x16_t delta_p3 = vqaddq_s8(delta, kCst3);
@@ -490,8 +491,8 @@ static void ApplyFilter2(const int8x16_t p0s, const int8x16_t q0s,
   const int8x16_t delta4 = vshrq_n_s8(delta_p4, 3);
   const int8x16_t sp0 = vqaddq_s8(p0s, delta3);
   const int8x16_t sq0 = vqsubq_s8(q0s, delta4);
-  *op0 = FlipSignBack(sp0);
-  *oq0 = FlipSignBack(sq0);
+  *op0 = flip_sign ? FlipSignBack(sp0) : vreinterpretq_u8_s8(sp0);
+  *oq0 = flip_sign ? FlipSignBack(sq0) : vreinterpretq_u8_s8(sq0);
 }
 
 #if defined(WEBP_USE_INTRINSICS)
@@ -506,7 +507,7 @@ static void DoFilter2(const uint8x16_t p1, const uint8x16_t p0,
   const int8x16_t q1s = FlipSign(q1);
   const int8x16_t delta0 = GetBaseDelta(p1s, p0s, q0s, q1s);
   const int8x16_t delta1 = vandq_s8(delta0, vreinterpretq_s8_u8(mask));
-  ApplyFilter2(p0s, q0s, delta1, op0, oq0);
+  ApplyFilter2(p0s, q0s, delta1, op0, oq0, 1);
 }
 
 static void SimpleVFilter16(uint8_t* p, int stride, int thresh) {
@@ -721,11 +722,7 @@ static void DoFilter4(
     const int8x16_t delta = GetBaseDelta(p1s, p0s, q0s, q1s);
     const int8x16_t simple_lf_delta =
         vandq_s8(delta, vreinterpretq_s8_u8(simple_lf_mask));
-    uint8x16_t tmp_p0, tmp_q0;
-    ApplyFilter2(p0s, q0s, simple_lf_delta, &tmp_p0, &tmp_q0);
-    // TODO(skal): avoid the double FlipSign() in ApplyFilter2() and here
-    p0s = FlipSign(tmp_p0);
-    q0s = FlipSign(tmp_q0);
+    ApplyFilter2(p0s, q0s, simple_lf_delta, &p0s, &q0s, 0);
   }
 
   // do_filter4 part (complex loopfilter on pixels without hev)
@@ -798,10 +795,7 @@ static void DoFilter6(
     const int8x16_t simple_lf_delta =
         vandq_s8(delta0, vreinterpretq_s8_u8(simple_lf_mask));
     uint8x16_t tmp_p0, tmp_q0;
-    ApplyFilter2(p0s, q0s, simple_lf_delta, &tmp_p0, &tmp_q0);
-    // TODO(skal): avoid the double FlipSign() in ApplyFilter2() and here
-    p0s = FlipSign(tmp_p0);
-    q0s = FlipSign(tmp_q0);
+    ApplyFilter2(p0s, q0s, simple_lf_delta, &p0s, &q0s, 0);
   }
 
   // do_filter6 part (complex loopfilter on pixels without hev)
