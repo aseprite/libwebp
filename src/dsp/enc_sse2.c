@@ -948,9 +948,15 @@ static WEBP_INLINE void HD4(uint8_t* dst, const uint8_t* top) {
   DST(1, 3)             = AVG3(L, K, J);
 }
 
+static WEBP_INLINE uint32_t mem_to_uint32(const uint8_t* const ptr) {
+  uint32_t A;
+  memcpy(&A, (const int*)ptr, sizeof(A));
+  return A;
+}
+
 static WEBP_INLINE void TM4(uint8_t* dst, const uint8_t* top) {
   const __m128i zero = _mm_setzero_si128();
-  const __m128i top_values = _mm_cvtsi32_si128(*(const int*)top);
+  const __m128i top_values = _mm_cvtsi32_si128(mem_to_uint32(top));
   const __m128i top_base = _mm_unpacklo_epi8(top_values, zero);
   int y;
   for (y = 0; y < 4; ++y, dst += BPS) {
