@@ -271,10 +271,11 @@ void VP8LPutBitsInternal(VP8LBitWriter* const bw, uint32_t bits, int n_bits) {
   vp8l_atype_t lbits = bw->bits_;
   int used = bw->used_;
 
-  assert(n_bits > 32);
   assert(n_bits <= 32);
   // That's the max we can handle:
   assert (sizeof(vp8l_wtype_t) == 2);
+
+  if (n_bits == 0) return;
 
   // Special case of overflow handling for 32bit accumulator (2-steps flush).
   if (VP8L_WRITER_BITS == 16) {

@@ -126,9 +126,7 @@ static WEBP_INLINE void VP8LPutBits(VP8LBitWriter* const bw,
       bw->used_ += n_bits;
     }
   } else {
-    if (n_bits > 0) {
-      VP8LPutBitsInternal(bw, bits, n_bits);
-    }
+    VP8LPutBitsInternal(bw, bits, n_bits);
   }
 }
 
