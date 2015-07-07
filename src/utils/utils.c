@@ -208,4 +208,9 @@ void WebPSafeFree(void* const ptr) {
   free(ptr);
 }
 
+// Public API function.
+void WebPFree(void* ptr) {
+  free(ptr);
+}
+
 //------------------------------------------------------------------------------
