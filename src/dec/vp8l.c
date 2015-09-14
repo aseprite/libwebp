@@ -369,6 +369,7 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
     HuffmanCode** const htrees = htree_group->htrees;
     int size;
     int is_trivial_literal = 1;
+    int is_trivial_code = 1;
     for (j = 0; j < HUFFMAN_CODES_PER_META_CODE; ++j) {
       int alphabet_size = kAlphabetSize[j];
       htrees[j] = next;
@@ -379,18 +380,23 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
       if (is_trivial_literal && kLiteralMap[j] == 1) {
         is_trivial_literal = (next->bits == 0);
       }
+      is_trivial_code &= (next->bits == 0);
       next += size;
       if (size == 0) {
         goto Error;
       }
     }
     htree_group->is_trivial_literal = is_trivial_literal;
+    htree_group->is_trivial_code = is_trivial_code;
     if (is_trivial_literal) {
       const int red = htrees[RED][0].value;
       const int blue = htrees[BLUE][0].value;
       const int alpha = htrees[ALPHA][0].value;
       htree_group->literal_arb =
           ((uint32_t)alpha << 24) | (red << 16) | blue;
+      if (is_trivial_code) {
+        htree_group->literal_arb |= htrees[GREEN][0].value << 8;
+      }
     }
   }
   WebPSafeFree(code_lengths);
@@ -993,6 +999,9 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
   VP8LBitReader* const br = &dec->br_;
   VP8LMetadata* const hdr = &dec->hdr_;
   HTreeGroup* htree_group = GetHtreeGroupForPos(hdr, col, row);
+  HuffmanCode* literal_codes = NULL;
+  uint32_t trivial_argb = 0;
+  int is_trivial_code = 0;
   uint32_t* src = data + dec->last_pixel_;
   uint32_t* last_cached = src;
   uint32_t* const src_end = data + width * height;     // End of data
@@ -1018,13 +1027,20 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
     // but that's actually slower and needs storing the previous col/row.
     if ((col & mask) == 0) {
       htree_group = GetHtreeGroupForPos(hdr, col, row);
+      literal_codes = htree_group->htrees[GREEN];
+      is_trivial_code = htree_group->is_trivial_code;
+      trivial_argb = htree_group->literal_arb;
+    }
+    if (is_trivial_code) {
+      *src = trivial_argb;
+      goto AdvanceByOne;
     }
     VP8LFillBitWindow(br);
     code = ReadSymbol(htree_group->htrees[GREEN], br);
     if (br->eos_) break;  // early out
     if (code < NUM_LITERAL_CODES) {  // Literal
       if (htree_group->is_trivial_literal) {
-        *src = htree_group->literal_arb | (code << 8);
+        *src = trivial_argb | (code << 8);
       } else {
         int red, blue, alpha;
         red = ReadSymbol(htree_group->htrees[RED], br);
@@ -1075,7 +1091,12 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       // Because of the check done above (before 'src' was incremented by
       // 'length'), the following holds true.
       assert(src <= src_end);
-      if (col & mask) htree_group = GetHtreeGroupForPos(hdr, col, row);
+      if (col & mask) {
+        htree_group = GetHtreeGroupForPos(hdr, col, row);
+        literal_codes = htree_group->htrees[GREEN];
+        is_trivial_code = htree_group->is_trivial_code;
+        trivial_argb = htree_group->literal_arb;
+      }
       if (color_cache != NULL) {
         while (last_cached < src) {
           VP8LColorCacheInsert(color_cache, *last_cached++);

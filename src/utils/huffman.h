@@ -44,6 +44,7 @@ struct HTreeGroup {
   uint32_t literal_arb;         // If is_trivial_literal is true, this is the
                                 // ARGB value of the pixel, with Green channel
                                 // being set to zero.
+  int      is_trivial_code;
 };
 
 // Creates the instance of HTreeGroup with specified number of tree-groups.
