@@ -414,14 +414,13 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
 // Scaling.
 
 static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
-  const int num_channels = 4;
   const int in_width = io->mb_w;
   const int out_width = io->scaled_width;
   const int in_height = io->mb_h;
   const int out_height = io->scaled_height;
-  const uint64_t work_size = 2 * num_channels * (uint64_t)out_width;
+  const uint64_t work_size = 2 * (uint64_t)out_width;
   int32_t* work;        // Rescaler work area.
-  const uint64_t scaled_data_size = num_channels * (uint64_t)out_width;
+  const uint64_t scaled_data_size = (uint64_t)out_width;
   uint32_t* scaled_data;  // Temporary storage for scaled BGRA data.
   const uint64_t memory_size = sizeof(*dec->rescaler) +
                                work_size * sizeof(*work) +
@@ -441,7 +440,7 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
   scaled_data = (uint32_t*)memory;
 
   WebPRescalerInit(dec->rescaler, in_width, in_height, (uint8_t*)scaled_data,
-                   out_width, out_height, 0, num_channels, work);
+                   out_width, out_height, 0, 4, work);
   return 1;
 }
 
