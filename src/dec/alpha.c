@@ -143,7 +143,9 @@ const uint8_t* VP8DecompressAlphaRows(VP8Decoder* const dec,
     if (dec->alph_dec_->pre_processing_ != ALPHA_PREPROCESSED_LEVELS) {
       dec->alpha_dithering_ = 0;  // disable dithering
     } else {
-      num_rows = height;          // decode everything in one pass
+      // decode everything in one pass.
+      // WARNING WARNING! This is a *vital* assumption for the alpha rescaler.
+      num_rows = height;
     }
   }
 

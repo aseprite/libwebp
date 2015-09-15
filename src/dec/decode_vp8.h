@@ -105,6 +105,9 @@ struct VP8Io {
   // start of the current row (That is: it is pre-offset by mb_y and takes
   // cropping into account).
   const uint8_t* a;
+  // Indicate the section of rows processed (in particular, *a points to
+  // row y_start, and mb_h = y_end - y_start).
+  int y_start, y_end;
 };
 
 // Internal, version-checked, entry point

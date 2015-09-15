@@ -119,14 +119,16 @@ static int EmitFancyRGB(const VP8Io* const io, WebPDecParams* const p) {
 
 //------------------------------------------------------------------------------
 
-static int EmitAlphaYUV(const VP8Io* const io, WebPDecParams* const p) {
+static int EmitAlphaYUV(const VP8Io* const io, WebPDecParams* const p,
+                        int expected_num_lines_out) {
   const uint8_t* alpha = io->a;
   const WebPYUVABuffer* const buf = &p->output->u.YUVA;
   const int mb_w = io->mb_w;
   const int mb_h = io->mb_h;
   uint8_t* dst = buf->a + io->mb_y * buf->a_stride;
   int j;
-
+  (void)expected_num_lines_out;
+  assert(expected_num_lines_out == mb_h);
   if (alpha != NULL) {
     for (j = 0; j < mb_h; ++j) {
       memcpy(dst, alpha, mb_w * sizeof(*dst));
@@ -169,7 +171,8 @@ static int GetAlphaSourceRow(const VP8Io* const io,
   return start_y;
 }
 
-static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
+static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p,
+                        int expected_num_lines_out) {
   const uint8_t* alpha = io->a;
   if (alpha != NULL) {
     const int mb_w = io->mb_w;
@@ -183,7 +186,8 @@ static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
     uint8_t* const dst = base_rgba + (alpha_first ? 0 : 3);
     const int has_alpha = WebPDispatchAlpha(alpha, io->width, mb_w,
                                             num_rows, dst, buf->stride);
-
+    (void)expected_num_lines_out;
+    assert(expected_num_lines_out == num_rows);
     // has_alpha is true if there's non-trivial alpha to premultiply with.
     if (has_alpha && WebPIsPremultipliedMode(colorspace)) {
       WebPApplyAlphaMultiply(base_rgba, alpha_first,
@@ -193,7 +197,8 @@ static int EmitAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
   return 0;
 }
 
-static int EmitAlphaRGBA4444(const VP8Io* const io, WebPDecParams* const p) {
+static int EmitAlphaRGBA4444(const VP8Io* const io, WebPDecParams* const p,
+                             int expected_num_lines_out) {
   const uint8_t* alpha = io->a;
   if (alpha != NULL) {
     const int mb_w = io->mb_w;
@@ -209,7 +214,6 @@ static int EmitAlphaRGBA4444(const VP8Io* const io, WebPDecParams* const p) {
 #endif
     uint32_t alpha_mask = 0x0f;
     int i, j;
-
     for (j = 0; j < num_rows; ++j) {
       for (i = 0; i < mb_w; ++i) {
         // Fill in the alpha value (converted to 4 bits).
@@ -220,6 +224,8 @@ static int EmitAlphaRGBA4444(const VP8Io* const io, WebPDecParams* const p) {
       alpha += io->width;
       alpha_dst += buf->stride;
     }
+    (void)expected_num_lines_out;
+    assert(expected_num_lines_out == num_rows);
     if (alpha_mask != 0x0f && WebPIsPremultipliedMode(colorspace)) {
       WebPApplyAlphaMultiply4444(base_rgba, mb_w, num_rows, buf->stride);
     }
@@ -261,12 +267,15 @@ static int EmitRescaledYUV(const VP8Io* const io, WebPDecParams* const p) {
   return num_lines_out;
 }
 
-static int EmitRescaledAlphaYUV(const VP8Io* const io, WebPDecParams* const p) {
+static int EmitRescaledAlphaYUV(const VP8Io* const io, WebPDecParams* const p,
+                                int expected_num_lines_out) {
   if (io->a != NULL) {
     const WebPYUVABuffer* const buf = &p->output->u.YUVA;
     uint8_t* dst_y = buf->y + p->last_y * buf->y_stride;
     const uint8_t* src_a = buf->a + p->last_y * buf->a_stride;
     const int num_lines_out = Rescale(io->a, io->width, io->mb_h, &p->scaler_a);
+    (void)expected_num_lines_out;
+    assert(expected_num_lines_out == num_lines_out);
     if (num_lines_out > 0) {   // unmultiply the Y
       WebPMultRows(dst_y, buf->y_stride, src_a, buf->a_stride,
                    p->scaler_a.dst_width, num_lines_out, 1);
@@ -334,9 +343,9 @@ static int ExportRGB(WebPDecParams* const p, int y_pos) {
          WebPRescalerHasPendingOutput(&p->scaler_u)) {
     assert(p->last_y + y_pos + num_lines_out < p->output->height);
     assert(p->scaler_u.y_accum == p->scaler_v.y_accum);
-    WebPRescalerExportRow(&p->scaler_y, 0);
-    WebPRescalerExportRow(&p->scaler_u, 0);
-    WebPRescalerExportRow(&p->scaler_v, 0);
+    WebPRescalerExportRow(&p->scaler_y);
+    WebPRescalerExportRow(&p->scaler_u);
+    WebPRescalerExportRow(&p->scaler_v);
     convert(p->scaler_y.dst, p->scaler_u.dst, p->scaler_v.dst,
             dst, p->scaler_y.dst_width);
     dst += buf->stride;
@@ -383,7 +392,7 @@ static int ExportAlpha(WebPDecParams* const p, int y_pos) {
 
   while (WebPRescalerHasPendingOutput(&p->scaler_a)) {
     assert(p->last_y + y_pos + num_lines_out < p->output->height);
-    WebPRescalerExportRow(&p->scaler_a, 0);
+    WebPRescalerExportRow(&p->scaler_a);
     non_opaque |= WebPDispatchAlpha(p->scaler_a.dst, 0, width, 1, dst, 0);
     dst += buf->stride;
     ++num_lines_out;
@@ -412,7 +421,7 @@ static int ExportAlphaRGBA4444(WebPDecParams* const p, int y_pos) {
   while (WebPRescalerHasPendingOutput(&p->scaler_a)) {
     int i;
     assert(p->last_y + y_pos + num_lines_out < p->output->height);
-    WebPRescalerExportRow(&p->scaler_a, 0);
+    WebPRescalerExportRow(&p->scaler_a);
     for (i = 0; i < width; ++i) {
       // Fill in the alpha value (converted to 4 bits).
       const uint32_t alpha_value = p->scaler_a.dst[i] >> 4;
@@ -428,15 +437,16 @@ static int ExportAlphaRGBA4444(WebPDecParams* const p, int y_pos) {
   return num_lines_out;
 }
 
-static int EmitRescaledAlphaRGB(const VP8Io* const io, WebPDecParams* const p) {
+static int EmitRescaledAlphaRGB(const VP8Io* const io, WebPDecParams* const p,
+                                int expected_num_out_lines) {
   if (io->a != NULL) {
     WebPRescaler* const scaler = &p->scaler_a;
-    int j = 0;
-    int pos = 0;
-    while (j < io->mb_h) {
-      j += WebPRescalerImport(scaler, io->mb_h - j,
-                              io->a + j * io->width, io->width);
-      pos += p->emit_alpha_row(p, pos);
+    int num_out_lines = 0;
+    while (num_out_lines < expected_num_out_lines) {
+      const int row_offset = scaler->src_y - (io->y_start - io->crop_top);
+      WebPRescalerImport(scaler, io->y_end - io->crop_top - scaler->src_y,
+                         io->a + row_offset * io->width, io->width);
+      num_out_lines += p->emit_alpha_row(p, num_out_lines);
     }
   }
   return 0;
@@ -572,7 +582,7 @@ static int CustomPut(const VP8Io* io) {
   }
   num_lines_out = p->emit(io, p);
   if (p->emit_alpha != NULL) {
-    p->emit_alpha(io, p);
+    p->emit_alpha(io, p, num_lines_out);
   }
   p->last_y += num_lines_out;
   return 1;
