@@ -35,6 +35,7 @@ struct WebPRescaler {
   int x_add, x_sub;           // horizontal increments
   int src_width, src_height;  // source dimensions
   int dst_width, dst_height;  // destination dimensions
+  int src_y, dst_y;           // row counters for input and output
   uint8_t* dst;
   int dst_stride;
   int32_t* irow, *frow;       // work buffer
@@ -66,14 +67,26 @@ int WebPRescaleNeededLines(const WebPRescaler* const rescaler,
 int WebPRescalerImport(WebPRescaler* const rescaler, int num_rows,
                        const uint8_t* src, int src_stride);
 
-// Return true if there is pending output rows ready.
-static WEBP_INLINE
-int WebPRescalerHasPendingOutput(const WebPRescaler* const rescaler) {
-  return (rescaler->y_accum <= 0);
-}
 
 // Export as many rows as possible. Return the numbers of rows written.
 int WebPRescalerExport(WebPRescaler* const rescaler);
+
+// Return true if input is finished
+static WEBP_INLINE
+int WebPRescalerInputDone(const WebPRescaler* const rescaler) {
+  return (rescaler->src_y >= rescaler->src_height);
+}
+// Return false if output is finished
+static WEBP_INLINE
+int WebPRescalerOutputDone(const WebPRescaler* const rescaler) {
+  return (rescaler->dst_y >= rescaler->dst_height);
+}
+
+// Return true if there is pending output rows ready.
+static WEBP_INLINE
+int WebPRescalerHasPendingOutput(const WebPRescaler* const rescaler) {
+  return !WebPRescalerOutputDone(rescaler) && (rescaler->y_accum <= 0);
+}
 
 //------------------------------------------------------------------------------
 
