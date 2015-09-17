@@ -492,6 +492,8 @@ static int FinishRow(VP8Decoder* const dec, VP8Io* const io) {
       io->mb_y = y_start - io->crop_top;
       io->mb_w = io->crop_right - io->crop_left;
       io->mb_h = y_end - y_start;
+      io->y_start = y_start;
+      io->y_end = y_end;
       ok = io->put(io);
     }
   }
@@ -812,6 +814,8 @@ static void InitIo(VP8Decoder* const dec, VP8Io* io) {
   io->y_stride = dec->cache_y_stride_;
   io->uv_stride = dec->cache_uv_stride_;
   io->a = NULL;
+  io->y_start = 0;
+  io->y_end = 0;
 }
 
 int VP8InitFrame(VP8Decoder* const dec, VP8Io* const io) {
