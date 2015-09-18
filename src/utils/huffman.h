@@ -35,6 +35,17 @@ typedef struct {
   uint16_t value;   // symbol value or table offset
 } HuffmanCode;
 
+// long version for holding 32b values
+typedef struct {
+  int bits;         // number of bits used for this symbol,
+                    // or 0xff if not a literal code.
+  uint32_t value;   // 32b packed ARGB value if literal,
+                    // or non-literal symbol otherwise
+} HuffmanCode32;
+
+#define HUFFMAN_PACKED_BITS 6
+#define HUFFMAN_PACKED_TABLE_SIZE (1u << HUFFMAN_PACKED_BITS)
+
 // Huffman table group.
 typedef struct HTreeGroup HTreeGroup;
 struct HTreeGroup {
@@ -44,6 +55,8 @@ struct HTreeGroup {
   uint32_t literal_arb;         // If is_trivial_literal is true, this is the
                                 // ARGB value of the pixel, with Green channel
                                 // being set to zero.
+  int use_packed_table;         // use packed table below for short literal code
+  HuffmanCode32 packed_table[HUFFMAN_PACKED_TABLE_SIZE];
 };
 
 // Creates the instance of HTreeGroup with specified number of tree-groups.
