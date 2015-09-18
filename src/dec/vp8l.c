@@ -194,6 +194,53 @@ static WEBP_INLINE int ReadSymbol(const HuffmanCode* table,
   return table->value;
 }
 
+// Reads packed symbol depending on GREEN channel
+static WEBP_INLINE int ReadPackedSymbols(const HTreeGroup* group,
+                                         VP8LBitReader* const br,
+                                         uint32_t* const dst) {
+  const uint32_t val = VP8LPrefetchBits(br) & (HUFFMAN_PACKED_TABLE_SIZE - 1);
+  const HuffmanCode32 code = group->packed_table[val];
+  assert(group->use_packed_table);
+  VP8LSetBitPos(br, br->bit_pos_ + (code.bits & 0xff));
+  if (code.bits <= 0xff) {
+    *dst = code.value;
+    return 0;
+  }
+  return code.value;
+}
+
+static void BuildPackedTable(HTreeGroup* const htree_group) {
+  uint32_t code;
+  for (code = 0; code < HUFFMAN_PACKED_TABLE_SIZE; ++code) {
+    uint32_t bits = code;
+    HuffmanCode32* const huff = &htree_group->packed_table[bits];
+    HuffmanCode hcode = htree_group->htrees[GREEN][bits];
+    if (hcode.value >= NUM_LITERAL_CODES) {
+      huff->bits = hcode.bits | 0x100;
+      huff->value = hcode.value;
+    } else {
+      huff->bits = hcode.bits;
+      huff->value = hcode.value << 8;
+      bits >>= hcode.bits;
+      // green
+      hcode = htree_group->htrees[RED][bits];
+      huff->bits += hcode.bits;
+      huff->value |= hcode.value << 16;
+      bits >>= hcode.bits;
+      // blue
+      hcode = htree_group->htrees[BLUE][bits];
+      huff->bits += hcode.bits;
+      huff->value |= hcode.value << 0;
+      bits >>= hcode.bits;
+      // alpha
+      hcode = htree_group->htrees[ALPHA][bits];
+      huff->bits += hcode.bits;
+      huff->value |= hcode.value << 24;
+      assert(huff->bits <= HUFFMAN_TABLE_BITS);
+    }
+  }
+}
+
 static int ReadHuffmanCodeLengths(
     VP8LDecoder* const dec, const int* const code_length_code_lengths,
     int num_symbols, int* const code_lengths) {
@@ -369,6 +416,7 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
     HuffmanCode** const htrees = htree_group->htrees;
     int size;
     int is_trivial_literal = 1;
+    int max_bits = 0;
     for (j = 0; j < HUFFMAN_CODES_PER_META_CODE; ++j) {
       int alphabet_size = kAlphabetSize[j];
       htrees[j] = next;
@@ -383,6 +431,16 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
       if (size == 0) {
         goto Error;
       }
+      if (j <= ALPHA) {
+        int local_max_bits = code_lengths[0];
+        int k;
+        for (k = 1; k < alphabet_size; ++k) {
+          if (code_lengths[k] > local_max_bits) {
+            local_max_bits = code_lengths[k];
+          }
+        }
+        max_bits += local_max_bits;
+      }
     }
     htree_group->is_trivial_literal = is_trivial_literal;
     if (is_trivial_literal) {
@@ -392,6 +450,8 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
       htree_group->literal_arb =
           ((uint32_t)alpha << 24) | (red << 16) | blue;
     }
+    htree_group->use_packed_table = (max_bits < HUFFMAN_PACKED_BITS);
+    if (htree_group->use_packed_table) BuildPackedTable(htree_group);
   }
   WebPSafeFree(code_lengths);
 
@@ -1020,7 +1080,12 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       htree_group = GetHtreeGroupForPos(hdr, col, row);
     }
     VP8LFillBitWindow(br);
-    code = ReadSymbol(htree_group->htrees[GREEN], br);
+    if (htree_group->use_packed_table) {
+      code = ReadPackedSymbols(htree_group, br, src);
+      if (code < NUM_LITERAL_CODES) goto AdvanceByOne;
+    } else {
+      code = ReadSymbol(htree_group->htrees[GREEN], br);
+    }
     if (br->eos_) break;  // early out
     if (code < NUM_LITERAL_CODES) {  // Literal
       if (htree_group->is_trivial_literal) {
