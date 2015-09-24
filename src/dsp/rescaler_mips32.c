@@ -205,9 +205,17 @@ static void ExportRowShrink(WebPRescaler* const wrk) {
 extern void WebPRescalerDspInitMIPS32(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void WebPRescalerDspInitMIPS32(void) {
+#if 0
+  // The assembly code is currently out-of-sync wrt the C-implementation.
+  // Disabled for now.
   WebPRescalerImportRowExpand = ImportRowExpand;
   WebPRescalerImportRowShrink = ImportRowShrink;
   WebPRescalerExportRowShrink = ExportRowShrink;
+#else
+  (void)ImportRowExpand;
+  (void)ImportRowShrink;
+  (void)ExportRowShrink;
+#endif
 }
 
 #else  // !WEBP_USE_MIPS32
