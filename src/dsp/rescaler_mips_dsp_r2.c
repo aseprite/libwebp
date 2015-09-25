@@ -30,7 +30,7 @@ static void ImportRowShrink(WebPRescaler* const wrk, const uint8_t* src) {
   assert(!WebPRescalerInputDone(wrk));
 
   for (channel = 0; channel < x_stride; ++channel) {
-    int* frow = wrk->frow + channel;
+    rescaler_t* frow = wrk->frow + channel;
     const uint8_t* src1 = src + channel;
     int temp3;
     int base, frac, sum;
@@ -84,7 +84,7 @@ static void ImportRowExpand(WebPRescaler* const wrk, const uint8_t* src) {
   assert(!WebPRescalerInputDone(wrk));
 
   for (channel = 0; channel < x_stride; ++channel) {
-    int* frow = wrk->frow + channel;
+    rescaler_t* frow = wrk->frow + channel;
     const uint8_t* src1 = src + channel;
     int temp1, temp2, temp3, temp4;
     int frac;
@@ -225,9 +225,17 @@ static void ExportRowShrink(WebPRescaler* const wrk) {
 extern void WebPRescalerDspInitMIPSdspR2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void WebPRescalerDspInitMIPSdspR2(void) {
+#if 0
+  // The assembly code is currently out-of-sync wrt the C-implementation.
+  // Disabled for now.
   WebPRescalerImportRowExpand = ImportRowExpand;
   WebPRescalerImportRowShrink = ImportRowShrink;
   WebPRescalerExportRowShrink = ExportRowShrink;
+#else
+  (void)ImportRowExpand;
+  (void)ImportRowShrink;
+  (void)ExportRowShrink;
+#endif
 }
 
 #else  // !WEBP_USE_MIPS_DSP_R2
