@@ -20,13 +20,13 @@ extern "C" {
 
 #include "../webp/types.h"
 
-#define WEBP_RESCALER_RFIX 32   // fixed-point precision for multiplies
+#define WEBP_RESCALER_RFIX 31   // fixed-point precision for multiplies
 #define WEBP_RESCALER_ONE (1ull << WEBP_RESCALER_RFIX)
 #define WEBP_RESCALER_FRAC(x, y) \
     ((uint32_t)(((uint64_t)(x) << WEBP_RESCALER_RFIX) / (y)))
 
 // Structure used for on-the-fly rescaling
-typedef uint32_t rescaler_t;   // type for side-buffer
+typedef int32_t rescaler_t;   // type for side-buffer
 typedef struct WebPRescaler WebPRescaler;
 struct WebPRescaler {
   int x_expand;               // true if we're expanding in the x direction
