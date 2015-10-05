@@ -89,7 +89,7 @@ src/dsp/%_avx2.o: EXTRA_FLAGS += -mavx2
 endif
 
 # NEON-specific flags:
-# EXTRA_FLAGS += -march=armv7-a -mfloat-abi=hard -mfpu=neon -mtune=cortex-a8
+ EXTRA_FLAGS += -march=armv7-a -mfloat-abi=hard -mfpu=neon -mtune=cortex-a8
 # -> seems to make the overall lib slower: -fno-split-wide-types
 
 #### Nothing should normally be changed below this line ####
@@ -149,6 +149,7 @@ DSP_DEC_OBJS = \
     src/dsp/rescaler.o \
     src/dsp/rescaler_mips32.o \
     src/dsp/rescaler_mips_dsp_r2.o \
+    src/dsp/rescaler_neon.o \
     src/dsp/rescaler_sse2.o \
     src/dsp/upsampling.o \
     src/dsp/upsampling_mips_dsp_r2.o \
