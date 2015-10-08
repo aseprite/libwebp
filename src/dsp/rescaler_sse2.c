@@ -25,6 +25,60 @@
 #define ROUNDER (WEBP_RESCALER_ONE >> 1)
 #define MULT_FIX(x, y) (((uint64_t)(x) * (y) + ROUNDER) >> WEBP_RESCALER_RFIX)
 
+static void RescalerImportRowShrinkSSE2(WebPRescaler* const wrk,
+                                        const uint8_t* src) {
+  int x_in, x_out;
+  int accum = 0;
+  const __m128i zero = _mm_setzero_si128();
+  const __m128i mult0 = _mm_set1_epi16(wrk->x_sub);
+  const __m128i mult1 = _mm_set1_epi32(wrk->fx_scale);
+  const __m128i rounder = _mm_set_epi32(0, ROUNDER, 0, ROUNDER);
+  const __m128i mask = _mm_set_epi32(0xffffffffu, 0, 0xffffffffu, 0);
+  __m128i sum = zero;
+  if (wrk->num_channels != 4) {
+    return WebPRescalerImportRowShrinkC(wrk, src);
+  }
+  if (wrk->x_add > (wrk->x_sub << 7)) {
+    return WebPRescalerImportRowShrinkC(wrk, src);
+  }
+  assert(!WebPRescalerInputDone(wrk));
+  assert(!wrk->x_expand);
+  for (x_in = x_out = 0; x_out < 4 * wrk->dst_width; x_out += 4) {
+    __m128i base = zero;
+    accum += wrk->x_add;
+    while (accum > 0) {
+      const __m128i A = _mm_cvtsi32_si128(*(int*)(src + x_in));
+      base = _mm_unpacklo_epi8(A, zero);
+      // To avoid overflow, we need: base * x_add / x_sub < 32768
+      // => x_add < x_sub << 7. That's a 1/128 reduction ratio limit.
+      sum = _mm_add_epi16(sum, base);
+      accum -= wrk->x_sub;
+      assert(x_in < wrk->src_width * x_stride);
+      x_in += 4;
+    }
+    { // Emit next horizontal pixel.
+      const __m128i mult = _mm_set1_epi16(-accum);
+      const __m128i frac0 = _mm_mullo_epi16(base, mult);  // 16b x16b -> 32b
+      const __m128i frac1 = _mm_mulhi_epu16(base, mult);
+      const __m128i frac = _mm_unpacklo_epi16(frac0, frac1);
+      const __m128i A0 = _mm_mullo_epi16(sum, mult0);
+      const __m128i A1 = _mm_mulhi_epu16(sum, mult0);
+      const __m128i B0 = _mm_unpacklo_epi16(A0, A1);      // sum * x_sub
+      const __m128i frow_out = _mm_sub_epi32(B0, frac);   // sum * x_sub - frac
+      const __m128i D0 = _mm_srli_epi64(frac, 32);
+      const __m128i D1 = _mm_mul_epu32(frac, mult1);
+      const __m128i D2 = _mm_mul_epu32(D0, mult1);
+      const __m128i E1 = _mm_add_epi64(D1, rounder);
+      const __m128i E2 = _mm_add_epi64(D2, rounder);
+      const __m128i F1 = _mm_srli_epi64(E1, WEBP_RESCALER_RFIX);
+      const __m128i F2 = _mm_and_si128(E2, mask);
+      sum = _mm_packs_epi32(_mm_or_si128(F1, F2), zero);
+      _mm_storeu_si128((__m128i*)(wrk->frow + x_out), frow_out);
+    }
+  }
+  assert(accum == 0);
+}
+
 //------------------------------------------------------------------------------
 // Row export
 
@@ -222,6 +276,7 @@ static void RescalerExportRowShrinkSSE2(WebPRescaler* const wrk) {
 extern void WebPRescalerDspInitSSE2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void WebPRescalerDspInitSSE2(void) {
+  WebPRescalerImportRowShrink = RescalerImportRowShrinkSSE2;
   WebPRescalerExportRowExpand = RescalerExportRowExpandSSE2;
   WebPRescalerExportRowShrink = RescalerExportRowShrinkSSE2;
 }
