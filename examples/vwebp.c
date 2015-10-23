@@ -320,7 +320,11 @@ static void HandleDisplay(void) {
     }
     glEnable(GL_SCISSOR_TEST);
     // Only update the requested area, not the whole canvas.
-    glScissor(window_x, window_y, prev->width, prev->height);
+    if (prev->dispose_method == WEBP_MUX_DISPOSE_BACKGROUND) {
+      glScissor(window_x, window_y, prev->width, prev->height);
+    } else {
+      glScissor(window_x, window_y, curr->width, curr->height);
+    }
 
     glClear(GL_COLOR_BUFFER_BIT);  // use clear color
     DrawCheckerBoard();
