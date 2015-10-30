@@ -175,8 +175,8 @@ static void ConvertARGBToY(const uint32_t* argb, uint8_t* y, int width) {
   }
 }
 
-static void ConvertARGBToUV(const uint32_t* argb, uint8_t* u, uint8_t* v,
-                            int src_width, int do_store) {
+void WebPConvertARGBToUV_C(const uint32_t* argb, uint8_t* u, uint8_t* v,
+                           int src_width, int do_store) {
   // No rounding. Last pixel is dealt with separately.
   const int uv_width = src_width >> 1;
   int i;
@@ -249,7 +249,7 @@ WEBP_TSAN_IGNORE_FUNCTION void WebPInitConvertARGBToYUV(void) {
   if (rgba_to_yuv_last_cpuinfo_used == VP8GetCPUInfo) return;
 
   WebPConvertARGBToY = ConvertARGBToY;
-  WebPConvertARGBToUV = ConvertARGBToUV;
+  WebPConvertARGBToUV = WebPConvertARGBToUV_C;
 
   WebPConvertRGB24ToY = ConvertRGB24ToY;
   WebPConvertBGR24ToY = ConvertBGR24ToY;
