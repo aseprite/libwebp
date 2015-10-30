@@ -313,8 +313,174 @@ WEBP_TSAN_IGNORE_FUNCTION void WebPInitSamplersSSE2(void) {
   WebPSamplers[MODE_ARGB] = YuvToArgbRowSSE2;
 }
 
+//------------------------------------------------------------------------------
+// RGB24 -> YUV converters
+
+// Load eight 16b-words from *src.
+#define LOAD_16(src) _mm_loadu_si128((const __m128i*)(src))
+// Store either 16b-words into *dst
+#define STORE_16(V, dst) _mm_storeu_si128((__m128i*)(dst), (V))
+
+// Convert 8 packed RGB or BGR samples to r[], g[], b[]
+static WEBP_INLINE void RGB24PackedToPlanar(const uint8_t* const rgb,
+                                            __m128i* const r,
+                                            __m128i* const g,
+                                            __m128i* const b,
+                                            int input_is_bgr) {
+  const __m128i zero = _mm_setzero_si128();
+  // in0: r0 g0 b0 r1 | g1 b1 r2 g2 | b2 r3 g3 b3 | r4 g4 b4 r5
+  // in1: b2 r3 g3 b3 | r4 g4 b4 r5 | g5 b5 r6 g6 | b6 r7 g7 b7
+  const __m128i in0 = LOAD_16(rgb + 0);
+  const __m128i in1 = LOAD_16(rgb + 8);
+  // A0: | r2 g2 b2 r3 | g3 b3 r4 g4 | b4 r5 ...
+  // A1:                   ... b2 r3 | g3 b3 r4 g4 | b4 r5 g5 b5 |
+  const __m128i A0 = _mm_srli_si128(in0, 6);
+  const __m128i A1 = _mm_slli_si128(in1, 6);
+  // B0: r0 r2 g0 g2 | b0 b2 r1 r3 | g1 g3 b1 b3 | r2 r4 b2 b4
+  // B1: g3 g5 b3 b5 | r4 r6 g4 g6 | b4 b6 r5 r7 | g5 g7 b5 b7
+  const __m128i B0 = _mm_unpacklo_epi8(in0, A0);
+  const __m128i B1 = _mm_unpackhi_epi8(A1, in1);
+  // C0: r1 r3 g1 g3 | b1 b3 r2 r4 | b2 b4 ...
+  // C1:                 ... g3 g5 | b3 b5 r4 r6 | g4 g6 b4 b6
+  const __m128i C0 = _mm_srli_si128(B0, 6);
+  const __m128i C1 = _mm_slli_si128(B1, 6);
+  // D0: r0 r1 r2 r3 | g0 g1 g2 g3 | b0 b1 b2 b3 | r1 r2 r3 r4
+  // D1: b3 b4 b5 b6 | r4 r5 r6 r7 | g4 g5 g6 g7 | b4 b5 b6 b7 |
+  const __m128i D0 = _mm_unpacklo_epi8(B0, C0);
+  const __m128i D1 = _mm_unpackhi_epi8(C1, B1);
+  // r4 r5 r6 r7 | g4 g5 g6 g7 | b4 b5 b6 b7 | 0
+  const __m128i D2 = _mm_srli_si128(D1, 4);
+  // r0 r1 r2 r3 | r4 r5 r6 r7 | g0 g1 g2 g3 | g4 g5 g6 g7
+  const __m128i E0 = _mm_unpacklo_epi32(D0, D2);
+  // b0 b1 b2 b3 | b4 b5 b6 b7 | r1 r2 r3 r4 | 0
+  const __m128i E1 = _mm_unpackhi_epi32(D0, D2);
+  // g0 g1 g2 g3 | g4 g5 g6 g7 | 0
+  const __m128i E2 = _mm_srli_si128(E0, 8);
+  const __m128i F0 = _mm_unpacklo_epi8(E0, zero);  // -> R
+  const __m128i F1 = _mm_unpacklo_epi8(E1, zero);  // -> B
+  const __m128i F2 = _mm_unpacklo_epi8(E2, zero);  // -> G
+  *g = F2;
+  if (input_is_bgr) {
+    *r = F1;
+    *b = F0;
+  } else {
+    *r = F0;
+    *b = F1;
+  }
+}
+
+// Convert 8 packed ARGB to r[], g[], b[]
+static WEBP_INLINE void RGB32PackedToPlanar(const uint32_t* const argb,
+                                            __m128i* const r,
+                                            __m128i* const g,
+                                            __m128i* const b) {
+  const __m128i zero = _mm_setzero_si128();
+  const __m128i in0 = LOAD_16(argb + 0);    // argb3 | argb2 | argb1 | argb0
+  const __m128i in1 = LOAD_16(argb + 4);    // argb7 | argb6 | argb5 | argb4
+  // column-wise transpose
+  const __m128i A0 = _mm_unpacklo_epi8(in0, in1);
+  const __m128i A1 = _mm_unpackhi_epi8(in0, in1);
+  const __m128i B0 = _mm_unpacklo_epi8(A0, A1);
+  const __m128i B1 = _mm_unpackhi_epi8(A0, A1);
+  // C0 = g7 g6 ... g1 g0 | b7 b6 ... b1 b0
+  // C1 = a7 a6 ... a1 a0 | r7 r6 ... r1 r0
+  const __m128i C0 = _mm_unpacklo_epi8(B0, B1);
+  const __m128i C1 = _mm_unpackhi_epi8(B0, B1);
+  // store 16b
+  *r = _mm_unpacklo_epi8(C1, zero);
+  *g = _mm_unpackhi_epi8(C0, zero);
+  *b = _mm_unpacklo_epi8(C0, zero);
+}
+
+#define MK_CST_16(A, B) _mm_set_epi16((B), (A), (B), (A), (B), (A), (B), (A))
+static inline void ConvertRGBToY(const __m128i* const R,
+                                 const __m128i* const G,
+                                 const __m128i* const B,
+                                 __m128i* const Y) {
+  const __m128i kRG_y = MK_CST_16(16839, 33059 - 16384);
+  const __m128i kGB_y = MK_CST_16(16384, 6420);
+  const __m128i kHALF_Y = _mm_set1_epi32((16 << YUV_FIX) + YUV_HALF);
+  const __m128i RG_lo = _mm_unpacklo_epi16(*R, *G);
+  const __m128i RG_hi = _mm_unpackhi_epi16(*R, *G);
+  const __m128i GB_lo = _mm_unpacklo_epi16(*G, *B);
+  const __m128i GB_hi = _mm_unpackhi_epi16(*G, *B);
+  const __m128i y0_lo = _mm_madd_epi16(RG_lo, kRG_y);
+  const __m128i y0_hi = _mm_madd_epi16(RG_hi, kRG_y);
+  const __m128i y1_lo = _mm_madd_epi16(GB_lo, kGB_y);
+  const __m128i y1_hi = _mm_madd_epi16(GB_hi, kGB_y);
+  const __m128i y2_lo = _mm_add_epi32(y0_lo, y1_lo);
+  const __m128i y2_hi = _mm_add_epi32(y0_hi, y1_hi);
+  const __m128i y3_lo = _mm_add_epi32(y2_lo, kHALF_Y);
+  const __m128i y3_hi = _mm_add_epi32(y2_hi, kHALF_Y);
+  const __m128i y5_lo = _mm_srai_epi32(y3_lo, YUV_FIX);
+  const __m128i y5_hi = _mm_srai_epi32(y3_hi, YUV_FIX);
+  *Y = _mm_packs_epi32(y5_lo, y5_hi);
+}
+#undef MK_CST_16
+
+static void ConvertRGB24ToYSSE2(const uint8_t* rgb, uint8_t* y, int width) {
+  const int max_width = width & ~15;
+  int i;
+  for (i = 0; i < max_width; i += 16, rgb += 3 * 16) {
+    __m128i r, g, b, Y0, Y1;
+    RGB24PackedToPlanar(rgb + 0 * 8, &r, &g, &b, 0);
+    ConvertRGBToY(&r, &g, &b, &Y0);
+    RGB24PackedToPlanar(rgb + 3 * 8, &r, &g, &b, 0);
+    ConvertRGBToY(&r, &g, &b, &Y1);
+    STORE_16(_mm_packus_epi16(Y0, Y1), y + i);
+  }
+  for (; i < width; ++i, rgb += 3) {   // left-over
+    y[i] = VP8RGBToY(rgb[0], rgb[1], rgb[2], YUV_HALF);
+  }
+}
+
+static void ConvertBGR24ToYSSE2(const uint8_t* bgr, uint8_t* y, int width) {
+  int i;
+  const int max_width = width & ~15;
+  for (i = 0; i < max_width; i += 16, bgr += 3 * 16) {
+    __m128i r, g, b, Y0, Y1;
+    RGB24PackedToPlanar(bgr + 0 * 8, &r, &g, &b, 1);
+    ConvertRGBToY(&r, &g, &b, &Y0);
+    RGB24PackedToPlanar(bgr + 3 * 8, &r, &g, &b, 1);
+    ConvertRGBToY(&r, &g, &b, &Y1);
+    STORE_16(_mm_packus_epi16(Y0, Y1), y + i);
+  }
+  for (; i < width; ++i, bgr += 3) {  // left-over
+    y[i] = VP8RGBToY(bgr[2], bgr[1], bgr[0], YUV_HALF);
+  }
+}
+
+static void ConvertARGBToY(const uint32_t* argb, uint8_t* y, int width) {
+  const int max_width = width & ~15;
+  int i;
+  for (i = 0; i < max_width; i += 16) {
+    __m128i r, g, b, Y0, Y1;
+    RGB32PackedToPlanar(&argb[i + 0], &r, &g, &b);
+    ConvertRGBToY(&r, &g, &b, &Y0);
+    RGB32PackedToPlanar(&argb[i + 8], &r, &g, &b);
+    ConvertRGBToY(&r, &g, &b, &Y1);
+    STORE_16(_mm_packus_epi16(Y0, Y1), y + i);
+  }
+  for (; i < width; ++i) {   // left-over
+    const uint32_t p = argb[i];
+    y[i] = VP8RGBToY((p >> 16) & 0xff, (p >> 8) & 0xff, (p >>  0) & 0xff,
+                     YUV_HALF);
+  }
+}
+//------------------------------------------------------------------------------
+
+extern void WebPInitConvertARGBToYUVSSE2(void);
+
+WEBP_TSAN_IGNORE_FUNCTION void WebPInitConvertARGBToYUVSSE2(void) {
+  WebPConvertARGBToY = ConvertARGBToY;
+
+  WebPConvertRGB24ToY = ConvertRGB24ToYSSE2;
+  WebPConvertBGR24ToY = ConvertBGR24ToYSSE2;
+}
+
 #else  // !WEBP_USE_SSE2
 
 WEBP_DSP_INIT_STUB(WebPInitSamplersSSE2)
+WEBP_DSP_INIT_STUB(WebPInitConvertARGBToYUVSSE2)
 
 #endif  // WEBP_USE_SSE2
