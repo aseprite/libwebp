@@ -164,7 +164,7 @@ WEBP_TSAN_IGNORE_FUNCTION void WebPInitSamplers(void) {
 }
 
 //-----------------------------------------------------------------------------
-// ARGB -> YUV converters (for lossless decoding)
+// ARGB -> YUV converters
 
 static void ConvertARGBToY(const uint32_t* argb, uint8_t* y, int width) {
   int i;
@@ -243,6 +243,8 @@ void (*WebPConvertARGBToUV)(const uint32_t* argb, uint8_t* u, uint8_t* v,
 static volatile VP8CPUInfo rgba_to_yuv_last_cpuinfo_used =
     (VP8CPUInfo)&rgba_to_yuv_last_cpuinfo_used;
 
+extern void WebPInitConvertARGBToYUVSSE2(void);
+
 WEBP_TSAN_IGNORE_FUNCTION void WebPInitConvertARGBToYUV(void) {
   if (rgba_to_yuv_last_cpuinfo_used == VP8GetCPUInfo) return;
 
@@ -255,6 +257,7 @@ WEBP_TSAN_IGNORE_FUNCTION void WebPInitConvertARGBToYUV(void) {
   if (VP8GetCPUInfo != NULL) {
 #if defined(WEBP_USE_SSE2)
     if (VP8GetCPUInfo(kSSE2)) {
+      WebPInitConvertARGBToYUVSSE2();
     }
 #endif  // WEBP_USE_SSE2
   }
