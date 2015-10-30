@@ -339,6 +339,10 @@ extern void (*WebPConvertARGBToUV)(const uint32_t* argb, uint8_t* u, uint8_t* v,
 extern void (*WebPConvertRGB24ToY)(const uint8_t* rgb, uint8_t* y, int width);
 extern void (*WebPConvertBGR24ToY)(const uint8_t* bgr, uint8_t* y, int width);
 
+// used for plain-C fallback.
+extern void WebPConvertARGBToUV_C(const uint32_t* argb, uint8_t* u, uint8_t* v,
+                                  int src_width, int do_store);
+
 // Must be called before using the above.
 void WebPInitConvertARGBToYUV(void);
 

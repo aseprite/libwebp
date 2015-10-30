@@ -404,6 +404,7 @@ static inline void ConvertRGBToY(const __m128i* const R,
   const __m128i RG_hi = _mm_unpackhi_epi16(*R, *G);
   const __m128i GB_lo = _mm_unpacklo_epi16(*G, *B);
   const __m128i GB_hi = _mm_unpackhi_epi16(*G, *B);
+
   const __m128i y0_lo = _mm_madd_epi16(RG_lo, kRG_y);
   const __m128i y0_hi = _mm_madd_epi16(RG_hi, kRG_y);
   const __m128i y1_lo = _mm_madd_epi16(GB_lo, kGB_y);
@@ -416,6 +417,49 @@ static inline void ConvertRGBToY(const __m128i* const R,
   const __m128i y5_hi = _mm_srai_epi32(y3_hi, YUV_FIX);
   *Y = _mm_packs_epi32(y5_lo, y5_hi);
 }
+
+static inline void ConvertRGBToUV(const __m128i* const R,
+                                  const __m128i* const G,
+                                  const __m128i* const B,
+                                  __m128i* const U, __m128i* const V) {
+  const __m128i kRG_u = MK_CST_16(-9719, -19081);
+  const __m128i kGB_u = MK_CST_16(0, 28800);
+  const __m128i kRG_v = MK_CST_16(28800, 0);
+  const __m128i kGB_v = MK_CST_16(-24116, -4684);
+  const __m128i kHALF_UV = _mm_set1_epi32(((128 << YUV_FIX) + YUV_HALF) << 2);
+
+  const __m128i RG_lo = _mm_unpacklo_epi16(*R, *G);
+  const __m128i RG_hi = _mm_unpackhi_epi16(*R, *G);
+  const __m128i GB_lo = _mm_unpacklo_epi16(*G, *B);
+  const __m128i GB_hi = _mm_unpackhi_epi16(*G, *B);
+
+  // TODO(skal): could be macro-ized
+  const __m128i u0_lo = _mm_madd_epi16(RG_lo, kRG_u);
+  const __m128i u0_hi = _mm_madd_epi16(RG_hi, kRG_u);
+  const __m128i u1_lo = _mm_madd_epi16(GB_lo, kGB_u);
+  const __m128i u1_hi = _mm_madd_epi16(GB_hi, kGB_u);
+  const __m128i u2_lo = _mm_add_epi32(u0_lo, u1_lo);
+  const __m128i u2_hi = _mm_add_epi32(u0_hi, u1_hi);
+  const __m128i u3_lo = _mm_add_epi32(u2_lo, kHALF_UV);
+  const __m128i u3_hi = _mm_add_epi32(u2_hi, kHALF_UV);
+  const __m128i u5_lo = _mm_srai_epi32(u3_lo, YUV_FIX + 2);
+  const __m128i u5_hi = _mm_srai_epi32(u3_hi, YUV_FIX + 2);
+
+  const __m128i v0_lo = _mm_madd_epi16(RG_lo, kRG_v);
+  const __m128i v0_hi = _mm_madd_epi16(RG_hi, kRG_v);
+  const __m128i v1_lo = _mm_madd_epi16(GB_lo, kGB_v);
+  const __m128i v1_hi = _mm_madd_epi16(GB_hi, kGB_v);
+  const __m128i v2_lo = _mm_add_epi32(v0_lo, v1_lo);
+  const __m128i v2_hi = _mm_add_epi32(v0_hi, v1_hi);
+  const __m128i v3_lo = _mm_add_epi32(v2_lo, kHALF_UV);
+  const __m128i v3_hi = _mm_add_epi32(v2_hi, kHALF_UV);
+  const __m128i v5_lo = _mm_srai_epi32(v3_lo, YUV_FIX + 2);
+  const __m128i v5_hi = _mm_srai_epi32(v3_hi, YUV_FIX + 2);
+
+  *U = _mm_packs_epi32(u5_lo, u5_hi);
+  *V = _mm_packs_epi32(v5_lo, v5_hi);
+}
+
 #undef MK_CST_16
 
 static void ConvertRGB24ToYSSE2(const uint8_t* rgb, uint8_t* y, int width) {
@@ -467,12 +511,60 @@ static void ConvertARGBToY(const uint32_t* argb, uint8_t* y, int width) {
                      YUV_HALF);
   }
 }
+
+// Horizontal add (doubled) of two 16b values, result is 16b.
+// in: A | B | C | D | ... -> out: 2*(A+B) | 2*(C+D) | ...
+static void HorizontalAddPack(const __m128i* const A, const __m128i* const B,
+                              __m128i* const out) {
+  const __m128i k2 = _mm_set1_epi16(2);
+  const __m128i C = _mm_madd_epi16(*A, k2);
+  const __m128i D = _mm_madd_epi16(*B, k2);
+  *out = _mm_packs_epi32(C, D);
+}
+
+static void ConvertARGBToUV(const uint32_t* argb, uint8_t* u, uint8_t* v,
+                            int src_width, int do_store) {
+  const int max_width = src_width & ~31;
+  int i;
+  for (i = 0; i < max_width; i += 32, u += 16, v += 16) {
+    __m128i r0, g0, b0, r1, g1, b1, U0, V0, U1, V1;
+    RGB32PackedToPlanar(&argb[i +  0], &r0, &g0, &b0);
+    RGB32PackedToPlanar(&argb[i +  8], &r1, &g1, &b1);
+    HorizontalAddPack(&r0, &r1, &r0);
+    HorizontalAddPack(&g0, &g1, &g0);
+    HorizontalAddPack(&b0, &b1, &b0);
+    ConvertRGBToUV(&r0, &g0, &b0, &U0, &V0);
+
+    RGB32PackedToPlanar(&argb[i + 16], &r0, &g0, &b0);
+    RGB32PackedToPlanar(&argb[i + 24], &r1, &g1, &b1);
+    HorizontalAddPack(&r0, &r1, &r0);
+    HorizontalAddPack(&g0, &g1, &g0);
+    HorizontalAddPack(&b0, &b1, &b0);
+    ConvertRGBToUV(&r0, &g0, &b0, &U1, &V1);
+
+    U0 = _mm_packus_epi16(U0, U1);
+    V0 = _mm_packus_epi16(V0, V1);
+    if (!do_store) {
+      const __m128i prev_u = LOAD_16(u);
+      const __m128i prev_v = LOAD_16(v);
+      U0 = _mm_avg_epu8(U0, prev_u);
+      V0 = _mm_avg_epu8(V0, prev_v);
+    }
+    STORE_16(U0, u);
+    STORE_16(V0, v);
+  }
+  if (i < src_width) {  // left-over
+    WebPConvertARGBToUV_C(argb + i, u, v, src_width - i, do_store);
+  }
+}
+
 //------------------------------------------------------------------------------
 
 extern void WebPInitConvertARGBToYUVSSE2(void);
 
 WEBP_TSAN_IGNORE_FUNCTION void WebPInitConvertARGBToYUVSSE2(void) {
   WebPConvertARGBToY = ConvertARGBToY;
+  WebPConvertARGBToUV = ConvertARGBToUV;
 
   WebPConvertRGB24ToY = ConvertRGB24ToYSSE2;
   WebPConvertBGR24ToY = ConvertBGR24ToYSSE2;
