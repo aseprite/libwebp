@@ -201,11 +201,10 @@ static VP8StatusCode ParsePartitions(VP8Decoder* const dec,
     return VP8_STATUS_NOT_ENOUGH_DATA;
   }
   for (p = 0; p < last_part; ++p) {
-    const uint32_t psize = sz[0] | (sz[1] << 8) | (sz[2] << 16);
-    const uint8_t* part_end = part_start + psize;
-    if (part_end > buf_end) part_end = buf_end;
-    VP8InitBitReader(dec->parts_ + p, part_start, part_end);
-    part_start = part_end;
+    int32_t psize = sz[0] | (sz[1] << 8) | (sz[2] << 16);
+    if (psize > buf_end - part_start) psize = buf_end - part_start;
+    VP8InitBitReader(dec->parts_ + p, part_start, part_start + psize);
+    part_start += psize;
     sz += 3;
   }
   VP8InitBitReader(dec->parts_ + last_part, part_start, buf_end);
