@@ -74,6 +74,7 @@ struct VP8BitReader {
   // read buffer
   const uint8_t* buf_;        // next byte to be read
   const uint8_t* buf_end_;    // end of read buffer
+  const uint8_t* buf_max_;    // max packed-read position on buffer
   int eof_;                   // true if input is exhausted
 };
 
