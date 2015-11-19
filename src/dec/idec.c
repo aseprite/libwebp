@@ -131,7 +131,9 @@ static void DoRemap(WebPIDecoder* const idec, ptrdiff_t offset) {
         }
       }
       assert(last_part >= 0);
-      dec->parts_[last_part].buf_end_ = mem->buf_ + mem->end_;
+      VP8BitReaderSetBuffer(&dec->parts_[last_part],
+                            dec->parts_[last_part].buf_,
+                            mem->buf_ + mem->end_);
       if (NeedCompressedAlpha(idec)) {
         ALPHDecoder* const alph_dec = dec->alph_dec_;
         dec->alpha_data_ += offset;
@@ -375,8 +377,7 @@ static VP8StatusCode CopyParts0Data(WebPIDecoder* const idec) {
     }
     memcpy(part0_buf, br->buf_, part_size);
     mem->part0_buf_ = part0_buf;
-    br->buf_ = part0_buf;
-    br->buf_end_ = part0_buf + part_size;
+    VP8BitReaderSetBuffer(br, part0_buf, part0_buf + part_size);
   } else {
     // Else: just keep pointers to the partition #0's data in dec_->br_.
   }
