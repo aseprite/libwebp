@@ -48,7 +48,7 @@ static WEBP_INLINE uint32_t get_le24(const uint8_t* const data) {
 }
 
 static WEBP_INLINE uint32_t get_le32(const uint8_t* const data) {
-  return (uint32_t)get_le24(data) | (data[3] << 24);
+  return get_le24(data) | ((uint32_t)data[3] << 24);
 }
 
 // Validates the RIFF container (if detected) and skips over it.
