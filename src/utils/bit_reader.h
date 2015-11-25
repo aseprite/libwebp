@@ -65,6 +65,8 @@ typedef uint32_t range_t;
 //------------------------------------------------------------------------------
 // Bitreader
 
+#define CACHE_SIZE 1024   // enough bytes to decode a full macroblock of coeffs
+
 typedef struct VP8BitReader VP8BitReader;
 struct VP8BitReader {
   // boolean decoder  (keep the field ordering as is!)
@@ -75,6 +77,9 @@ struct VP8BitReader {
   const uint8_t* buf_;        // next byte to be read
   const uint8_t* buf_end_;    // end of read buffer
   const uint8_t* buf_max_;    // max packed-read position on buffer
+  uint8_t cache_[2 * CACHE_SIZE];
+  uint8_t* pos_;              // read position in cache_[]
+  const uint8_t* max_pos_;
   int eof_;                   // true if input is exhausted
 };
 
@@ -84,6 +89,8 @@ void VP8InitBitReader(VP8BitReader* const br,
 // Sets the working read buffer.
 void VP8BitReaderSetBuffer(VP8BitReader* const br,
                            const uint8_t* const start, size_t size);
+
+void VP8BitReaderFillCache(VP8BitReader* const br);
 
 // Update internal pointers to displace the byte buffer by the
 // relative offset 'offset'.

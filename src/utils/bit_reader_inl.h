@@ -20,9 +20,7 @@
 #include "../webp/config.h"
 #endif
 
-#ifdef WEBP_FORCE_ALIGNED
 #include <string.h>  // memcpy
-#endif
 
 #include "../dsp/dsp.h"
 #include "./bit_reader.h"
@@ -56,32 +54,32 @@ void VP8LoadFinalBytes(VP8BitReader* const br);
 
 // makes sure br->value_ has at least BITS bits worth of data
 static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
-  assert(br != NULL && br->buf_ != NULL);
-  // Read 'BITS' bits at a time if possible.
-  if (br->buf_ < br->buf_max_) {
+  assert(br != NULL && br->pos_ != NULL && br->bits_ >= 0);
+  assert(br->pos_ <= &br->cache_[CACHE_SIZE - sizeof(lbit_t)]);
+  {
     // convert memory type to register type (with some zero'ing!)
     bit_t bits;
 #if defined(WEBP_FORCE_ALIGNED)
     lbit_t in_bits;
-    memcpy(&in_bits, br->buf_, sizeof(in_bits));
+    memcpy(&in_bits, br->pos_, sizeof(in_bits));
 #elif defined(WEBP_USE_MIPS32)
     // This is needed because of un-aligned read.
     lbit_t in_bits;
-    lbit_t* p_buf_ = (lbit_t*)br->buf_;
+    lbit_t* p_pos = (lbit_t*)br->pos_;
     __asm__ volatile(
       ".set   push                             \n\t"
       ".set   at                               \n\t"
       ".set   macro                            \n\t"
-      "ulw    %[in_bits], 0(%[p_buf_])         \n\t"
+      "ulw    %[in_bits], 0(%[p_pos])          \n\t"
       ".set   pop                              \n\t"
       : [in_bits]"=r"(in_bits)
-      : [p_buf_]"r"(p_buf_)
+      : [p_pos]"r"(p_pos)
       : "memory", "at"
     );
 #else
-    const lbit_t in_bits = *(const lbit_t*)br->buf_;
+    const lbit_t in_bits = *(const lbit_t*)br->pos_;
 #endif
-    br->buf_ += BITS >> 3;
+    br->pos_ += BITS >> 3;
 #if !defined(WORDS_BIGENDIAN)
 #if (BITS > 32)
     bits = BSwap64(in_bits);
@@ -100,55 +98,81 @@ static WEBP_INLINE void VP8LoadNewBytes(VP8BitReader* const br) {
 #endif
     br->value_ = bits | (br->value_ << BITS);
     br->bits_ += BITS;
-  } else {
-    VP8LoadFinalBytes(br);    // no need to be inlined
   }
 }
 
 // Read a bit with proba 'prob'. Speed-critical function!
-static WEBP_INLINE int VP8GetBit(VP8BitReader* const br, int prob) {
-  // Don't move this declaration! It makes a big speed difference to store
-  // 'range' *before* calling VP8LoadNewBytes(), even if this function doesn't
-  // alter br->range_ value.
+static WEBP_INLINE int VP8DecodeBit(VP8BitReader* const br, int prob) {
   range_t range = br->range_;
+  const int pos = br->bits_;
+  const range_t split = (range * prob) >> 8;
+  const range_t value = (range_t)(br->value_ >> pos);
+#if defined(__arm__) || defined(_M_ARM)      // ARM-specific
+  const int bit = ((int)(split - value) >> 31) & 1;
+  if (value > split) {
+    range -= split + 1;
+    br->value_ -= (bit_t)(split + 1) << pos;
+  } else {
+    range = split;
+  }
+#else  // faster version on x86
+  int bit;  // Don't use 'const int bit = (value > split);", it's slower.
+  if (value > split) {
+    range -= split + 1;
+    br->value_ -= (bit_t)(split + 1) << pos;
+    bit = 1;
+  } else {
+    range = split;
+    bit = 0;
+  }
+#endif
+  if (range <= (range_t)0x7e) {
+    const int shift = kVP8Log2Range[range];
+    range = kVP8NewRange[range];
+    br->bits_ -= shift;
+  }
+  br->range_ = range;
+  return bit;
+}
+
+// Read a bit with proba 'prob'. Speed-critical function!
+static WEBP_INLINE int VP8GetBitFast(VP8BitReader* const br, int prob) {
   if (br->bits_ < 0) {
     VP8LoadNewBytes(br);
   }
-  {
-    const int pos = br->bits_;
-    const range_t split = (range * prob) >> 8;
-    const range_t value = (range_t)(br->value_ >> pos);
-#if defined(__arm__) || defined(_M_ARM)      // ARM-specific
-    const int bit = ((int)(split - value) >> 31) & 1;
-    if (value > split) {
-      range -= split + 1;
-      br->value_ -= (bit_t)(split + 1) << pos;
-    } else {
-      range = split;
-    }
-#else  // faster version on x86
-    int bit;  // Don't use 'const int bit = (value > split);", it's slower.
-    if (value > split) {
-      range -= split + 1;
-      br->value_ -= (bit_t)(split + 1) << pos;
-      bit = 1;
-    } else {
-      range = split;
-      bit = 0;
-    }
-#endif
-    if (range <= (range_t)0x7e) {
-      const int shift = kVP8Log2Range[range];
-      range = kVP8NewRange[range];
-      br->bits_ -= shift;
-    }
-    br->range_ = range;
-    return bit;
+  return VP8DecodeBit(br, prob);
+}
+
+// Read a bit with proba 'prob'. Speed-critical function!
+static WEBP_INLINE int VP8GetBit(VP8BitReader* const br, int prob) {
+  if (br->bits_ < 0) {
+    VP8BitReaderFillCache(br);
+    VP8LoadNewBytes(br);
   }
+  return VP8DecodeBit(br, prob);
 }
 
 // simplified version of VP8GetBit() for prob=0x80 (note shift is always 1 here)
 static WEBP_INLINE int VP8GetSigned(VP8BitReader* const br, int v) {
+  if (br->bits_ < 0) {
+    VP8BitReaderFillCache(br);
+    VP8LoadNewBytes(br);
+  }
+  {
+    const int pos = br->bits_;
+    const range_t split = br->range_ >> 1;
+    const range_t value = (range_t)(br->value_ >> pos);
+    const int32_t mask = (int32_t)(split - value) >> 31;  // -1 or 0
+    br->bits_ -= 1;
+    br->range_ += mask;
+    br->range_ |= 1;
+    br->value_ -= (bit_t)((split + 1) & mask) << pos;
+    return (v ^ mask) - mask;
+  }
+}
+
+// simplified version of VP8GetBit() for prob=0x80 (note shift is always 1 here)
+static WEBP_INLINE int VP8GetSignedFast(VP8BitReader* const br, int v) {
   if (br->bits_ < 0) {
     VP8LoadNewBytes(br);
   }

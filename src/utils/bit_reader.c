@@ -28,6 +28,8 @@ void VP8BitReaderSetBuffer(VP8BitReader* const br,
   br->buf_max_ =
       (size >= sizeof(lbit_t)) ? start + size - sizeof(lbit_t) + 1
                                : start;
+  br->pos_     = &br->cache_[2 * CACHE_SIZE];
+  br->max_pos_ = &br->cache_[CACHE_SIZE];
 }
 
 void VP8InitBitReader(VP8BitReader* const br,
@@ -40,6 +42,7 @@ void VP8InitBitReader(VP8BitReader* const br,
   br->bits_    = -8;   // to load the very first 8bits
   br->eof_     = 0;
   VP8BitReaderSetBuffer(br, start, size);
+  VP8BitReaderFillCache(br);
   VP8LoadNewBytes(br);
 }
 
@@ -48,6 +51,22 @@ void VP8RemapBitReader(VP8BitReader* const br, ptrdiff_t offset) {
     br->buf_ += offset;
     br->buf_end_ += offset;
     br->buf_max_ += offset;
+    br->pos_ = &br->cache_[2 * CACHE_SIZE];
+    VP8BitReaderFillCache(br);
+  }
+}
+
+void VP8BitReaderFillCache(VP8BitReader* const br) {
+  const size_t left = (&br->cache_[2 * CACHE_SIZE] - br->pos_);
+  if (br->pos_ >= br->max_pos_) {
+    size_t more = 2 * CACHE_SIZE - left;
+    if (more > (size_t)(br->buf_end_ - br->buf_)) {
+      more = br->buf_end_ - br->buf_;
+    }
+    if (left > 0) memcpy(br->cache_, br->pos_, left * sizeof(*br->pos_));
+    if (more > 0) memcpy(br->cache_ + left, br->buf_, more * sizeof(*br->buf_));
+    br->buf_ += more;
+    br->pos_ = br->cache_;
   }
 }
 

@@ -383,28 +383,28 @@ static const uint8_t kZigzag[16] = {
 // See section 13-2: http://tools.ietf.org/html/rfc6386#section-13.2
 static int GetLargeValue(VP8BitReader* const br, const uint8_t* const p) {
   int v;
-  if (!VP8GetBit(br, p[3])) {
-    if (!VP8GetBit(br, p[4])) {
+  if (!VP8GetBitFast(br, p[3])) {
+    if (!VP8GetBitFast(br, p[4])) {
       v = 2;
     } else {
-      v = 3 + VP8GetBit(br, p[5]);
+      v = 3 + VP8GetBitFast(br, p[5]);
     }
   } else {
-    if (!VP8GetBit(br, p[6])) {
-      if (!VP8GetBit(br, p[7])) {
-        v = 5 + VP8GetBit(br, 159);
+    if (!VP8GetBitFast(br, p[6])) {
+      if (!VP8GetBitFast(br, p[7])) {
+        v = 5 + VP8GetBitFast(br, 159);
       } else {
-        v = 7 + 2 * VP8GetBit(br, 165);
-        v += VP8GetBit(br, 145);
+        v = 7 + 2 * VP8GetBitFast(br, 165);
+        v += VP8GetBitFast(br, 145);
       }
     } else {
       const uint8_t* tab;
-      const int bit1 = VP8GetBit(br, p[8]);
-      const int bit0 = VP8GetBit(br, p[9 + bit1]);
+      const int bit1 = VP8GetBitFast(br, p[8]);
+      const int bit0 = VP8GetBitFast(br, p[9 + bit1]);
       const int cat = 2 * bit1 + bit0;
       v = 0;
       for (tab = kCat3456[cat]; *tab; ++tab) {
-        v += v + VP8GetBit(br, *tab);
+        v += v + VP8GetBitFast(br, *tab);
       }
       v += 3 + (8 << cat);
     }
@@ -417,24 +417,24 @@ static int GetCoeffs(VP8BitReader* const br, const VP8BandProbas* const prob[],
                      int ctx, const quant_t dq, int n, int16_t* out) {
   const uint8_t* p = prob[n]->probas_[ctx];
   for (; n < 16; ++n) {
-    if (!VP8GetBit(br, p[0])) {
+    if (!VP8GetBitFast(br, p[0])) {
       return n;  // previous coeff was last non-zero coeff
     }
-    while (!VP8GetBit(br, p[1])) {       // sequence of zero coeffs
+    while (!VP8GetBitFast(br, p[1])) {       // sequence of zero coeffs
       p = prob[++n]->probas_[0];
       if (n == 16) return 16;
     }
     {        // non zero coeff
       const VP8ProbaArray* const p_ctx = &prob[n + 1]->probas_[0];
       int v;
-      if (!VP8GetBit(br, p[2])) {
+      if (!VP8GetBitFast(br, p[2])) {
         v = 1;
         p = p_ctx[1];
       } else {
         v = GetLargeValue(br, p);
         p = p_ctx[2];
       }
-      out[kZigzag[n]] = VP8GetSigned(br, v) * dq[n > 0];
+      out[kZigzag[n]] = VP8GetSignedFast(br, v) * dq[n > 0];
     }
   }
   return 16;
@@ -461,6 +461,7 @@ static int ParseResiduals(VP8Decoder* const dec,
   uint32_t out_t_nz, out_l_nz;
   int first;
 
+  VP8BitReaderFillCache(token_br);
   memset(dst, 0, 384 * sizeof(*dst));
   if (!block->is_i4x4_) {    // parse DC
     int16_t dc[16] = { 0 };
