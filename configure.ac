@@ -77,6 +77,23 @@ AS_IF([test "$GCC" = "yes" ], [
        esac
        AS_IF([test "$gcc_wht_bug" = "yes"], [
               TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-frename-registers])])])
+# Use -flax-vector-conversions, if available, when building intrinsics with
+# older versions of gcc. The flag appeared in 4.3.x, but if backported, and
+# -fno-lax-vector-conversions is set, errors may occur with the intrinsics
+# files along with the older system includes, e.g., emmintrin.h.
+# Originally observed with cc (GCC) 4.2.1 20070831 patched [FreeBSD] (9.3).
+# https://bugs.chromium.org/p/webp/issues/detail?id=274
+AS_IF([test "$GCC" = "yes" ], [
+       gcc_version=`$CC -dumpversion`
+       case "$host_cpu" in
+         amd64|i?86|x86_64)
+          case "$gcc_version" in
+            2.*|3.*|4.[[012]]|4.[[012]].*)
+              TEST_AND_ADD_CFLAGS([INTRINSICS_CFLAGS],
+                                  [-flax-vector-conversions])
+              ;;
+          esac
+       esac])
 AC_SUBST([AM_CFLAGS])
 
 dnl === Check for machine specific flags
@@ -87,6 +104,7 @@ AC_ARG_ENABLE([avx2],
 
 AS_IF([test "x$enable_avx2" != "xno" -a "x$enable_sse4_1" != "xno" \
          -a "x$enable_sse2" != "xno"], [
+  AVX2_CFLAGS="$INTRINSICS_CFLAGS $AVX2_FLAGS"
   TEST_AND_ADD_CFLAGS([AVX2_FLAGS], [-mavx2])
   AS_IF([test -n "$AVX2_FLAGS"], [
     SAVED_CFLAGS=$CFLAGS
@@ -110,6 +128,7 @@ AC_ARG_ENABLE([sse4.1],
                               @<:@default=auto@:>@]))
 
 AS_IF([test "x$enable_sse4_1" != "xno" -a "x$enable_sse2" != "xno"], [
+  SSE41_FLAGS="$INTRINSICS_CFLAGS $SSE41_FLAGS"
   TEST_AND_ADD_CFLAGS([SSE41_FLAGS], [-msse4.1])
   AS_IF([test -n "$SSE41_FLAGS"], [
     SAVED_CFLAGS=$CFLAGS
@@ -127,6 +146,7 @@ AC_ARG_ENABLE([sse2],
                               @<:@default=auto@:>@]))
 
 AS_IF([test "x$enable_sse2" != "xno"], [
+  SSE2_FLAGS="$INTRINSICS_CFLAGS $SSE2_FLAGS"
   TEST_AND_ADD_CFLAGS([SSE2_FLAGS], [-msse2])
   AS_IF([test -n "$SSE2_FLAGS"], [
     SAVED_CFLAGS=$CFLAGS
