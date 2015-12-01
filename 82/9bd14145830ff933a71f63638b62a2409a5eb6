@@ -1,0 +1,8 @@
+Verified+1: WebM Builds <builds@webmproject.org>
+Code-Review+2: Pascal Massimino <pascal.massimino@gmail.com>
+Code-Review+2: James Zern <jzern@google.com>
+Submitted-by: Pascal Massimino <pascal.massimino@gmail.com>
+Submitted-at: Tue, 01 Dec 2015 08:22:17 +0000
+Reviewed-on: https://chromium-review.googlesource.com/313773
+Project: webm/libwebp
+Branch: refs/heads/master
