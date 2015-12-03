@@ -222,8 +222,11 @@ double VP8LPopulationCost(const uint32_t* const population, int length,
                           uint32_t* const trivial_sym);
 
 // Get the combined symbol entropy for the distributions 'X' and 'Y'.
-double VP8LGetCombinedEntropy(const uint32_t* const X,
-                              const uint32_t* const Y, int length);
+typedef double (*VP8LGetCombinedEntropyFunc)(const uint32_t* const X,
+                                             const uint32_t* const Y,
+                                             int length);
+
+extern VP8LGetCombinedEntropyFunc VP8LGetCombinedEntropy;
 
 double VP8LBitsEntropy(const uint32_t* const array, int n,
                        uint32_t* const trivial_symbol);

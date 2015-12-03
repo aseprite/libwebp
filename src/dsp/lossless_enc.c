@@ -533,8 +533,8 @@ double VP8LPopulationCost(const uint32_t* const population, int length,
       HuffmanCost(population, length);
 }
 
-double VP8LGetCombinedEntropy(const uint32_t* const X,
-                              const uint32_t* const Y, int length) {
+static double GetCombinedEntropy(const uint32_t* const X,
+                                 const uint32_t* const Y, int length) {
   double bits_entropy_combined;
   double huffman_cost_combined;
   int i;
@@ -1255,6 +1255,8 @@ VP8LCostCombinedFunc VP8LExtraCostCombined;
 
 VP8LCostCountFunc VP8LHuffmanCostCount;
 
+VP8LGetCombinedEntropyFunc VP8LGetCombinedEntropy;
+
 VP8LHistogramAddFunc VP8LHistogramAdd;
 
 extern void VP8LEncDspInitSSE2(void);
@@ -1285,6 +1287,8 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8LEncDspInit(void) {
   VP8LExtraCostCombined = ExtraCostCombined;
 
   VP8LHuffmanCostCount = HuffmanCostCount;
+
+  VP8LGetCombinedEntropy = GetCombinedEntropy;
 
   VP8LHistogramAdd = HistogramAdd;
 
