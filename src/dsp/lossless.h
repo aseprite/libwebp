@@ -208,6 +208,59 @@ typedef struct {        // small struct to hold counters
   int streaks[2][2];    // [zero/non-zero][streak<3 / streak>=3]
 } VP8LStreaks;
 
+#if defined(USE_BITS_ENTROPY_AND_HUFFMAN_COST_FUNCS)
+static WEBP_INLINE double BitsEntropyRefine(int nonzeros, int sum, int max_val,
+                                            double retval) {
+  double mix;
+  if (nonzeros < 5) {
+    if (nonzeros <= 1) {
+      return 0;
+    }
+    // Two symbols, they will be 0 and 1 in a Huffman code.
+    // Let's mix in a bit of entropy to favor good clustering when
+    // distributions of these are combined.
+    if (nonzeros == 2) {
+      return 0.99 * sum + 0.01 * retval;
+    }
+    // No matter what the entropy says, we cannot be better than min_limit
+    // with Huffman coding. I am mixing a bit of entropy into the
+    // min_limit since it produces much better (~0.5 %) compression results
+    // perhaps because of better entropy clustering.
+    if (nonzeros == 3) {
+      mix = 0.95;
+    } else {
+      mix = 0.7;  // nonzeros == 4.
+    }
+  } else {
+    mix = 0.627;
+  }
+
+  {
+    double min_limit = 2 * sum - max_val;
+    min_limit = mix * min_limit + (1.0 - mix) * retval;
+    return (retval < min_limit) ? min_limit : retval;
+  }
+}
+
+static double InitialHuffmanCost(void) {
+  // Small bias because Huffman code length is typically not stored in
+  // full length.
+  static const int kHuffmanCodeOfHuffmanCodeSize = CODE_LENGTH_CODES * 3;
+  static const double kSmallBias = 9.1;
+  return kHuffmanCodeOfHuffmanCodeSize - kSmallBias;
+}
+
+// Finalize the Huffman cost based on streak numbers and length type (<3 or >=3)
+static double FinalHuffmanCost(const VP8LStreaks* const stats) {
+  double retval = InitialHuffmanCost();
+  retval += stats->counts[0] * 1.5625 + 0.234375 * stats->streaks[0][1];
+  retval += stats->counts[1] * 2.578125 + 0.703125 * stats->streaks[1][1];
+  retval += 1.796875 * stats->streaks[0][0];
+  retval += 3.28125 * stats->streaks[1][0];
+  return retval;
+}
+#endif
+
 typedef VP8LStreaks (*VP8LCostCountFunc)(const uint32_t* population,
                                          int length);
 typedef VP8LStreaks (*VP8LCostCombinedCountFunc)(const uint32_t* X,
@@ -222,8 +275,11 @@ double VP8LPopulationCost(const uint32_t* const population, int length,
                           uint32_t* const trivial_sym);
 
 // Get the combined symbol entropy for the distributions 'X' and 'Y'.
-double VP8LGetCombinedEntropy(const uint32_t* const X,
-                              const uint32_t* const Y, int length);
+typedef double (*VP8LGetCombinedEntropyFunc)(const uint32_t* const X,
+                                             const uint32_t* const Y,
+                                             int length);
+
+extern VP8LGetCombinedEntropyFunc VP8LGetCombinedEntropy;
 
 double VP8LBitsEntropy(const uint32_t* const array, int n,
                        uint32_t* const trivial_symbol);

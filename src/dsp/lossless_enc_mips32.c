@@ -13,6 +13,8 @@
 //             Jovan Zelincevic (jovan.zelincevic@imgtec.com)
 
 #include "./dsp.h"
+
+#define USE_BITS_ENTROPY_AND_HUFFMAN_COST_FUNCS
 #include "./lossless.h"
 
 #if defined(WEBP_USE_MIPS32)
@@ -241,28 +243,88 @@ static VP8LStreaks HuffmanCostCount(const uint32_t* population, int length) {
   return stats;
 }
 
-static VP8LStreaks HuffmanCostCombinedCount(const uint32_t* X,
-                                            const uint32_t* Y, int length) {
+static double GetCombinedEntropy(const uint32_t* const X,
+                                 const uint32_t* const Y, int length) {
+  double bits_entropy_combined;
+  double huffman_cost_combined;
   int i;
+
+  // Bit entropy variables.
+  double retval = 0.;
+  int sum = 0;
+  int nonzeros = 0;
+  uint32_t max_val = 0;
+  int i_prev;
+  uint32_t xy;
+
+  // Huffman cost variables.
   int streak = 0;
-  uint32_t xy_prev = 0xffffffff;
+  uint32_t xy_prev;
   VP8LStreaks stats;
+
+  // Macro variables.
   int* const pstreaks = &stats.streaks[0][0];
   int* const pcnts = &stats.counts[0];
   int temp0, temp1, temp2, temp3;
+
   memset(&stats, 0, sizeof(stats));
-  for (i = 0; i < length; ++i) {
-    const uint32_t xy = X[i] + Y[i];
-    ++streak;
+
+  // Treat the first value for the huffman cost: this is keeping the original
+  // behavior, even though there is no first streak.
+  // TODO(vrabaud): study proper behavior
+  xy = X[0] + Y[0];
+  ++stats.streaks[xy != 0][0];
+  xy_prev = xy;
+  i_prev = 0;
+
+  for (i = 1; i < length; ++i) {
+    xy = X[i] + Y[i];
+
+    // Process data by streaks for both bit entropy and huffman cost.
     if (xy != xy_prev) {
+      streak = i - i_prev;
+
+      // Gather info for the bit entropy.
+      if (xy_prev != 0) {
+        sum += xy_prev * streak;
+        nonzeros += streak;
+        retval -= VP8LFastSLog2(xy_prev) * streak;
+        if (max_val < xy_prev) {
+          max_val = xy_prev;
+        }
+      }
+
+      // Gather info for the huffman cost.
       temp0 = (xy != 0);
       HUFFMAN_COST_PASS
-      streak = 0;
+
       xy_prev = xy;
+      i_prev = i;
     }
   }
-  return stats;
+
+  // Finish off the last streak for bit entropy.
+  if (xy != 0) {
+    streak = i - i_prev;
+    sum += xy * streak;
+    nonzeros += streak;
+    retval -= VP8LFastSLog2(xy) * streak;
+    if (max_val < xy) {
+      max_val = xy;
+    }
+  }
+  // Huffman cost is not updated with the last streak to keep original behavior.
+  // TODO(vrabaud): study proper behavior
+
+  retval += VP8LFastSLog2(sum);
+  bits_entropy_combined = BitsEntropyRefine(nonzeros, sum, max_val, retval);
+
+  huffman_cost_combined = FinalHuffmanCost(&stats);
+
+  return bits_entropy_combined + huffman_cost_combined;
 }
+
+#undef USE_BITS_ENTROPY_AND_HUFFMAN_COST
 
 #define ASM_START                                       \
   __asm__ volatile(                                     \
@@ -400,13 +462,7 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8LEncDspInitMIPS32(void) {
   VP8LExtraCost = ExtraCost;
   VP8LExtraCostCombined = ExtraCostCombined;
   VP8LHuffmanCostCount = HuffmanCostCount;
-// TODO(mips team): rewrite VP8LGetCombinedEntropy (which used to use
-// HuffmanCostCombinedCount) with MIPS optimizations
-#if 0
-  VP8LHuffmanCostCombinedCount = HuffmanCostCombinedCount;
-#else
- (void)HuffmanCostCombinedCount;
-#endif
+  VP8LGetCombinedEntropy = GetCombinedEntropy;
   VP8LHistogramAdd = HistogramAdd;
 }
 
