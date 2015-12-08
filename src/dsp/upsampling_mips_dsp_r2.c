@@ -14,7 +14,9 @@
 
 #include "./dsp.h"
 
-#if defined(WEBP_USE_MIPS_DSP_R2)
+// Code is disabled for now, in favor of the plain-C version
+// TODO(djordje.pesut): adapt the code to reflect the C-version.
+#if 0 // defined(WEBP_USE_MIPS_DSP_R2)
 
 #include <assert.h>
 #include "./yuv.h"
