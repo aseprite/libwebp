@@ -15,18 +15,18 @@
 #ifndef WEBP_DSP_LOSSLESS_H_
 #define WEBP_DSP_LOSSLESS_H_
 
-#include "../webp/types.h"
-#include "../webp/decode.h"
+#include "src/webp/types.h"
+#include "src/webp/decode.h"
 
-#include "../enc/histogram.h"
-#include "../utils/utils.h"
+#include "src/enc/histogram.h"
+#include "src/utils/utils.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifdef WEBP_EXPERIMENTAL_FEATURES
-#include "../enc/delta_palettization.h"
+#include "src/enc/delta_palettization.h"
 #endif  // WEBP_EXPERIMENTAL_FEATURES
 
 // Not a trivial literal symbol.

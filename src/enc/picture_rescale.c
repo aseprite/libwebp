@@ -15,8 +15,8 @@
 #include <stdlib.h>
 
 #include "./vp8enci.h"
-#include "../utils/rescaler.h"
-#include "../utils/utils.h"
+#include "src/utils/rescaler.h"
+#include "src/utils/utils.h"
 
 #define HALVE(x) (((x) + 1) >> 1)
 

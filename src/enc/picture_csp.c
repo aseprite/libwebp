@@ -16,9 +16,9 @@
 #include <math.h>
 
 #include "./vp8enci.h"
-#include "../utils/random.h"
-#include "../utils/utils.h"
-#include "../dsp/yuv.h"
+#include "src/utils/random.h"
+#include "src/utils/utils.h"
+#include "src/dsp/yuv.h"
 
 // Uncomment to disable gamma-compression during RGB->U/V averaging
 #define USE_GAMMA_COMPRESSION

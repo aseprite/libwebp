@@ -22,7 +22,7 @@
 
 #include "./cost.h"
 #include "./vp8enci.h"
-#include "../utils/utils.h"
+#include "src/utils/utils.h"
 
 #if !defined(DISABLE_TOKEN_BUFFER)
 

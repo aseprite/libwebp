@@ -12,7 +12,7 @@
 // Author: Skal (pascal.massimino@gmail.com)
 
 #include "./vp8enci.h"
-#include "../dsp/yuv.h"
+#include "src/dsp/yuv.h"
 
 static WEBP_INLINE uint32_t MakeARGB32(int r, int g, int b) {
   return (0xff000000u | (r << 16) | (g << 8) | b);

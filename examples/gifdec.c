@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "utils/utils.h"
+// #include "utils/utils.h"
 #include "webp/mux_types.h"
 #include "webp/encode.h"
 

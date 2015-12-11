@@ -17,7 +17,7 @@
 #include <emmintrin.h>
 
 #include <assert.h>
-#include "../utils/rescaler.h"
+#include "src/utils/rescaler.h"
 
 //------------------------------------------------------------------------------
 // Implementations of critical functions ImportRow / ExportRow

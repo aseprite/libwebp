@@ -15,10 +15,10 @@
 
 #include "./backward_references.h"
 #include "./histogram.h"
-#include "../dsp/lossless.h"
-#include "../dsp/dsp.h"
-#include "../utils/color_cache.h"
-#include "../utils/utils.h"
+#include "src/dsp/lossless.h"
+#include "src/dsp/dsp.h"
+#include "src/utils/color_cache.h"
+#include "src/utils/utils.h"
 
 #define VALUES_IN_BYTE 256
 

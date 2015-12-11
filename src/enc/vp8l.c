@@ -18,11 +18,11 @@
 #include "./backward_references.h"
 #include "./vp8enci.h"
 #include "./vp8li.h"
-#include "../dsp/lossless.h"
-#include "../utils/bit_writer.h"
-#include "../utils/huffman_encode.h"
-#include "../utils/utils.h"
-#include "../webp/format_constants.h"
+#include "src/dsp/lossless.h"
+#include "src/utils/bit_writer.h"
+#include "src/utils/huffman_encode.h"
+#include "src/utils/utils.h"
+#include "src/webp/format_constants.h"
 
 #include "./delta_palettization.h"
 

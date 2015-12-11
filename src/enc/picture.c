@@ -15,8 +15,8 @@
 #include <stdlib.h>
 
 #include "./vp8enci.h"
-#include "../dsp/dsp.h"
-#include "../utils/utils.h"
+#include "src/dsp/dsp.h"
+#include "src/utils/utils.h"
 
 //------------------------------------------------------------------------------
 // WebPPicture

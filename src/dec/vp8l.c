@@ -16,12 +16,12 @@
 
 #include "./alphai.h"
 #include "./vp8li.h"
-#include "../dsp/dsp.h"
-#include "../dsp/lossless.h"
-#include "../dsp/yuv.h"
-#include "../utils/endian_inl.h"
-#include "../utils/huffman.h"
-#include "../utils/utils.h"
+#include "src/dsp/dsp.h"
+#include "src/dsp/lossless.h"
+#include "src/dsp/yuv.h"
+#include "src/utils/endian_inl.h"
+#include "src/utils/huffman.h"
+#include "src/utils/utils.h"
 
 #define NUM_ARGB_CACHE_ROWS          16
 

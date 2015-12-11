@@ -15,7 +15,7 @@
 #include <stdlib.h>
 
 #include "./vp8enci.h"
-#include "../utils/utils.h"
+#include "src/utils/utils.h"
 
 //------------------------------------------------------------------------------
 // local-min distortion

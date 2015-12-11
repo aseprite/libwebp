@@ -1,3 +1,5 @@
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
+
 lib_LTLIBRARIES = libwebpextras.la
 
 libwebpextras_la_SOURCES =

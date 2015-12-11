@@ -17,10 +17,10 @@
 #include <string.h>     // for memcpy()
 #include "./common.h"
 #include "./vp8li.h"
-#include "../utils/bit_reader.h"
-#include "../utils/random.h"
-#include "../utils/thread.h"
-#include "../dsp/dsp.h"
+#include "src/utils/bit_reader.h"
+#include "src/utils/random.h"
+#include "src/utils/thread.h"
+#include "src/dsp/dsp.h"
 
 #ifdef __cplusplus
 extern "C" {

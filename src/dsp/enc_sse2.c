@@ -17,8 +17,8 @@
 #include <stdlib.h>  // for abs()
 #include <emmintrin.h>
 
-#include "../enc/cost.h"
-#include "../enc/vp8enci.h"
+#include "src/enc/cost.h"
+#include "src/enc/vp8enci.h"
 
 //------------------------------------------------------------------------------
 // Quite useful macro for debugging. Left here for convenience.

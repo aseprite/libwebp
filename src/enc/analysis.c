@@ -17,7 +17,7 @@
 
 #include "./vp8enci.h"
 #include "./cost.h"
-#include "../utils/utils.h"
+#include "src/utils/utils.h"
 
 #define MAX_ITERS_K_MEANS  6
 

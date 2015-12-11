@@ -16,8 +16,8 @@
 
 #include <stdlib.h>
 
-#include "../dsp/lossless.h"
-#include "../utils/utils.h"
+#include "src/dsp/lossless.h"
+#include "src/utils/utils.h"
 #include "./vp8enci.h"
 
 #define MIN_DIM_FOR_NEAR_LOSSLESS 64

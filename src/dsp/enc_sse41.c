@@ -17,7 +17,7 @@
 #include <smmintrin.h>
 #include <stdlib.h>  // for abs()
 
-#include "../enc/vp8enci.h"
+#include "src/enc/vp8enci.h"
 
 //------------------------------------------------------------------------------
 // Compute susceptibility based on DCT-coeff histograms.

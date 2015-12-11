@@ -16,9 +16,9 @@
 
 #include "./backward_references.h"
 #include "./histogram.h"
-#include "../utils/bit_writer.h"
-#include "../webp/encode.h"
-#include "../webp/format_constants.h"
+#include "src/utils/bit_writer.h"
+#include "src/webp/encode.h"
+#include "src/webp/format_constants.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -15,12 +15,12 @@
 #define WEBP_ENC_VP8ENCI_H_
 
 #include <string.h>     // for memcpy()
-#include "../dec/common.h"
-#include "../dsp/dsp.h"
-#include "../utils/bit_writer.h"
-#include "../utils/thread.h"
-#include "../utils/utils.h"
-#include "../webp/encode.h"
+#include "src/dec/common.h"
+#include "src/dsp/dsp.h"
+#include "src/utils/bit_writer.h"
+#include "src/utils/thread.h"
+#include "src/utils/utils.h"
+#include "src/webp/encode.h"
 
 #ifdef WEBP_EXPERIMENTAL_FEATURES
 #include "./vp8li.h"

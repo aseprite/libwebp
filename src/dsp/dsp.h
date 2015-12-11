@@ -14,8 +14,8 @@
 #ifndef WEBP_DSP_DSP_H_
 #define WEBP_DSP_DSP_H_
 
-#include "../webp/types.h"
-#include "../utils/utils.h"
+#include "src/webp/types.h"
+#include "src/utils/utils.h"
 
 #ifdef __cplusplus
 extern "C" {

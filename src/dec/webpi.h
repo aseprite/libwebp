@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include "../utils/rescaler.h"
+#include "src/utils/rescaler.h"
 #include "./decode_vp8.h"
 
 //------------------------------------------------------------------------------

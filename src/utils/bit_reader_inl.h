@@ -17,14 +17,14 @@
 #define WEBP_UTILS_BIT_READER_INL_H_
 
 #ifdef HAVE_CONFIG_H
-#include "../webp/config.h"
+#include "src/webp/config.h"
 #endif
 
 #ifdef WEBP_FORCE_ALIGNED
 #include <string.h>  // memcpy
 #endif
 
-#include "../dsp/dsp.h"
+#include "src/dsp/dsp.h"
 #include "./bit_reader.h"
 #include "./endian_inl.h"
 

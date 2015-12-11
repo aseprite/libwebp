@@ -21,7 +21,7 @@
 // #define USE_TRANSFORM_AC3
 
 #include <emmintrin.h>
-#include "../dec/vp8i.h"
+#include "src/dec/vp8i.h"
 
 //------------------------------------------------------------------------------
 // Transforms (Paragraph 14.4)
