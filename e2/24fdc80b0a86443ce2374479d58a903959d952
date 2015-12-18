@@ -1,0 +1,7 @@
+Verified+1: WebM Builds <builds@webmproject.org>
+Code-Review+2: James Zern <jzern@google.com>
+Submitted-by: James Zern <jzern@google.com>
+Submitted-at: Fri, 18 Dec 2015 07:38:35 +0000
+Reviewed-on: https://chromium-review.googlesource.com/319205
+Project: webm/libwebp
+Branch: refs/heads/0.5.0
