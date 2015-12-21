@@ -209,7 +209,6 @@ Options:
   -progress .............. report encoding progress
 
 Experimental Options:
-  -jpeg_like ............. roughly match expected JPEG size
   -af .................... auto-adjust filter strength
   -pre <int> ............. pre-processing filter
 
