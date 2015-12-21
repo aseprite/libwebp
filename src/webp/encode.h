@@ -127,10 +127,7 @@ struct WebPConfig {
   int partition_limit;    // quality degradation allowed to fit the 512k limit
                           // on prediction modes coding (0: no degradation,
                           // 100: maximum possible degradation).
-  int emulate_jpeg_size;  // If true, compression parameters will be remapped
-                          // to better match the expected output size from
-                          // JPEG compression. Generally, the output size will
-                          // be similar but the degradation will be lower.
+  int emulate_jpeg_size;  // No effect, kept for backward compatibility.
   int thread_level;       // If non-zero, try and use multi-threaded encoding.
   int low_memory;         // If set, reduce memory usage (but increase CPU use).
 

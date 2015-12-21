@@ -446,7 +446,6 @@ static void InitSegmentJob(VP8Encoder* const enc, SegmentJob* const job,
 int VP8EncAnalyze(VP8Encoder* const enc) {
   int ok = 1;
   const int do_segments =
-      enc->config_->emulate_jpeg_size ||   // We need the complexity evaluation.
       (enc->segment_hdr_.num_segments_ > 1) ||
       (enc->method_ == 0);  // for method 0, we need preds_[] to be filled.
   if (do_segments) {
