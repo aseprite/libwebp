@@ -132,7 +132,8 @@ static const int16_t kCoeffs1[4] = { 19077, 26149, 6419, 13320 };
 #endif
 
 #define STORE_Rgba4444(out, r, g, b) do {                               \
-  const uint8x8_t r1 = vshl_n_u8(vshr_n_u8(r, 4), 4);  /* 4bits */      \
+  const uint8x8_t rh = vshr_n_u8(r, 4);                                 \
+  const uint8x8_t r1 = vshl_n_u8(rh, 4);               /* 4bits */      \
   const uint8x8_t g1 = vshr_n_u8(g, 4);                                 \
   const uint8x8_t ba = vorr_u8(b, v_0x0f);                              \
   const uint8x8_t rg = vorr_u8(r1, g1);                                 \
@@ -141,9 +142,11 @@ static const int16_t kCoeffs1[4] = { 19077, 26149, 6419, 13320 };
 } while (0)
 
 #define STORE_Rgb565(out, r, g, b) do {                                 \
-  const uint8x8_t r1 = vshl_n_u8(vshr_n_u8(r, 3), 3);  /* 5bits */      \
+  const uint8x8_t rh = vshr_n_u8(r, 3);                                 \
+  const uint8x8_t r1 = vshl_n_u8(rh, 3);               /* 5bits */      \
   const uint8x8_t g1 = vshr_n_u8(g, 5);                /* upper 3bits */\
-  const uint8x8_t g2 = vshl_n_u8(vshr_n_u8(g, 2), 5);  /* lower 3bits */\
+  const uint8x8_t gl = vshr_n_u8(g, 2);                                 \
+  const uint8x8_t g2 = vshl_n_u8(gl, 5);               /* lower 3bits */\
   const uint8x8_t b1 = vshr_n_u8(b, 3);                /* 5bits */      \
   const uint8x8_t rg = vorr_u8(r1, g1);                                 \
   const uint8x8_t gb = vorr_u8(g2, b1);                                 \
