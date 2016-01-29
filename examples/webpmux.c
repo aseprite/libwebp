@@ -548,9 +548,9 @@ static int ValidateCommandLine(int argc, const char* argv[],
   return ok;
 }
 
-#define ACTION_IS_NIL (config->action_type_ == NIL_ACTION)
+#define ACTION_IS_NIL config->action_type_ == NIL_ACTION
 
-#define FEATURETYPE_IS_NIL (feature->type_ == NIL_FEATURE)
+#define FEATURETYPE_IS_NIL feature->type_ == NIL_FEATURE
 
 #define CHECK_NUM_ARGS_LESS(NUM, LABEL)                                  \
   if (argc < i + (NUM)) {                                                \
