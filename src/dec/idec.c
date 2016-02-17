@@ -645,7 +645,7 @@ void WebPIDelete(WebPIDecoder* idec) {
 
 WebPIDecoder* WebPINewRGB(WEBP_CSP_MODE mode, uint8_t* output_buffer,
                           size_t output_buffer_size, int output_stride) {
-  const int is_external_memory = (output_buffer != NULL);
+  const int is_external_memory = (output_buffer != NULL) ? 1 : 0;
   WebPIDecoder* idec;
 
   if (mode >= MODE_YUV) return NULL;
@@ -671,11 +671,11 @@ WebPIDecoder* WebPINewYUVA(uint8_t* luma, size_t luma_size, int luma_stride,
                            uint8_t* u, size_t u_size, int u_stride,
                            uint8_t* v, size_t v_size, int v_stride,
                            uint8_t* a, size_t a_size, int a_stride) {
-  const int is_external_memory = (luma != NULL);
+  const int is_external_memory = (luma != NULL) ? 1 : 0;
   WebPIDecoder* idec;
   WEBP_CSP_MODE colorspace;
 
-  if (!is_external_memory) {    // Overwrite parameters to sane values.
+  if (is_external_memory == 0) {    // Overwrite parameters to sane values.
     luma_size = u_size = v_size = a_size = 0;
     luma_stride = u_stride = v_stride = a_stride = 0;
     u = v = a = NULL;
