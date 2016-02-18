@@ -92,7 +92,7 @@ static VP8StatusCode AllocateBuffer(WebPDecBuffer* const buffer) {
     return VP8_STATUS_INVALID_PARAM;
   }
 
-  if (!buffer->is_external_memory && buffer->private_memory == NULL) {
+  if (buffer->is_external_memory == 0 && buffer->private_memory == NULL) {
     uint8_t* output;
     int uv_stride = 0, a_stride = 0;
     uint64_t uv_size = 0, a_size = 0, total_size;
@@ -227,7 +227,7 @@ int WebPInitDecBufferInternal(WebPDecBuffer* buffer, int version) {
 
 void WebPFreeDecBuffer(WebPDecBuffer* buffer) {
   if (buffer != NULL) {
-    if (!buffer->is_external_memory) {
+    if (buffer->is_external_memory == 0) {
       WebPSafeFree(buffer->private_memory);
     }
     buffer->private_memory = NULL;
@@ -257,4 +257,3 @@ void WebPGrabDecBuffer(WebPDecBuffer* const src, WebPDecBuffer* const dst) {
 }
 
 //------------------------------------------------------------------------------
-

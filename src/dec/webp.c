@@ -740,6 +740,16 @@ VP8StatusCode WebPGetFeaturesInternal(const uint8_t* data, size_t data_size,
   return GetFeatures(data, data_size, features);
 }
 
+// Returns true if decoding will be slow with the current configuration
+// and bitstream features.
+static int AvoidSlowMemory(const WebPDecBuffer* const output,
+                           const WebPDecoderConfig* const config) {
+  assert(output != NULL && config != NULL);
+  return (output->is_external_memory == 2) &&
+          config->input.has_alpha &&
+          WebPIsRGBMode(output->colorspace);
+}
+
 VP8StatusCode WebPDecode(const uint8_t* data, size_t data_size,
                          WebPDecoderConfig* config) {
   WebPDecParams params;
@@ -758,9 +768,28 @@ VP8StatusCode WebPDecode(const uint8_t* data, size_t data_size,
   }
 
   WebPResetDecParams(&params);
-  params.output = &config->output;
   params.options = &config->options;
+  params.output = &config->output;
+  if (AvoidSlowMemory(params.output, config)) {
+    // decoding to slow memory: use a temporary in-mem buffer to decode into.
+    WebPDecBuffer in_mem_buffer;
+    WebPInitDecBuffer(&in_mem_buffer);
+    in_mem_buffer.colorspace = config->output.colorspace;
+    in_mem_buffer.width = config->input.width;
+    in_mem_buffer.height = config->input.height;
+    params.output = &in_mem_buffer;
   status = DecodeInto(data, data_size, &params);
+    if (status == VP8_STATUS_OK) {
+      // do the slow-copy
+      const WebPRGBABuffer* const src = &in_mem_buffer.u.RGBA;
+      const WebPRGBABuffer* const dst = &config->output.u.RGBA;
+      WebPCopyPlane(src->rgba, src->stride, dst->rgba, dst->stride,
+                    config->input.width, config->input.height);
+    }
+    WebPFreeDecBuffer(&in_mem_buffer);
+  } else {
+    status = DecodeInto(data, data_size, &params);
+  }
 
   return status;
 }
@@ -826,4 +855,3 @@ int WebPIoInitFromOptions(const WebPDecoderOptions* const options,
 }
 
 //------------------------------------------------------------------------------
-
