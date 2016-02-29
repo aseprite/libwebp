@@ -236,6 +236,8 @@ static int ExpandMatrix(VP8Matrix* const m, int type) {
   return (sum + 8) >> 4;
 }
 
+static void CheckLambdaValue(int* const v) { if (*v < 1) *v = 1; }
+
 static void SetupMatrices(VP8Encoder* enc) {
   int i;
   const int tlambda_scale =
@@ -245,7 +247,7 @@ static void SetupMatrices(VP8Encoder* enc) {
   for (i = 0; i < num_segments; ++i) {
     VP8SegmentInfo* const m = &enc->dqm_[i];
     const int q = m->quant_;
-    int q4, q16, quv;
+    int q_i4, q_i16, q_uv;
     m->y1_.q_[0] = kDcTable[clip(q + enc->dq_y1_dc_, 0, 127)];
     m->y1_.q_[1] = kAcTable[clip(q,                  0, 127)];
 
@@ -255,18 +257,35 @@ static void SetupMatrices(VP8Encoder* enc) {
     m->uv_.q_[0] = kDcTable[clip(q + enc->dq_uv_dc_, 0, 117)];
     m->uv_.q_[1] = kAcTable[clip(q + enc->dq_uv_ac_, 0, 127)];
 
-    q4  = ExpandMatrix(&m->y1_, 0);
-    q16 = ExpandMatrix(&m->y2_, 1);
-    quv = ExpandMatrix(&m->uv_, 2);
+    q_i4  = ExpandMatrix(&m->y1_, 0);
+    q_i16 = ExpandMatrix(&m->y2_, 1);
+    q_uv  = ExpandMatrix(&m->uv_, 2);
 
-    m->lambda_i4_          = (3 * q4 * q4) >> 7;
-    m->lambda_i16_         = (3 * q16 * q16);
-    m->lambda_uv_          = (3 * quv * quv) >> 6;
-    m->lambda_mode_        = (1 * q4 * q4) >> 7;
-    m->lambda_trellis_i4_  = (7 * q4 * q4) >> 3;
-    m->lambda_trellis_i16_ = (q16 * q16) >> 2;
-    m->lambda_trellis_uv_  = (quv *quv) << 1;
-    m->tlambda_            = (tlambda_scale * q4) >> 5;
+    m->lambda_i4_          = (3 * q_i4 * q_i4) >> 7;
+    m->lambda_i16_         = (3 * q_i16 * q_i16);
+    m->lambda_uv_          = (3 * q_uv * q_uv) >> 6;
+    m->lambda_mode_        = (1 * q_i4 * q_i4) >> 7;
+    m->lambda_trellis_i4_  = (7 * q_i4 * q_i4) >> 3;
+    m->lambda_trellis_i16_ = (q_i16 * q_i16) >> 2;
+    m->lambda_trellis_uv_  = (q_uv * q_uv) << 1;
+    m->tlambda_            = (tlambda_scale * q_i4) >> 5;
+
+    m->lambda_d_i16_ = (1000 * q_i16 * q_i16) >> 5;
+    m->lambda_d_i4_  = (2 * q_i4 * q_i4) >> 5;
+    m->lambda_d_uv_  = (2 * q_uv * q_uv) >> 8;
+
+    // none of these constants should be < 1
+    CheckLambdaValue(&m->lambda_i4_);
+    CheckLambdaValue(&m->lambda_i16_);
+    CheckLambdaValue(&m->lambda_uv_);
+    CheckLambdaValue(&m->lambda_mode_);
+    CheckLambdaValue(&m->lambda_trellis_i4_);
+    CheckLambdaValue(&m->lambda_trellis_i16_);
+    CheckLambdaValue(&m->lambda_trellis_uv_);
+    CheckLambdaValue(&m->tlambda_);
+    CheckLambdaValue(&m->lambda_d_i4_);
+    CheckLambdaValue(&m->lambda_d_i16_);
+    CheckLambdaValue(&m->lambda_d_uv_);
 
     m->min_disto_ = 10 * m->y1_.q_[0];   // quantization-aware min disto
     m->max_edge_  = 0;
@@ -282,7 +301,7 @@ static void SetupMatrices(VP8Encoder* enc) {
 
 static void SetupFilterStrength(VP8Encoder* const enc) {
   int i;
-  // level0 is in [0..500]. Using '-f 50' as filter_strength is mid-filtering.
+  // level0 is in [0..500]. '-f 50' as filter_strength is mid-filtering.
   const int level0 = 5 * enc->config_->filter_strength;
   for (i = 0; i < NUM_MB_SEGMENTS; ++i) {
     VP8SegmentInfo* const m = &enc->dqm_[i];
@@ -1134,12 +1153,18 @@ static void RefineUsingDistortion(VP8EncIterator* const it,
   int mode;
   int is_i16 = try_both_modes || (it->mb_->type_ == 1);
 
+  const VP8SegmentInfo* const dqm = &it->enc_->dqm_[it->mb_->segment_];
+  const int lambda_i16 = dqm->lambda_d_i16_;
+  const int lambda_i4 = dqm->lambda_d_i4_;
+  const int lambda_uv = dqm->lambda_d_uv_;
+
   if (is_i16) {   // First, evaluate Intra16 distortion
     int best_mode = -1;
     const uint8_t* const src = it->yuv_in_ + Y_OFF_ENC;
     for (mode = 0; mode < NUM_PRED_MODES; ++mode) {
       const uint8_t* const ref = it->yuv_p_ + VP8I16ModeOffsets[mode];
-      const score_t score = VP8SSE16x16(src, ref);
+      const score_t score = VP8SSE16x16(src, ref)
+                          + VP8FixedCostsI16[mode] * lambda_i16;
       if (score < best_score) {
         best_mode = mode;
         best_score = score;
@@ -1159,11 +1184,13 @@ static void RefineUsingDistortion(VP8EncIterator* const it,
       int best_i4_mode = -1;
       score_t best_i4_score = MAX_COST;
       const uint8_t* const src = it->yuv_in_ + Y_OFF_ENC + VP8Scan[it->i4_];
+      const uint16_t* const mode_costs = GetCostModeI4(it, rd->modes_i4);
 
       VP8MakeIntra4Preds(it);
       for (mode = 0; mode < NUM_BMODES; ++mode) {
         const uint8_t* const ref = it->yuv_p_ + VP8I4ModeOffsets[mode];
-        const score_t score = VP8SSE4x4(src, ref);
+        const score_t score = VP8SSE4x4(src, ref)
+                            + mode_costs[mode] * lambda_i4;
         if (score < best_i4_score) {
           best_i4_mode = mode;
           best_i4_score = score;
@@ -1200,7 +1227,8 @@ static void RefineUsingDistortion(VP8EncIterator* const it,
     const uint8_t* const src = it->yuv_in_ + U_OFF_ENC;
     for (mode = 0; mode < NUM_PRED_MODES; ++mode) {
       const uint8_t* const ref = it->yuv_p_ + VP8UVModeOffsets[mode];
-      const score_t score = VP8SSE16x8(src, ref);
+      const score_t score = VP8SSE16x8(src, ref)
+                          + VP8FixedCostsUV[mode] * lambda_uv;
       if (score < best_uv_score) {
         best_mode = mode;
         best_uv_score = score;

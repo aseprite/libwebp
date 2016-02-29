@@ -196,6 +196,9 @@ typedef struct {
   int lambda_i16_, lambda_i4_, lambda_uv_;
   int lambda_mode_, lambda_trellis_, tlambda_;
   int lambda_trellis_i16_, lambda_trellis_i4_, lambda_trellis_uv_;
+
+  // lambda values for distortion-based evaluation
+  int lambda_d_i16_, lambda_d_i4_, lambda_d_uv_;
 } VP8SegmentInfo;
 
 // Handy transient struct to accumulate score and info during RD-optimization
