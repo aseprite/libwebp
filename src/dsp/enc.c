@@ -703,6 +703,50 @@ static void Copy16x8(const uint8_t* src, uint8_t* dst) {
 }
 
 //------------------------------------------------------------------------------
+
+static void SSIMAccumulateClipped(const uint8_t* src1, int stride1,
+                                  const uint8_t* src2, int stride2,
+                                  int xo, int yo, int W, int H,
+                                  VP8DistoStats* const stats) {
+  const int ymin = (yo - VP8_SSIM_KERNEL < 0) ? 0 : yo - VP8_SSIM_KERNEL;
+  const int ymax = (yo + VP8_SSIM_KERNEL > H - 1) ? H - 1 : yo + VP8_SSIM_KERNEL;
+  const int xmin = (xo - VP8_SSIM_KERNEL < 0) ? 0 : xo - VP8_SSIM_KERNEL;
+  const int xmax = (xo + VP8_SSIM_KERNEL > W - 1) ? W - 1 : xo + VP8_SSIM_KERNEL;
+  int x, y;
+  src1 += ymin * stride1;
+  src2 += ymin * stride2;
+  for (y = ymin; y <= ymax; ++y, src1 += stride1, src2 += stride2) {
+    for (x = xmin; x <= xmax; ++x) {
+      const int s1 = src1[x];
+      const int s2 = src2[x];
+      stats->w   += 1;
+      stats->xm  += s1;
+      stats->ym  += s2;
+      stats->xxm += s1 * s1;
+      stats->xym += s1 * s2;
+      stats->yym += s2 * s2;
+    }
+  }
+}
+
+static void SSIMAccumulate(const uint8_t* src1, int stride1,
+                           const uint8_t* src2, int stride2,
+                           VP8DistoStats* const stats) {
+  int x, y;
+  for (y = 0; y <= 2 * VP8_SSIM_KERNEL; ++y, src1 += stride1, src2 += stride2) {
+    for (x = 0; x <= 2 * VP8_SSIM_KERNEL; ++x) {
+      const int s1 = src1[x];
+      const int s2 = src2[x];
+      stats->w   += 1;
+      stats->xm  += s1;
+      stats->ym  += s2;
+      stats->xxm += s1 * s1;
+      stats->xym += s1 * s2;
+      stats->yym += s2 * s2;
+    }
+  }
+}
+//------------------------------------------------------------------------------
 // Initialization
 
 // Speed-critical function pointers. We have to initialize them to the default
@@ -726,6 +770,9 @@ VP8Quantize2Blocks VP8EncQuantize2Blocks;
 VP8QuantizeBlockWHT VP8EncQuantizeBlockWHT;
 VP8BlockCopy VP8Copy4x4;
 VP8BlockCopy VP8Copy16x8;
+
+VP8SSIMAccumulateFunc VP8SSIMAccumulate;
+VP8SSIMAccumulateClippedFunc VP8SSIMAccumulateClipped;
 
 extern void VP8EncDspInitSSE2(void);
 extern void VP8EncDspInitSSE41(void);
@@ -763,6 +810,9 @@ WEBP_TSAN_IGNORE_FUNCTION void VP8EncDspInit(void) {
   VP8EncQuantizeBlockWHT = QuantizeBlockWHT;
   VP8Copy4x4 = Copy4x4;
   VP8Copy16x8 = Copy16x8;
+
+  VP8SSIMAccumulate = SSIMAccumulate;
+  VP8SSIMAccumulateClipped = SSIMAccumulateClipped;
 
   // If defined, use CPUInfo() to overwrite some pointers with faster versions.
   if (VP8GetCPUInfo != NULL) {
