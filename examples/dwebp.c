@@ -67,8 +67,13 @@ typedef enum {
   PGM,
   BMP,
   TIFF,
-  YUV,
-  ALPHA_PLANE_ONLY  // this is for experimenting only
+  RAW_YUV,
+  ALPHA_PLANE_ONLY,  // this is for experimenting only
+  // forced colorspace output (for testing, mostly)
+  RGB, RGBA, BGR, BGRA, ARGB,
+  RGBA_4444, RGB_565,
+  rgbA, bgrA, Argb, rgbA_4444,
+  YUV, YUVA
 } OutputFileFormat;
 
 #ifdef HAVE_WINCODEC_H
@@ -259,6 +264,24 @@ static int WritePPM(FILE* fout, const WebPDecBuffer* const buffer, int alpha) {
   return 1;
 }
 
+// Save 16b mode (RGBA4444, RGB565, ...) for debug.
+static int WritePPM16b(FILE* fout, const WebPDecBuffer* const buffer) {
+  const uint32_t width = buffer->width;
+  const uint32_t height = buffer->height;
+  const uint8_t* const rgba = buffer->u.RGBA.rgba;
+  const int stride = buffer->u.RGBA.stride;
+  const int bytes_per_px = 2;
+  uint32_t y;
+
+  fprintf(fout, "P5\n%u %u\n255\n", width * bytes_per_px, height);
+  for (y = 0; y < height; ++y) {
+    if (fwrite(rgba + y * stride, width, bytes_per_px, fout) != bytes_per_px) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 static void PutLE16(uint8_t* const dst, uint32_t value) {
   dst[0] = (value >> 0) & 0xff;
   dst[1] = (value >> 8) & 0xff;
@@ -418,7 +441,7 @@ static int WriteAlphaPlane(FILE* fout, const WebPDecBuffer* const buffer) {
 // format=PGM: save a grayscale PGM file using the IMC4 layout
 // (http://www.fourcc.org/yuv.php#IMC4). This is a very convenient format for
 // viewing the samples, esp. for odd dimensions.
-// format=YUV: just save the Y/U/V/A planes sequentially without header.
+// format=RAW_YUV: just save the Y/U/V/A planes sequentially without header.
 static int WritePGMOrYUV(FILE* fout, const WebPDecBuffer* const buffer,
                          OutputFileFormat format) {
   const int width = buffer->width;
@@ -426,7 +449,7 @@ static int WritePGMOrYUV(FILE* fout, const WebPDecBuffer* const buffer,
   const WebPYUVABuffer* const yuv = &buffer->u.YUVA;
   int ok = 1;
   int y;
-  const int pad = (format == YUV) ? 0 : 1;
+  const int pad = (format == RAW_YUV) ? 0 : 1;
   const int uv_width = (width + 1) / 2;
   const int uv_height = (height + 1) / 2;
   const int out_stride = (width + pad) & ~pad;
@@ -493,16 +516,20 @@ static int SaveOutput(const WebPDecBuffer* const buffer,
 #else
     ok &= WritePNG(fout, buffer);
 #endif
-  } else if (format == PAM) {
+  } else if (format == PAM ||
+             format == RGBA || format == BGRA || format == ARGB ||
+             format == rgbA || format == bgrA || format == Argb) {
     ok &= WritePPM(fout, buffer, 1);
-  } else if (format == PPM) {
+  } else if (format == PPM || format == RGB || format == BGR) {
     ok &= WritePPM(fout, buffer, 0);
+  } else if (format == RGBA_4444 || format == RGB_565 || format == rgbA_4444) {
+    ok &= WritePPM16b(fout, buffer);
   } else if (format == BMP) {
     ok &= WriteBMP(fout, buffer);
   } else if (format == TIFF) {
     ok &= WriteTIFF(fout, buffer);
-  } else if (format == PGM || format == YUV) {
-    ok &= WritePGMOrYUV(fout, buffer, format);
+  } else if (format == PGM || format == YUV || format == YUVA) {
+    ok &= WritePGMOrYUV(fout, buffer, format == PGM ? PGM : RAW_YUV);
   } else if (format == ALPHA_PLANE_ONLY) {
     ok &= WriteAlphaPlane(fout, buffer);
   }
@@ -617,7 +644,33 @@ int main(int argc, const char *argv[]) {
     } else if (!strcmp(argv[c], "-pgm")) {
       format = PGM;
     } else if (!strcmp(argv[c], "-yuv")) {
+      format = RAW_YUV;
+    } else if (!strcmp(argv[c], "-RGB")) {
+      format = RGB;
+    } else if (!strcmp(argv[c], "-RGBA")) {
+      format = RGBA;
+    } else if (!strcmp(argv[c], "-BGR")) {
+      format = BGR;
+    } else if (!strcmp(argv[c], "-BGRA")) {
+      format = RGBA;
+    } else if (!strcmp(argv[c], "-ARGB")) {
+      format = ARGB;
+    } else if (!strcmp(argv[c], "-RGBA_4444")) {
+      format = RGBA_4444;
+    } else if (!strcmp(argv[c], "-RGB_565")) {
+      format = RGB_565;
+    } else if (!strcmp(argv[c], "-rgbA")) {
+      format = rgbA;
+    } else if (!strcmp(argv[c], "-bgrA")) {
+      format = bgrA;
+    } else if (!strcmp(argv[c], "-Argb")) {
+      format = Argb;
+    } else if (!strcmp(argv[c], "-rgbA_4444")) {
+      format = rgbA_4444;
+    } else if (!strcmp(argv[c], "-YUV")) {
       format = YUV;
+    } else if (!strcmp(argv[c], "-YUVA")) {
+      format = YUVA;
     } else if (!strcmp(argv[c], "-mt")) {
       config.options.use_threads = 1;
     } else if (!strcmp(argv[c], "-alpha_dither")) {
@@ -703,12 +756,26 @@ int main(int argc, const char *argv[]) {
             bitstream->has_alpha ? MODE_rgbA : MODE_RGB;
         break;
       case PGM:
-      case YUV:
+      case RAW_YUV:
         output_buffer->colorspace = bitstream->has_alpha ? MODE_YUVA : MODE_YUV;
         break;
       case ALPHA_PLANE_ONLY:
         output_buffer->colorspace = MODE_YUVA;
         break;
+      // forced modes:
+      case RGB: output_buffer->colorspace = MODE_RGB; break;
+      case RGBA: output_buffer->colorspace = MODE_RGBA; break;
+      case BGR: output_buffer->colorspace = MODE_BGR; break;
+      case BGRA: output_buffer->colorspace = MODE_BGRA; break;
+      case ARGB: output_buffer->colorspace = MODE_ARGB; break;
+      case RGBA_4444: output_buffer->colorspace = MODE_RGBA_4444; break;
+      case RGB_565: output_buffer->colorspace = MODE_RGB_565; break;
+      case rgbA: output_buffer->colorspace = MODE_rgbA; break;
+      case bgrA: output_buffer->colorspace = MODE_bgrA; break;
+      case Argb: output_buffer->colorspace = MODE_Argb; break;
+      case rgbA_4444: output_buffer->colorspace = MODE_rgbA_4444; break;
+      case YUV: output_buffer->colorspace = MODE_YUV; break;
+      case YUVA: output_buffer->colorspace = MODE_YUVA; break;
       default:
         free((void*)data);
         return -1;
